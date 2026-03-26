@@ -21,6 +21,7 @@ import (
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/parser"
 	"github.com/openparallax/openparallax/internal/plog"
+	"github.com/openparallax/openparallax/internal/session"
 	"github.com/openparallax/openparallax/internal/shield"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
@@ -280,17 +281,46 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 			fmt.Sprintf("Safety check failed: %s", reason))
 	}
 
+	// Determine session mode.
+	isOTR := req.Mode == pb.SessionMode_OTR
+
 	// Step 4: Evaluate and execute each action.
 	var results []*types.ActionResult
 	for _, action := range actions {
+		// OTR enforcement: block non-read actions.
+		if isOTR && !session.IsOTRAllowed(action.Type) {
+			reason := session.OTRBlockReason(action.Type)
+			e.log.Log("otr", "%s -> BLOCKED: %s", action.Type, reason)
+			_ = stream.Send(&pb.PipelineEvent{
+				SessionId: sid, MessageId: mid,
+				EventType: pb.PipelineEventType_OTR_BLOCKED,
+				OtrBlocked: &pb.OTRBlocked{
+					Reason: reason,
+				},
+			})
+			_ = e.audit.Log(audit.Entry{
+				EventType: types.AuditActionBlocked, SessionID: sid,
+				ActionType: string(action.Type),
+				Details:    "OTR: " + reason,
+				OTR:        true,
+			})
+			results = append(results, &types.ActionResult{
+				RequestID: action.RequestID, Success: false,
+				Error:   reason,
+				Summary: fmt.Sprintf("OTR blocked: %s", action.Type),
+			})
+			continue
+		}
+
 		// Audit: action proposed.
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditActionProposed, SessionID: sid,
 			ActionType: string(action.Type),
 			Details:    fmt.Sprintf("hash: %s", action.Hash),
+			OTR:        isOTR,
 		})
 
-		// Shield evaluation.
+		// Shield evaluation (runs even in OTR).
 		verdict := e.shield.Evaluate(ctx, action)
 
 		_ = stream.Send(&pb.PipelineEvent{
