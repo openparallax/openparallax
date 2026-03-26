@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -81,9 +82,9 @@ type model struct {
 	spinner  spinner.Model
 	lines    []styledLine
 	thoughts []string
+	input    textarea.Model
 	stream   string
 	thinking bool
-	inputBuf string
 	quitting bool
 	ready    bool
 	width    int
@@ -105,6 +106,13 @@ type (
 )
 
 func newModel(ctx context.Context, client pb.PipelineServiceClient, db *storage.DB, sessionID, agentName string) *model {
+	ta := textarea.New()
+	ta.Placeholder = "Type a message..."
+	ta.Focus()
+	ta.ShowLineNumbers = false
+	ta.SetHeight(1)
+	ta.CharLimit = 0
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
@@ -115,12 +123,13 @@ func newModel(ctx context.Context, client pb.PipelineServiceClient, db *storage.
 		sessionID: sessionID,
 		agentName: agentName,
 		ctx:       ctx,
+		input:     ta,
 		spinner:   s,
 	}
 }
 
 func (m *model) Init() tea.Cmd {
-	return m.spinner.Tick
+	return tea.Batch(textarea.Blink, m.spinner.Tick)
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -128,23 +137,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.thinking {
-			if msg.Type == tea.KeyCtrlC {
-				m.quitting = true
-				return m, tea.Quit
-			}
-			break
-		}
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			m.quitting = true
 			return m, tea.Quit
 		case tea.KeyEnter:
-			text := strings.TrimSpace(m.inputBuf)
-			m.inputBuf = ""
+			if m.thinking {
+				break
+			}
+			text := strings.TrimSpace(m.input.Value())
 			if text == "" {
 				break
 			}
+			m.input.Reset()
 
 			switch strings.ToLower(text) {
 			case "/quit", "/exit":
@@ -160,14 +165,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.thoughts = nil
 			m.startStreaming(text)
 			return m, nil
-		case tea.KeyBackspace:
-			if len(m.inputBuf) > 0 {
-				m.inputBuf = m.inputBuf[:len(m.inputBuf)-1]
-			}
-		case tea.KeyRunes:
-			m.inputBuf += string(msg.Runes)
-		case tea.KeySpace:
-			m.inputBuf += " "
 		}
 
 	case tokenMsg:
@@ -228,12 +225,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.Width = m.width
 			m.viewport.Height = vpHeight
 		}
+		m.input.SetWidth(m.width - 4)
 		m.updateViewport()
 		return m, nil
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	if !m.thinking {
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
@@ -262,11 +266,10 @@ func (m *model) View() string {
 	// Input line.
 	if m.thinking {
 		sb.WriteString(m.spinner.View())
-		sb.WriteString(" ")
+		sb.WriteString(" Thinking...")
 	} else {
-		sb.WriteString("> ")
+		sb.WriteString(m.input.View())
 	}
-	sb.WriteString(m.inputBuf)
 
 	return sb.String()
 }
