@@ -92,15 +92,23 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		}
 	}
 
+	// Resolve policy and prompt paths relative to the config file's directory.
+	configDir := filepath.Dir(configPath)
+	policyFile := cfg.Shield.PolicyFile
+	if policyFile != "" && !filepath.IsAbs(policyFile) {
+		policyFile = filepath.Join(configDir, policyFile)
+	}
+	promptPath := filepath.Join(configDir, "prompts", "evaluator-v1.md")
+
 	// Initialize Shield pipeline.
 	shieldPipeline, err := shield.NewPipeline(shield.Config{
-		PolicyFile:       cfg.Shield.PolicyFile,
+		PolicyFile:       policyFile,
 		OnnxThreshold:    cfg.Shield.OnnxThreshold,
 		HeuristicEnabled: cfg.Shield.HeuristicEnabled,
 		ClassifierAddr:   cfg.Shield.ClassifierAddr,
 		Evaluator:        &cfg.Shield.Evaluator,
 		CanaryToken:      canaryToken,
-		PromptPath:       "prompts/evaluator-v1.md",
+		PromptPath:       promptPath,
 		FailClosed:       cfg.General.FailClosed,
 		RateLimit:        cfg.General.RateLimit,
 		VerdictTTL:       cfg.General.VerdictTTLSeconds,
@@ -111,12 +119,13 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		return nil, fmt.Errorf("shield init: %w", err)
 	}
 
-	// Initialize audit logger.
+	// Initialize audit logger with SQLite indexing.
 	auditPath := filepath.Join(cfg.Workspace, ".openparallax", "audit.jsonl")
 	auditLogger, err := audit.NewLogger(auditPath)
 	if err != nil {
 		return nil, fmt.Errorf("audit logger: %w", err)
 	}
+	auditLogger.SetDB(db)
 
 	return &Engine{
 		cfg:       cfg,

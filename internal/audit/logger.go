@@ -25,9 +25,16 @@ type Entry struct {
 	Source     string
 }
 
+// DBIndexer is an optional interface for indexing audit entries in SQLite.
+type DBIndexer interface {
+	InsertAuditEntry(entry *types.AuditEntry) error
+}
+
 // Logger writes audit entries to an append-only JSONL file with hash chain.
+// Optionally indexes entries in SQLite for fast queries.
 type Logger struct {
 	file     *os.File
+	db       DBIndexer
 	lastHash string
 	mu       sync.Mutex
 }
@@ -48,6 +55,13 @@ func NewLogger(path string) (*Logger, error) {
 	lastHash := readLastHash(path)
 
 	return &Logger{file: f, lastHash: lastHash}, nil
+}
+
+// SetDB attaches a SQLite database for audit entry indexing.
+func (l *Logger) SetDB(db DBIndexer) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.db = db
 }
 
 // Log writes an entry to the audit log. Thread-safe.
@@ -82,6 +96,12 @@ func (l *Logger) Log(entry Entry) error {
 	}
 
 	l.lastHash = auditEntry.Hash
+
+	// Index in SQLite for fast queries.
+	if l.db != nil {
+		_ = l.db.InsertAuditEntry(&auditEntry)
+	}
+
 	return nil
 }
 

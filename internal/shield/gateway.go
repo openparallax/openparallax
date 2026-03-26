@@ -3,6 +3,7 @@ package shield
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -177,21 +178,36 @@ func actionTypeMinTier(at types.ActionType) int {
 }
 
 // isSelfProtected blocks access to Shield's own config, canary, audit, and prompt files.
+// Matches exact filenames or the .openparallax/ directory prefix to avoid false positives
+// on filenames that happen to contain substrings like "audit".
 func (g *Gateway) isSelfProtected(action *types.ActionRequest) bool {
-	path := extractPath(action)
-	if path == "" {
+	rawPath := extractPath(action)
+	if rawPath == "" {
 		return false
 	}
-	lower := strings.ToLower(path)
-	protectedPatterns := []string{
-		"canary.token", "evaluator-v1.md",
-		"audit.jsonl", ".openparallax/openparallax.db",
+
+	normalized := strings.ToLower(filepath.ToSlash(rawPath))
+	filename := filepath.Base(normalized)
+
+	// Exact filename matches for security-critical files.
+	protectedFiles := []string{
+		"canary.token",
+		"evaluator-v1.md",
+		"audit.jsonl",
+		"openparallax.db",
+		"config.yaml",
 	}
-	for _, p := range protectedPatterns {
-		if strings.Contains(lower, p) {
+	for _, f := range protectedFiles {
+		if filename == f {
 			return true
 		}
 	}
+
+	// Block any path inside the .openparallax/ internal directory.
+	if strings.Contains(normalized, ".openparallax/") {
+		return true
+	}
+
 	return false
 }
 
