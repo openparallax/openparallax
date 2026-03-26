@@ -64,6 +64,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		shieldProvider  string
 		shieldModel     string
 		shieldAPIKeyEnv string
+		shieldBaseURL   string
 	)
 
 	// Workspace path
@@ -206,6 +207,21 @@ func runInit(cmd *cobra.Command, args []string) error {
 				return err
 			}
 		}
+
+		if shieldProvider == "openai" {
+			err = huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("Shield evaluator custom base URL").
+						Description("Leave empty for default OpenAI. Set for compatible endpoints.").
+						Value(&shieldBaseURL).
+						Placeholder("https://api.openai.com/v1"),
+				),
+			).Run()
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// Generate canary token
@@ -233,7 +249,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Write config.yaml
 	configPath := filepath.Join(workspacePath, "config.yaml")
 	if err := writeConfig(configPath, workspacePath, llmProvider, llmModel, llmAPIKeyEnv,
-		llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv); err != nil {
+		llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv, shieldBaseURL); err != nil {
 		return fmt.Errorf("failed to write config.yaml: %w", err)
 	}
 
@@ -302,7 +318,7 @@ func copyTemplates(workspacePath string) error {
 
 // writeConfig generates the config.yaml file from wizard inputs.
 func writeConfig(path, workspace, llmProvider, llmModel, llmAPIKeyEnv,
-	llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv string) error {
+	llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv, shieldBaseURL string) error {
 
 	// Do not overwrite existing config.
 	if _, err := os.Stat(path); err == nil {
@@ -334,6 +350,9 @@ func writeConfig(path, workspace, llmProvider, llmModel, llmAPIKeyEnv,
 		fmt.Fprintf(&sb, "    model: %s\n", shieldModel)
 		if shieldAPIKeyEnv != "" {
 			fmt.Fprintf(&sb, "    api_key_env: %s\n", shieldAPIKeyEnv)
+		}
+		if shieldBaseURL != "" {
+			fmt.Fprintf(&sb, "    base_url: %s\n", shieldBaseURL)
 		}
 	}
 	sb.WriteString("  policy_file: policies/default.yaml\n")
