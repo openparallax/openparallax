@@ -53,7 +53,6 @@ func (a *Adapter) Run(ctx context.Context) error {
 	}
 	defer func() { _ = db.Close() }()
 
-	// Create initial session.
 	sessionID := crypto.NewID()
 	_ = db.InsertSession(&types.Session{
 		ID:        sessionID,
@@ -63,6 +62,10 @@ func (a *Adapter) Run(ctx context.Context) error {
 
 	m := newModel(ctx, client, db, sessionID, a.agentName)
 	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	// Give the model a reference to the program so goroutines can send messages.
+	m.program = p
+
 	_, err = p.Run()
 	return err
 }
@@ -74,10 +77,12 @@ type model struct {
 	sessionID string
 	agentName string
 	ctx       context.Context
+	program   *tea.Program
 
 	input    textarea.Model
 	spinner  spinner.Model
 	messages []chatMessage
+	thoughts []string
 	stream   string
 	thinking bool
 	err      error
@@ -91,10 +96,11 @@ type chatMessage struct {
 	content string
 }
 
-// Bubbletea messages.
+// Bubbletea messages for the update loop.
 type (
 	tokenMsg   string
 	doneMsg    string
+	thoughtMsg string
 	errMsg     struct{ err error }
 	newSession struct{}
 )
@@ -145,7 +151,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.input.Reset()
 
-			// Handle commands.
 			switch strings.ToLower(text) {
 			case "/quit", "/exit":
 				m.quitting = true
@@ -157,17 +162,28 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.messages = append(m.messages, chatMessage{role: "user", content: text})
 			m.thinking = true
 			m.stream = ""
-			return m, m.sendMessage(text)
+			m.thoughts = nil
+			m.startStreaming(text)
+			return m, nil
 		}
 
 	case tokenMsg:
 		m.stream += string(msg)
 		return m, nil
 
+	case thoughtMsg:
+		m.thoughts = append(m.thoughts, string(msg))
+		return m, nil
+
 	case doneMsg:
 		m.thinking = false
-		m.messages = append(m.messages, chatMessage{role: "assistant", content: string(msg)})
+		content := string(msg)
+		if content == "" {
+			content = m.stream
+		}
+		m.messages = append(m.messages, chatMessage{role: "assistant", content: content})
 		m.stream = ""
+		m.thoughts = nil
 		return m, nil
 
 	case errMsg:
@@ -184,6 +200,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		m.messages = nil
 		m.stream = ""
+		m.thoughts = nil
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -218,6 +235,7 @@ func (m *model) View() string {
 	userStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
 	assistantStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("2"))
 	dimStyle := lipgloss.NewStyle().Faint(true)
+	thoughtStyle := lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("8"))
 
 	sb.WriteString(titleStyle.Render(fmt.Sprintf("  %s", m.agentName)))
 	sb.WriteString(dimStyle.Render("  /quit to exit, /new for new session"))
@@ -236,11 +254,20 @@ func (m *model) View() string {
 	}
 
 	if m.thinking {
+		// Render thinking steps.
+		for _, t := range m.thoughts {
+			sb.WriteString(thoughtStyle.Render("  " + t))
+			sb.WriteString("\n")
+		}
+		if len(m.thoughts) > 0 {
+			sb.WriteString("\n")
+		}
+
 		if m.stream != "" {
 			sb.WriteString(assistantStyle.Render(m.agentName + ": "))
 			sb.WriteString(m.stream)
 			sb.WriteString("\n\n")
-		} else {
+		} else if len(m.thoughts) == 0 {
 			sb.WriteString(m.spinner.View())
 			sb.WriteString(" Thinking...\n\n")
 		}
@@ -258,9 +285,11 @@ func (m *model) View() string {
 	return sb.String()
 }
 
-// sendMessage sends a user message to the engine via gRPC and streams the response.
-func (m *model) sendMessage(text string) tea.Cmd {
-	return func() tea.Msg {
+// startStreaming launches a goroutine that reads gRPC events and pushes them
+// into the bubbletea update loop via p.Send(). Each LLM_TOKEN is sent as a
+// tokenMsg so the terminal renders text progressively as the LLM generates it.
+func (m *model) startStreaming(text string) {
+	go func() {
 		msgID := crypto.NewID()
 
 		stream, err := m.client.ProcessMessage(m.ctx, &pb.ProcessMessageRequest{
@@ -271,7 +300,8 @@ func (m *model) sendMessage(text string) tea.Cmd {
 			Source:    "cli",
 		})
 		if err != nil {
-			return errMsg{err: fmt.Errorf("gRPC call failed: %w", err)}
+			m.program.Send(errMsg{err: fmt.Errorf("gRPC call failed: %w", err)})
+			return
 		}
 
 		var fullText string
@@ -281,30 +311,54 @@ func (m *model) sendMessage(text string) tea.Cmd {
 				break
 			}
 			if recvErr != nil {
-				return errMsg{err: fmt.Errorf("stream error: %w", recvErr)}
+				m.program.Send(errMsg{err: fmt.Errorf("stream error: %w", recvErr)})
+				return
 			}
 
 			switch event.EventType {
 			case pb.PipelineEventType_LLM_TOKEN:
 				if event.LlmToken != nil {
 					fullText += event.LlmToken.Text
-					// We can't send tea.Msg from inside a Cmd easily for
-					// streaming tokens. Instead, accumulate and return the
-					// full response at the end.
+					m.program.Send(tokenMsg(event.LlmToken.Text))
 				}
 			case pb.PipelineEventType_RESPONSE_COMPLETE:
 				if event.ResponseComplete != nil {
 					fullText = event.ResponseComplete.Content
 				}
+			case pb.PipelineEventType_INTENT_PARSED:
+				if event.IntentParsed != nil {
+					m.program.Send(thoughtMsg(fmt.Sprintf("Understanding: %s", event.IntentParsed.Goal)))
+				}
+			case pb.PipelineEventType_ACTIONS_PLANNED:
+				if event.ActionsPlanned != nil && event.ActionsPlanned.Count > 0 {
+					m.program.Send(thoughtMsg(fmt.Sprintf("Planning %d action(s)", event.ActionsPlanned.Count)))
+				}
+			case pb.PipelineEventType_SELF_EVAL_PASSED:
+				if event.SelfEvalResult != nil && event.SelfEvalResult.Passed {
+					m.program.Send(thoughtMsg("Safety check: passed"))
+				}
+			case pb.PipelineEventType_ACTION_STARTED:
+				if event.ActionStarted != nil {
+					m.program.Send(thoughtMsg(fmt.Sprintf("▸ %s", event.ActionStarted.Summary)))
+				}
+			case pb.PipelineEventType_ACTION_COMPLETED:
+				if event.ActionCompleted != nil {
+					mark := "✓"
+					if !event.ActionCompleted.Success {
+						mark = "✗"
+					}
+					m.program.Send(thoughtMsg(fmt.Sprintf("%s %s", mark, event.ActionCompleted.Summary)))
+				}
 			case pb.PipelineEventType_ERROR:
 				if event.PipelineError != nil {
-					return errMsg{err: fmt.Errorf("%s: %s", event.PipelineError.Code, event.PipelineError.Message)}
+					m.program.Send(errMsg{err: fmt.Errorf("%s: %s", event.PipelineError.Code, event.PipelineError.Message)})
+					return
 				}
 			}
 		}
 
-		return doneMsg(fullText)
-	}
+		m.program.Send(doneMsg(fullText))
+	}()
 }
 
 // handleNewSession starts a fresh session.
