@@ -46,7 +46,7 @@ func (db *DB) GetSnapshot(id string) (*types.SnapshotMetadata, error) {
 // Returns an empty string if no snapshots exist (genesis state).
 func (db *DB) GetLastSnapshotHash() string {
 	var hash string
-	err := db.conn.QueryRow(`SELECT hash FROM snapshots ORDER BY timestamp DESC LIMIT 1`).Scan(&hash)
+	err := db.conn.QueryRow(`SELECT hash FROM snapshots ORDER BY rowid DESC LIMIT 1`).Scan(&hash)
 	if err != nil {
 		return ""
 	}
