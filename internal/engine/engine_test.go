@@ -240,3 +240,92 @@ func TestEngineShutdownRPC(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.Clean)
 }
+
+// helperSendAndCollect sends a message and collects all pipeline events.
+func helperSendAndCollect(t *testing.T, client pb.PipelineServiceClient, sessionID, content string) map[pb.PipelineEventType]bool {
+	t.Helper()
+	stream, err := client.ProcessMessage(context.Background(), &pb.ProcessMessageRequest{
+		Content:   content,
+		SessionId: sessionID,
+		MessageId: fmt.Sprintf("msg-%d", time.Now().UnixNano()),
+		Mode:      pb.SessionMode_NORMAL,
+		Source:    "test",
+	})
+	require.NoError(t, err)
+
+	events := make(map[pb.PipelineEventType]bool)
+	for {
+		event, recvErr := stream.Recv()
+		if recvErr == io.EOF {
+			break
+		}
+		if recvErr != nil {
+			break
+		}
+		events[event.EventType] = true
+	}
+	return events
+}
+
+func TestEngineFullPipelineReadFile(t *testing.T) {
+	workspace, configPath := setupTestWorkspace(t)
+
+	eng, err := New(configPath)
+	require.NoError(t, err)
+	port, err := eng.Start()
+	require.NoError(t, err)
+	defer eng.Stop()
+
+	db, err := storage.Open(filepath.Join(workspace, ".openparallax", "openparallax.db"))
+	require.NoError(t, err)
+	sessionID := "pipe-session-001"
+	require.NoError(t, db.InsertSession(&types.Session{ID: sessionID, Mode: types.SessionNormal}))
+	_ = db.Close()
+
+	conn, err := grpc.NewClient(
+		fmt.Sprintf("localhost:%d", port),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+
+	client := pb.NewPipelineServiceClient(conn)
+
+	// Ask to read SOUL.md which exists in the workspace.
+	events := helperSendAndCollect(t, client, sessionID, "read the file SOUL.md")
+
+	assert.True(t, events[pb.PipelineEventType_INTENT_PARSED], "should have INTENT_PARSED")
+	assert.True(t, events[pb.PipelineEventType_RESPONSE_COMPLETE], "should have RESPONSE_COMPLETE")
+}
+
+func TestEngineConversationMode(t *testing.T) {
+	workspace, configPath := setupTestWorkspace(t)
+
+	eng, err := New(configPath)
+	require.NoError(t, err)
+	port, err := eng.Start()
+	require.NoError(t, err)
+	defer eng.Stop()
+
+	db, err := storage.Open(filepath.Join(workspace, ".openparallax", "openparallax.db"))
+	require.NoError(t, err)
+	sessionID := "conv-session-001"
+	require.NoError(t, db.InsertSession(&types.Session{ID: sessionID, Mode: types.SessionNormal}))
+	_ = db.Close()
+
+	conn, err := grpc.NewClient(
+		fmt.Sprintf("localhost:%d", port),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+
+	client := pb.NewPipelineServiceClient(conn)
+
+	// Pure conversation — should not trigger action execution.
+	events := helperSendAndCollect(t, client, sessionID, "what is 2+2")
+
+	assert.True(t, events[pb.PipelineEventType_RESPONSE_COMPLETE], "should have RESPONSE_COMPLETE")
+	// Should NOT have action events (but might have INTENT_PARSED).
+	assert.False(t, events[pb.PipelineEventType_ACTION_STARTED], "conversation should not start actions")
+}
