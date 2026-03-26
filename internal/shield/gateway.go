@@ -1,0 +1,222 @@
+package shield
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/openparallax/openparallax/internal/plog"
+	"github.com/openparallax/openparallax/internal/shield/tier0"
+	"github.com/openparallax/openparallax/internal/shield/tier1"
+	"github.com/openparallax/openparallax/internal/shield/tier2"
+	"github.com/openparallax/openparallax/internal/types"
+)
+
+// GatewayConfig holds all tier implementations and settings.
+type GatewayConfig struct {
+	Policy      *tier0.PolicyEngine
+	Classifier  *tier1.DualClassifier
+	Evaluator   *tier2.Evaluator
+	FailClosed  bool
+	RateLimit   int
+	VerdictTTL  int
+	DailyBudget int
+	Log         *plog.Logger
+}
+
+// Gateway orchestrates the evaluation pipeline.
+type Gateway struct {
+	cfg         GatewayConfig
+	rateLimiter *RateLimiter
+	budgetCount int
+	budgetDate  string
+	mu          sync.Mutex
+}
+
+// NewGateway creates a Gateway.
+func NewGateway(cfg GatewayConfig) *Gateway {
+	return &Gateway{
+		cfg:         cfg,
+		rateLimiter: NewRateLimiter(cfg.RateLimit),
+	}
+}
+
+// Evaluate routes an action through the appropriate tiers and returns a verdict.
+func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *types.Verdict {
+	// Rate limiting.
+	if !g.rateLimiter.Allow() {
+		g.cfg.Log.Log("shield", "%s -> BLOCK (rate limit exceeded)", action.Type)
+		return g.block(action, 0, 1.0, "rate limit exceeded")
+	}
+
+	// Self-protection: block access to Shield's own files.
+	if g.isSelfProtected(action) {
+		g.cfg.Log.Log("shield", "%s -> BLOCK (self-protection: %s)", action.Type, extractPath(action))
+		return g.block(action, 0, 1.0, "access to security-critical files is blocked")
+	}
+
+	// Tier 0: Policy engine.
+	t0Result := g.cfg.Policy.Evaluate(action)
+	switch t0Result.Decision {
+	case tier0.Deny:
+		g.cfg.Log.Log("shield", "%s -> BLOCK (tier 0, policy: %s)", action.Type, t0Result.Reason)
+		return g.block(action, 0, 1.0, fmt.Sprintf("policy deny: %s", t0Result.Reason))
+	case tier0.Allow:
+		g.cfg.Log.Log("shield", "%s -> ALLOW (tier 0, policy: %s)", action.Type, t0Result.Reason)
+		return g.allow(action, 0, 1.0, fmt.Sprintf("policy allow: %s", t0Result.Reason))
+	case tier0.Escalate:
+		g.cfg.Log.Log("shield", "%s -> escalated to tier %d (policy: %s)", action.Type, t0Result.EscalateTo, t0Result.Reason)
+	case tier0.NoMatch:
+		g.cfg.Log.Log("shield", "%s -> no policy match, proceeding to tier 1", action.Type)
+	}
+
+	// Determine minimum tier from escalation.
+	minTier := 1
+	if t0Result.Decision == tier0.Escalate && t0Result.EscalateTo > minTier {
+		minTier = t0Result.EscalateTo
+	}
+
+	// Action type minimum tier.
+	actionMin := actionTypeMinTier(action.Type)
+	if actionMin > minTier {
+		minTier = actionMin
+	}
+
+	// Tier 1: Dual classifier.
+	if minTier <= 1 {
+		t1Result, err := g.cfg.Classifier.Classify(ctx, action)
+		switch {
+		case err != nil && g.cfg.FailClosed:
+			g.cfg.Log.Log("shield", "%s -> BLOCK (tier 1 error: %s)", action.Type, err)
+			return g.block(action, 1, 0.5, "classifier error: "+err.Error())
+		case err == nil && t1Result.Decision == types.VerdictBlock:
+			g.cfg.Log.Log("shield", "%s -> BLOCK (tier 1, %s)", action.Type, t1Result.Reason)
+			return g.blockResult(action, 1, t1Result.Confidence, t1Result.Reason)
+		case err == nil && minTier < 2:
+			g.cfg.Log.Log("shield", "%s -> ALLOW (tier 1, confidence: %.2f)", action.Type, t1Result.Confidence)
+			return g.allow(action, 1, t1Result.Confidence, "classifier approved")
+		}
+	}
+
+	// Tier 2: LLM evaluator.
+	if g.cfg.Evaluator == nil {
+		if g.cfg.FailClosed {
+			g.cfg.Log.Log("shield", "%s -> BLOCK (tier 2 required but not available)", action.Type)
+			return g.block(action, 2, 0.5, "Tier 2 evaluation required but not available")
+		}
+		return g.allow(action, 1, 0.5, "Tier 2 not available, allowing with reduced confidence")
+	}
+
+	if !g.checkBudget() {
+		g.cfg.Log.Log("shield", "%s -> BLOCK (daily tier 2 budget exhausted)", action.Type)
+		if g.cfg.FailClosed {
+			return g.block(action, 2, 0.5, "daily evaluation budget exhausted")
+		}
+	}
+
+	t2Result, err := g.cfg.Evaluator.Evaluate(ctx, action)
+	if err != nil {
+		if g.cfg.FailClosed {
+			g.cfg.Log.Log("shield", "%s -> BLOCK (tier 2 error: %s)", action.Type, err)
+			return g.block(action, 2, 0.5, "evaluator error: "+err.Error())
+		}
+	}
+
+	g.cfg.Log.Log("shield", "%s -> %s (tier 2, confidence: %.2f, reason: %s)",
+		action.Type, t2Result.Decision, t2Result.Confidence, t2Result.Reason)
+
+	if t2Result.Decision == types.VerdictBlock {
+		return g.blockResult(action, 2, t2Result.Confidence, t2Result.Reason)
+	}
+
+	return g.allow(action, 2, t2Result.Confidence, t2Result.Reason)
+}
+
+func (g *Gateway) block(action *types.ActionRequest, tier int, conf float64, reason string) *types.Verdict {
+	return &types.Verdict{
+		Decision:    types.VerdictBlock,
+		Tier:        tier,
+		Confidence:  conf,
+		Reasoning:   reason,
+		ActionHash:  action.Hash,
+		EvaluatedAt: time.Now(),
+		ExpiresAt:   time.Now().Add(time.Duration(g.cfg.VerdictTTL) * time.Second),
+	}
+}
+
+func (g *Gateway) blockResult(action *types.ActionRequest, tier int, conf float64, reason string) *types.Verdict {
+	return g.block(action, tier, conf, reason)
+}
+
+func (g *Gateway) allow(action *types.ActionRequest, tier int, conf float64, reason string) *types.Verdict {
+	return &types.Verdict{
+		Decision:    types.VerdictAllow,
+		Tier:        tier,
+		Confidence:  conf,
+		Reasoning:   reason,
+		ActionHash:  action.Hash,
+		EvaluatedAt: time.Now(),
+		ExpiresAt:   time.Now().Add(time.Duration(g.cfg.VerdictTTL) * time.Second),
+	}
+}
+
+// actionTypeMinTier returns the minimum evaluation tier based on action type.
+func actionTypeMinTier(at types.ActionType) int {
+	switch at {
+	case types.ActionExecCommand:
+		return 1
+	case types.ActionSendEmail, types.ActionSendMessage, types.ActionHTTPRequest:
+		return 1
+	case types.ActionMemoryWrite:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// isSelfProtected blocks access to Shield's own config, canary, audit, and prompt files.
+func (g *Gateway) isSelfProtected(action *types.ActionRequest) bool {
+	path := extractPath(action)
+	if path == "" {
+		return false
+	}
+	lower := strings.ToLower(path)
+	protectedPatterns := []string{
+		"canary.token", "evaluator-v1.md",
+		"audit.jsonl", ".openparallax/openparallax.db",
+	}
+	for _, p := range protectedPatterns {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *Gateway) checkBudget() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	today := time.Now().Format("2006-01-02")
+	if g.budgetDate != today {
+		g.budgetDate = today
+		g.budgetCount = 0
+	}
+	if g.budgetCount >= g.cfg.DailyBudget {
+		return false
+	}
+	g.budgetCount++
+	return true
+}
+
+// extractPath pulls the file path from an action's payload.
+func extractPath(action *types.ActionRequest) string {
+	if p, ok := action.Payload["path"].(string); ok && p != "" {
+		return p
+	}
+	if p, ok := action.Payload["command"].(string); ok && p != "" {
+		return p
+	}
+	return ""
+}
