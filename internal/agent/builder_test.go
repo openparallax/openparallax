@@ -112,7 +112,7 @@ func TestPlannerProducesPlan(t *testing.T) {
 	provider, err := llm.NewOpenAIProvider(apiKey, model, baseURL)
 	require.NoError(t, err)
 
-	p := NewPlanner(provider)
+	p := NewPlanner(provider, []types.ActionType{types.ActionReadFile, types.ActionWriteFile, types.ActionExecCommand})
 	intent := &types.StructuredIntent{
 		Goal:          types.GoalFileManagement,
 		PrimaryAction: types.ActionReadFile,

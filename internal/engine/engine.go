@@ -62,16 +62,18 @@ func New(configPath string) (*Engine, error) {
 		return nil, fmt.Errorf("database: %w", err)
 	}
 
+	registry := executors.NewRegistry(cfg.Workspace)
+
 	return &Engine{
 		cfg:       cfg,
 		llm:       provider,
 		parser:    parser.New(provider),
-		planner:   agent.NewPlanner(provider),
+		planner:   agent.NewPlanner(provider, registry.AvailableActions()),
 		builder:   agent.NewActionBuilder(),
 		selfEval:  agent.NewSelfEvaluator(provider),
 		context:   agent.NewContextAssembler(cfg.Workspace),
 		responder: agent.NewResponder(provider),
-		executors: executors.NewRegistry(cfg.Workspace),
+		executors: registry,
 		db:        db,
 	}, nil
 }

@@ -30,6 +30,15 @@ func NewRegistry(workspacePath string) *Registry {
 	return r
 }
 
+// AvailableActions returns the list of action types that have registered executors.
+func (r *Registry) AvailableActions() []types.ActionType {
+	actions := make([]types.ActionType, 0, len(r.executors))
+	for at := range r.executors {
+		actions = append(actions, at)
+	}
+	return actions
+}
+
 // Execute dispatches an action to the appropriate executor.
 func (r *Registry) Execute(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
 	exec, ok := r.executors[action.Type]
