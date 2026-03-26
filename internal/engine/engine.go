@@ -16,6 +16,7 @@ import (
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/parser"
+	"github.com/openparallax/openparallax/internal/plog"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
@@ -28,6 +29,7 @@ type Engine struct {
 
 	cfg       *types.AgentConfig
 	llm       llm.Provider
+	log       *plog.Logger
 	parser    *parser.Parser
 	planner   *agent.Planner
 	builder   *agent.ActionBuilder
@@ -44,8 +46,9 @@ type Engine struct {
 	shutdown bool
 }
 
-// New creates an Engine from a config file path.
-func New(configPath string) (*Engine, error) {
+// New creates an Engine from a config file path. When verbose is true,
+// diagnostic output for each pipeline stage is written to stderr.
+func New(configPath string, verbose bool) (*Engine, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("config load: %w", err)
@@ -67,6 +70,7 @@ func New(configPath string) (*Engine, error) {
 	return &Engine{
 		cfg:       cfg,
 		llm:       provider,
+		log:       plog.New(verbose),
 		parser:    parser.New(provider),
 		planner:   agent.NewPlanner(provider, registry.AvailableActions()),
 		builder:   agent.NewActionBuilder(),
@@ -146,9 +150,12 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 	// Step 1: Parse intent.
 	intent, err := e.parser.Parse(ctx, req.Content)
 	if err != nil {
-		// Parse failure: fall back to conversation mode.
+		e.log.Log("parser", "failed: %s, falling back to conversation", err)
 		return e.streamConversation(ctx, stream, sid, mid, req.Content, systemPrompt, history)
 	}
+
+	e.log.Log("parser", "intent: %s / %s (confidence: %.2f, destructive: %v)",
+		intent.Goal, intent.PrimaryAction, intent.Confidence, intent.Destructive)
 
 	_ = stream.Send(&pb.PipelineEvent{
 		SessionId: sid, MessageId: mid,
@@ -162,19 +169,29 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 	// Pure conversation: skip planning and execution.
 	if intent.Goal == types.GoalConversation || intent.PrimaryAction == "conversation" {
+		e.log.Log("parser", "conversation mode, skipping action pipeline")
 		return e.streamConversation(ctx, stream, sid, mid, req.Content, systemPrompt, history)
 	}
 
 	// Step 2: Plan actions.
 	rawPlan, err := e.planner.Plan(ctx, intent, systemPrompt, history)
 	if err != nil {
+		e.log.Log("planner", "failed: %s, falling back to conversation", err)
 		return e.streamConversation(ctx, stream, sid, mid, req.Content, systemPrompt, history)
 	}
 
 	actions, err := e.builder.Build(rawPlan)
 	if err != nil || len(actions) == 0 {
+		e.log.Log("builder", "no actions produced, falling back to conversation")
 		return e.streamConversation(ctx, stream, sid, mid, req.Content, systemPrompt, history)
 	}
+
+	actionNames := make([]string, len(actions))
+	for i, a := range actions {
+		actionNames[i] = string(a.Type)
+	}
+	e.log.Log("planner", "raw plan: %d ACTION block(s) parsed", len(actions))
+	e.log.Log("builder", "built %d action(s): %s", len(actions), fmt.Sprintf("%v", actionNames))
 
 	_ = stream.Send(&pb.PipelineEvent{
 		SessionId: sid, MessageId: mid,
@@ -182,13 +199,22 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 		ActionsPlanned: &pb.ActionsPlanned{Count: int32(len(actions))},
 	})
 
-	// Step 3: Self-eval (Layer 0) — log result but don't block in this chunk.
+	// Step 3: Self-eval (Layer 0) — now enforcing.
 	passed, reason, _ := e.selfEval.Evaluate(ctx, actions, req.Content)
+	if passed {
+		e.log.Log("selfeval", "passed")
+	} else {
+		e.log.Log("selfeval", "FAILED: %s", reason)
+	}
 	_ = stream.Send(&pb.PipelineEvent{
 		SessionId: sid, MessageId: mid,
 		EventType:      pb.PipelineEventType_SELF_EVAL_PASSED,
 		SelfEvalResult: &pb.SelfEvalResult{Passed: passed, Reason: reason},
 	})
+	if !passed {
+		return e.sendError(stream, sid, mid, "SELF_EVAL_FAILED",
+			fmt.Sprintf("Safety check failed: %s", reason))
+	}
 
 	// Step 4: Execute each action.
 	var results []*types.ActionResult
@@ -199,10 +225,17 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 			ActionStarted: &pb.ActionStarted{Summary: formatActionSummary(action)},
 		})
 
+		e.log.Log("executor", "%s starting", action.Type)
 		start := time.Now()
 		result := e.executors.Execute(ctx, action)
 		result.DurationMs = time.Since(start).Milliseconds()
 		results = append(results, result)
+
+		if result.Success {
+			e.log.Log("executor", "%s -> success (%s)", action.Type, result.Summary)
+		} else {
+			e.log.Log("executor", "%s -> failed: %s", action.Type, result.Error)
+		}
 
 		_ = stream.Send(&pb.PipelineEvent{
 			SessionId: sid, MessageId: mid,
@@ -220,6 +253,7 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 	}
 
 	// Step 5: Generate streaming response with action results.
+	e.log.Log("response", "streaming with %d action result(s)", len(results))
 	return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, results)
 }
 

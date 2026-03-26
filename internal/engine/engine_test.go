@@ -72,7 +72,7 @@ func setupTestWorkspace(t *testing.T) (string, string) {
 func TestEngineStartAndStop(t *testing.T) {
 	_, configPath := setupTestWorkspace(t)
 
-	eng, err := New(configPath)
+	eng, err := New(configPath, false)
 	require.NoError(t, err)
 
 	port, err := eng.Start()
@@ -85,7 +85,7 @@ func TestEngineStartAndStop(t *testing.T) {
 func TestEngineGRPCHealth(t *testing.T) {
 	_, configPath := setupTestWorkspace(t)
 
-	eng, err := New(configPath)
+	eng, err := New(configPath, false)
 	require.NoError(t, err)
 	port, err := eng.Start()
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestEngineGRPCHealth(t *testing.T) {
 func TestEngineProcessMessage(t *testing.T) {
 	workspace, configPath := setupTestWorkspace(t)
 
-	eng, err := New(configPath)
+	eng, err := New(configPath, false)
 	require.NoError(t, err)
 	port, err := eng.Start()
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestEngineProcessMessage(t *testing.T) {
 func TestEngineProcessMessageEmptyContent(t *testing.T) {
 	workspace, configPath := setupTestWorkspace(t)
 
-	eng, err := New(configPath)
+	eng, err := New(configPath, false)
 	require.NoError(t, err)
 	port, err := eng.Start()
 	require.NoError(t, err)
@@ -223,7 +223,7 @@ func TestEngineProcessMessageEmptyContent(t *testing.T) {
 func TestEngineShutdownRPC(t *testing.T) {
 	_, configPath := setupTestWorkspace(t)
 
-	eng, err := New(configPath)
+	eng, err := New(configPath, false)
 	require.NoError(t, err)
 	port, err := eng.Start()
 	require.NoError(t, err)
@@ -270,7 +270,7 @@ func helperSendAndCollect(t *testing.T, client pb.PipelineServiceClient, session
 func TestEngineFullPipelineReadFile(t *testing.T) {
 	workspace, configPath := setupTestWorkspace(t)
 
-	eng, err := New(configPath)
+	eng, err := New(configPath, false)
 	require.NoError(t, err)
 	port, err := eng.Start()
 	require.NoError(t, err)
@@ -301,7 +301,7 @@ func TestEngineFullPipelineReadFile(t *testing.T) {
 func TestEngineConversationMode(t *testing.T) {
 	workspace, configPath := setupTestWorkspace(t)
 
-	eng, err := New(configPath)
+	eng, err := New(configPath, false)
 	require.NoError(t, err)
 	port, err := eng.Start()
 	require.NoError(t, err)

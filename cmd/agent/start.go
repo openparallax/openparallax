@@ -18,7 +18,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var startConfigPath string
+var (
+	startConfigPath string
+	startVerbose    bool
+)
 
 var startCmd = &cobra.Command{
 	Use:          "start",
@@ -29,6 +32,7 @@ var startCmd = &cobra.Command{
 
 func init() {
 	startCmd.Flags().StringVarP(&startConfigPath, "config", "c", "", "path to config.yaml")
+	startCmd.Flags().BoolVarP(&startVerbose, "verbose", "v", false, "enable verbose pipeline logging")
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -54,7 +58,7 @@ func runStart(cmd *cobra.Command, args []string) error {
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
 	// Spawn the engine process.
-	pm := newProcessManager(cfgPath)
+	pm := newProcessManager(cfgPath, startVerbose)
 	port, err := pm.startEngine(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start engine: %w", err)
@@ -95,13 +99,14 @@ func runStart(cmd *cobra.Command, args []string) error {
 // processManager spawns and supervises the engine child process.
 type processManager struct {
 	configPath string
+	verbose    bool
 	cmd        *exec.Cmd
 	mu         sync.Mutex
 	crashes    []time.Time
 }
 
-func newProcessManager(configPath string) *processManager {
-	return &processManager{configPath: configPath}
+func newProcessManager(configPath string, verbose bool) *processManager {
+	return &processManager{configPath: configPath, verbose: verbose}
 }
 
 // startEngine spawns the engine process and returns the port it's listening on.
@@ -128,7 +133,11 @@ func (pm *processManager) spawnEngine(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("cannot find own executable: %w", err)
 	}
 
-	pm.cmd = exec.CommandContext(ctx, executable, "internal-engine", "--config", pm.configPath)
+	cmdArgs := []string{"internal-engine", "--config", pm.configPath}
+	if pm.verbose {
+		cmdArgs = append(cmdArgs, "--verbose")
+	}
+	pm.cmd = exec.CommandContext(ctx, executable, cmdArgs...)
 	pm.cmd.Stderr = os.Stderr
 
 	stdout, err := pm.cmd.StdoutPipe()

@@ -10,7 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var engineConfigPath string
+var (
+	engineConfigPath string
+	engineVerbose    bool
+)
 
 var internalEngineCmd = &cobra.Command{
 	Use:          "internal-engine",
@@ -22,6 +25,7 @@ var internalEngineCmd = &cobra.Command{
 
 func init() {
 	internalEngineCmd.Flags().StringVar(&engineConfigPath, "config", "", "path to config.yaml")
+	internalEngineCmd.Flags().BoolVar(&engineVerbose, "verbose", false, "enable verbose pipeline logging")
 	rootCmd.AddCommand(internalEngineCmd)
 }
 
@@ -32,7 +36,7 @@ func runInternalEngine(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--config flag is required")
 	}
 
-	eng, err := engine.New(engineConfigPath)
+	eng, err := engine.New(engineConfigPath, engineVerbose)
 	if err != nil {
 		return fmt.Errorf("engine init failed: %w", err)
 	}
@@ -42,11 +46,8 @@ func runInternalEngine(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("engine start failed: %w", err)
 	}
 
-	// Write port to stdout so the parent process can read it.
-	// This is the only stdout output — the parent reads one line.
 	_, _ = fmt.Fprintf(os.Stdout, "PORT:%d\n", port)
 
-	// Block until SIGTERM or SIGINT.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 	<-sigCh
