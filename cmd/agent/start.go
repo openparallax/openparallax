@@ -138,7 +138,8 @@ func (pm *processManager) spawnEngine(ctx context.Context) (int, error) {
 		cmdArgs = append(cmdArgs, "--verbose")
 	}
 	pm.cmd = exec.CommandContext(ctx, executable, cmdArgs...)
-	pm.cmd.Stderr = os.Stderr
+	// Engine stderr is not piped to the terminal — bubbletea owns the screen.
+	// Verbose pipeline logging goes through gRPC events rendered as thinking steps.
 
 	stdout, err := pm.cmd.StdoutPipe()
 	if err != nil {
