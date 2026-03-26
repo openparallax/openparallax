@@ -96,7 +96,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 			huh.NewSelect[string]().
 				Title("LLM Provider").
 				Description("Which LLM provider should the agent use?").
-				Height(6).
 				Options(
 					huh.NewOption("Anthropic (Claude)", "anthropic"),
 					huh.NewOption("OpenAI (GPT)", "openai"),
@@ -164,7 +163,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 			huh.NewSelect[string]().
 				Title("Shield Evaluator Provider").
 				Description("The Shield evaluator should use a DIFFERENT model for stronger security.").
-				Height(7).
 				Options(
 					huh.NewOption("Anthropic (Claude)", "anthropic"),
 					huh.NewOption("OpenAI (GPT)", "openai"),
