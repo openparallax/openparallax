@@ -157,7 +157,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Shield evaluator
+	// Shield evaluator — default to a different provider than the agent for cross-model security.
+	shieldProvider = defaultShieldProvider(llmProvider)
 	err = huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
@@ -168,7 +169,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 					huh.NewOption("OpenAI (GPT)", "openai"),
 					huh.NewOption("Google (Gemini)", "google"),
 					huh.NewOption("Ollama (Local)", "ollama"),
-					huh.NewOption("Skip (use heuristic-only evaluation)", ""),
+					huh.NewOption("Skip (heuristic-only, not recommended)", ""),
 				).
 				Value(&shieldProvider),
 		),
@@ -373,6 +374,15 @@ func writeConfig(path, workspace, llmProvider, llmModel, llmAPIKeyEnv,
 	sb.WriteString("  daily_budget: 100\n")
 
 	return os.WriteFile(path, []byte(sb.String()), 0o644)
+}
+
+// defaultShieldProvider picks a different provider than the agent for cross-model
+// evaluation. Falls back to "openai" if the agent already uses a different one.
+func defaultShieldProvider(agentProvider string) string {
+	if agentProvider != "openai" {
+		return "openai"
+	}
+	return "anthropic"
 }
 
 // expandTilde replaces a leading ~ with the home directory.
