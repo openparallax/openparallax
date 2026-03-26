@@ -22,13 +22,13 @@ type SearchResult struct {
 // of approximately 500 characters each.
 func (db *DB) IndexMemoryFile(path string, content string) {
 	// Remove existing entries for this path.
-	db.conn.Exec(`DELETE FROM memory_fts WHERE path = ?`, path) //nolint:errcheck // best-effort cleanup
+	_, _ = db.conn.Exec(`DELETE FROM memory_fts WHERE path = ?`, path)
 
 	sections := splitSections(content)
 	for _, section := range sections {
 		paragraphs := splitParagraphs(section.content, 500)
 		for _, para := range paragraphs {
-			db.conn.Exec( //nolint:errcheck // best-effort indexing
+			_, _ = db.conn.Exec(
 				`INSERT INTO memory_fts (path, section, content) VALUES (?, ?, ?)`,
 				path, section.header, para,
 			)
@@ -67,7 +67,7 @@ func (db *DB) SearchMemory(query string, limit int) ([]SearchResult, error) {
 
 // ClearMemoryIndex removes all FTS5 entries.
 func (db *DB) ClearMemoryIndex() {
-	db.conn.Exec(`DELETE FROM memory_fts`) //nolint:errcheck // best-effort cleanup
+	_, _ = db.conn.Exec(`DELETE FROM memory_fts`)
 }
 
 // sectionEntry holds a parsed markdown section.

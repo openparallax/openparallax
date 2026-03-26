@@ -61,7 +61,7 @@ func (a *Adapter) Run(ctx context.Context) error {
 		CreatedAt: time.Now(),
 	})
 
-	m := newModel(client, db, sessionID, a.agentName, ctx)
+	m := newModel(ctx, client, db, sessionID, a.agentName)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
@@ -99,7 +99,7 @@ type (
 	newSession struct{}
 )
 
-func newModel(client pb.PipelineServiceClient, db *storage.DB, sessionID, agentName string, ctx context.Context) *model {
+func newModel(ctx context.Context, client pb.PipelineServiceClient, db *storage.DB, sessionID, agentName string) *model {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message..."
 	ta.Focus()

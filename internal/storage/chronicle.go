@@ -38,7 +38,7 @@ func (db *DB) GetSnapshot(id string) (*types.SnapshotMetadata, error) {
 	}
 
 	snap.Timestamp, _ = time.Parse(time.RFC3339, tsStr)
-	json.Unmarshal([]byte(filesJSON), &snap.FilesBackedUp) //nolint:errcheck // best-effort parse
+	_ = json.Unmarshal([]byte(filesJSON), &snap.FilesBackedUp)
 	return &snap, nil
 }
 
@@ -76,7 +76,7 @@ func (db *DB) GetAllSnapshots() []types.SnapshotMetadata {
 			continue
 		}
 		snap.Timestamp, _ = time.Parse(time.RFC3339, tsStr)
-		json.Unmarshal([]byte(filesJSON), &snap.FilesBackedUp) //nolint:errcheck // best-effort parse
+		_ = json.Unmarshal([]byte(filesJSON), &snap.FilesBackedUp)
 		snapshots = append(snapshots, snap)
 	}
 	return snapshots
@@ -105,7 +105,7 @@ func (db *DB) GetTransactionSnapshots(txID string) []types.SnapshotMetadata {
 			continue
 		}
 		snap.Timestamp, _ = time.Parse(time.RFC3339, tsStr)
-		json.Unmarshal([]byte(filesJSON), &snap.FilesBackedUp) //nolint:errcheck // best-effort parse
+		_ = json.Unmarshal([]byte(filesJSON), &snap.FilesBackedUp)
 		snapshots = append(snapshots, snap)
 	}
 	return snapshots
@@ -122,7 +122,7 @@ func (db *DB) SnapshotCount() (int, error) {
 // Snapshots that belong to active transactions are preserved.
 func (db *DB) PruneSnapshots(maxCount int, maxAgeDays int) {
 	// Prune by count: keep the most recent maxCount snapshots.
-	db.conn.Exec( //nolint:errcheck // best-effort pruning
+	_, _ = db.conn.Exec(
 		`DELETE FROM snapshots WHERE id NOT IN (
 			SELECT id FROM snapshots ORDER BY timestamp DESC LIMIT ?
 		) AND (transaction_id IS NULL OR transaction_id NOT IN (
@@ -132,7 +132,7 @@ func (db *DB) PruneSnapshots(maxCount int, maxAgeDays int) {
 
 	// Prune by age: remove snapshots older than maxAgeDays.
 	cutoff := time.Now().AddDate(0, 0, -maxAgeDays).Format(time.RFC3339)
-	db.conn.Exec( //nolint:errcheck // best-effort pruning
+	_, _ = db.conn.Exec(
 		`DELETE FROM snapshots WHERE timestamp < ? AND (transaction_id IS NULL OR transaction_id NOT IN (
 			SELECT id FROM transactions WHERE status = 'active'
 		))`, cutoff,
