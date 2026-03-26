@@ -23,6 +23,10 @@ var initCmd = &cobra.Command{
 	RunE:         runInit,
 }
 
+func init() {
+	rootCmd.AddCommand(initCmd)
+}
+
 // defaultModels maps LLM providers to their default model names.
 var defaultModels = map[string]string{
 	"anthropic": "claude-sonnet-4-20250514",

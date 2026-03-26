@@ -23,6 +23,7 @@ var statusConfigPath string
 
 func init() {
 	statusCmd.Flags().StringVarP(&statusConfigPath, "config", "c", "", "path to config.yaml")
+	rootCmd.AddCommand(statusCmd)
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
@@ -77,28 +78,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-// findConfig looks for config.yaml in common locations.
-func findConfig() string {
-	// Check current directory
-	candidates := []string{
-		"config.yaml",
-	}
-
-	// Check home directory
-	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates,
-			filepath.Join(home, ".openparallax", "workspace", "config.yaml"),
-		)
-	}
-
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
-			return c
-		}
-	}
-	return ""
 }
 
 // formatBytes converts a byte count to a human-readable string.
