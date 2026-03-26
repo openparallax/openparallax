@@ -10,7 +10,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openparallax/openparallax/internal/crypto"
@@ -78,7 +77,6 @@ type model struct {
 	ctx       context.Context
 	program   *tea.Program
 
-	viewport viewport.Model
 	spinner  spinner.Model
 	lines    []styledLine
 	thoughts []string
@@ -86,7 +84,6 @@ type model struct {
 	stream   string
 	thinking bool
 	quitting bool
-	ready    bool
 	width    int
 	height   int
 }
@@ -169,12 +166,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tokenMsg:
 		m.stream += string(msg)
-		m.updateViewport()
 		return m, nil
 
 	case thoughtMsg:
 		m.thoughts = append(m.thoughts, string(msg))
-		m.updateViewport()
 		return m, nil
 
 	case doneMsg:
@@ -186,13 +181,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.addLine(m.assistantStyle(m.agentName+": ") + content)
 		m.stream = ""
 		m.thoughts = nil
-		m.updateViewport()
 		return m, nil
 
 	case errMsg:
 		m.thinking = false
 		m.addLine(m.errStyle("Error: " + msg.err.Error()))
-		m.updateViewport()
 		return m, nil
 
 	case newSession:
@@ -206,27 +199,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stream = ""
 		m.thoughts = nil
 		m.addLine(m.dimStyle("--- New session ---"))
-		m.updateViewport()
 		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		headerHeight := 2
-		inputHeight := 2
-		vpHeight := m.height - headerHeight - inputHeight
-		if vpHeight < 1 {
-			vpHeight = 1
-		}
-		if !m.ready {
-			m.viewport = viewport.New(m.width, vpHeight)
-			m.ready = true
-		} else {
-			m.viewport.Width = m.width
-			m.viewport.Height = vpHeight
-		}
 		m.input.SetWidth(m.width - 4)
-		m.updateViewport()
 		return m, nil
 
 	case spinner.TickMsg:
@@ -248,41 +226,15 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
-	if !m.ready {
-		return "Initializing...\n"
-	}
 
 	var sb strings.Builder
 
 	// Header.
 	sb.WriteString(m.titleStyle(fmt.Sprintf(" %s ", m.agentName)))
 	sb.WriteString(m.dimStyle("  /quit to exit, /new for new session"))
-	sb.WriteString("\n")
+	sb.WriteString("\n\n")
 
-	// Viewport with chat history.
-	sb.WriteString(m.viewport.View())
-	sb.WriteString("\n")
-
-	// Input line.
-	if m.thinking {
-		sb.WriteString(m.spinner.View())
-		sb.WriteString(" Thinking...")
-	} else {
-		sb.WriteString(m.input.View())
-	}
-
-	return sb.String()
-}
-
-func (m *model) addLine(text string) {
-	m.lines = append(m.lines, styledLine{text: text})
-}
-
-func (m *model) updateViewport() {
-	if !m.ready {
-		return
-	}
-	var sb strings.Builder
+	// Chat history.
 	for _, l := range m.lines {
 		sb.WriteString(l.text)
 		sb.WriteString("\n\n")
@@ -300,11 +252,24 @@ func (m *model) updateViewport() {
 	// Active stream.
 	if m.thinking && m.stream != "" {
 		sb.WriteString(m.assistantStyle(m.agentName+": ") + m.stream)
-		sb.WriteString("\n")
+		sb.WriteString("\n\n")
 	}
 
-	m.viewport.SetContent(sb.String())
-	m.viewport.GotoBottom()
+	// Input line or spinner.
+	if m.thinking {
+		if m.stream == "" && len(m.thoughts) == 0 {
+			sb.WriteString(m.spinner.View())
+			sb.WriteString(" Thinking...")
+		}
+	} else {
+		sb.WriteString(m.input.View())
+	}
+
+	return sb.String()
+}
+
+func (m *model) addLine(text string) {
+	m.lines = append(m.lines, styledLine{text: text})
 }
 
 // Styles.
