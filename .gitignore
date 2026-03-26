@@ -1,0 +1,46 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+openparallax
+openparallax-shield
+openparallax-classifier
+dist/
+
+# Test
+*.test
+*.out
+coverage.html
+
+# Dependencies
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Web frontend
+web/node_modules/
+web/dist/
+
+# Temporary
+tmp/
+*.tmp
+
+# Claude
+.claude/
