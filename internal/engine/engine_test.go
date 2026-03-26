@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
@@ -18,11 +20,11 @@ import (
 )
 
 // setupTestWorkspace creates a minimal workspace with config and database.
+// Skips the test if the LLM endpoint is not available.
 func setupTestWorkspace(t *testing.T) (string, string) {
 	t.Helper()
 	dir := t.TempDir()
 
-	// Write minimal config.
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	baseURL := os.Getenv("OPENAI_BASE_URL")
 	model := os.Getenv("OPENAI_MODEL")
@@ -33,24 +35,33 @@ func setupTestWorkspace(t *testing.T) (string, string) {
 		model = "gpt-4o-mini"
 	}
 
-	configContent := fmt.Sprintf(`workspace: %s
-llm:
-  provider: openai
-  model: %s
-  api_key_env: OPENAI_API_KEY`, dir, model)
+	// Verify the endpoint is reachable.
+	checkURL := "https://api.openai.com/v1/models"
 	if baseURL != "" {
-		configContent += fmt.Sprintf("\n  base_url: %s", baseURL)
+		checkURL = baseURL + "/models"
 	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	req, _ := http.NewRequest("GET", checkURL, nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Skipf("LLM endpoint unreachable (%s), skipping: %v", checkURL, err)
+	}
+	_ = resp.Body.Close()
+
+	configContent := fmt.Sprintf("workspace: %s\nllm:\n  provider: openai\n  model: %s\n  api_key_env: OPENAI_API_KEY\n", dir, model)
+	if baseURL != "" {
+		configContent += fmt.Sprintf("  base_url: %s\n", baseURL)
+	}
+	configContent += "identity:\n  name: TestBot\n"
 
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
-	// Create workspace structure.
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".openparallax"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "SOUL.md"), []byte("You are a helpful assistant."), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "IDENTITY.md"), []byte("Name: TestBot"), 0o644))
 
-	// Initialize database.
 	db, err := storage.Open(filepath.Join(dir, ".openparallax", "openparallax.db"))
 	require.NoError(t, err)
 	_ = db.Close()

@@ -3,8 +3,10 @@ package llm
 import (
 	"context"
 	"io"
+	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/stretchr/testify/assert"
@@ -12,7 +14,7 @@ import (
 )
 
 // getTestProvider returns an OpenAI provider configured for testing.
-// Skips the test if no API key is available.
+// Skips the test if no API key is available or if the endpoint is unreachable.
 func getTestProvider(t *testing.T) Provider {
 	t.Helper()
 	apiKey := os.Getenv("OPENAI_API_KEY")
@@ -24,6 +26,21 @@ func getTestProvider(t *testing.T) Provider {
 	if model == "" {
 		model = "gpt-4o-mini"
 	}
+
+	// Verify the endpoint is reachable before running the test.
+	checkURL := "https://api.openai.com/v1/models"
+	if baseURL != "" {
+		checkURL = baseURL + "/models"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	req, _ := http.NewRequest("GET", checkURL, nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Skipf("LLM endpoint unreachable (%s), skipping: %v", checkURL, err)
+	}
+	_ = resp.Body.Close()
+
 	p, err := NewOpenAIProvider(apiKey, model, baseURL)
 	require.NoError(t, err)
 	return p
