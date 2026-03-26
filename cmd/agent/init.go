@@ -16,10 +16,11 @@ import (
 )
 
 var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize a new OpenParallax workspace",
-	Long:  "Creates a workspace directory with memory files, configuration, and database.",
-	RunE:  runInit,
+	Use:          "init",
+	Short:        "Initialize a new OpenParallax workspace",
+	Long:         "Creates a workspace directory with memory files, configuration, and database.",
+	SilenceUsage: true,
+	RunE:         runInit,
 }
 
 // defaultModels maps LLM providers to their default model names.
@@ -55,6 +56,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		llmProvider     string
 		llmModel        string
 		llmAPIKeyEnv    string
+		llmBaseURL      string
 		shieldProvider  string
 		shieldModel     string
 		shieldAPIKeyEnv string
@@ -89,6 +91,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			huh.NewSelect[string]().
 				Title("LLM Provider").
 				Description("Which LLM provider should the agent use?").
+				Height(6).
 				Options(
 					huh.NewOption("Anthropic (Claude)", "anthropic"),
 					huh.NewOption("OpenAI (GPT)", "openai"),
@@ -134,12 +137,29 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Custom base URL for OpenAI-compatible endpoints.
+	if llmProvider == "openai" {
+		err = huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Custom base URL").
+					Description("Leave empty for default OpenAI. Set for LM Studio, DeepSeek, Mistral, or other compatible endpoints.").
+					Value(&llmBaseURL).
+					Placeholder("https://api.openai.com/v1"),
+			),
+		).Run()
+		if err != nil {
+			return err
+		}
+	}
+
 	// Shield evaluator
 	err = huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Shield Evaluator Provider").
 				Description("The Shield evaluator should use a DIFFERENT model for stronger security.").
+				Height(7).
 				Options(
 					huh.NewOption("Anthropic (Claude)", "anthropic"),
 					huh.NewOption("OpenAI (GPT)", "openai"),
@@ -209,7 +229,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Write config.yaml
 	configPath := filepath.Join(workspacePath, "config.yaml")
 	if err := writeConfig(configPath, workspacePath, llmProvider, llmModel, llmAPIKeyEnv,
-		shieldProvider, shieldModel, shieldAPIKeyEnv); err != nil {
+		llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv); err != nil {
 		return fmt.Errorf("failed to write config.yaml: %w", err)
 	}
 
@@ -234,7 +254,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Database:  %s\n", dbPath)
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Printf("  1. Set your API key: export %s=<your-key>\n", llmAPIKeyEnv)
+	if llmAPIKeyEnv != "" {
+		fmt.Printf("  1. Set your API key: export %s=<your-key>\n", llmAPIKeyEnv)
+	}
 	fmt.Println("  2. Start the agent:  openparallax start")
 	fmt.Println()
 
@@ -276,7 +298,7 @@ func copyTemplates(workspacePath string) error {
 
 // writeConfig generates the config.yaml file from wizard inputs.
 func writeConfig(path, workspace, llmProvider, llmModel, llmAPIKeyEnv,
-	shieldProvider, shieldModel, shieldAPIKeyEnv string) error {
+	llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv string) error {
 
 	// Do not overwrite existing config.
 	if _, err := os.Stat(path); err == nil {
@@ -295,6 +317,9 @@ func writeConfig(path, workspace, llmProvider, llmModel, llmAPIKeyEnv,
 	fmt.Fprintf(&sb, "  model: %s\n", llmModel)
 	if llmAPIKeyEnv != "" {
 		fmt.Fprintf(&sb, "  api_key_env: %s\n", llmAPIKeyEnv)
+	}
+	if llmBaseURL != "" {
+		fmt.Fprintf(&sb, "  base_url: %s\n", llmBaseURL)
 	}
 	sb.WriteString("\n")
 

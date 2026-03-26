@@ -12,10 +12,11 @@ import (
 )
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show workspace status",
-	Long:  "Displays workspace path, memory file sizes, snapshot count, session count, and audit entry count.",
-	RunE:  runStatus,
+	Use:          "status",
+	Short:        "Show workspace status",
+	Long:         "Displays workspace path, memory file sizes, snapshot count, session count, and audit entry count.",
+	SilenceUsage: true,
+	RunE:         runStatus,
 }
 
 var statusConfigPath string
