@@ -27,7 +27,8 @@ func getTestProvider(t *testing.T) Provider {
 		model = "gpt-4o-mini"
 	}
 
-	// Verify the endpoint is reachable before running the test.
+	// Verify the endpoint is reachable — fail fast with a clear message
+	// rather than waiting for the full LLM timeout.
 	checkURL := "https://api.openai.com/v1/models"
 	if baseURL != "" {
 		checkURL = baseURL + "/models"
@@ -37,7 +38,7 @@ func getTestProvider(t *testing.T) Provider {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Skipf("LLM endpoint unreachable (%s), skipping: %v", checkURL, err)
+		t.Fatalf("LLM endpoint unreachable (%s): %v", checkURL, err)
 	}
 	_ = resp.Body.Close()
 

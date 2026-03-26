@@ -45,7 +45,7 @@ func setupTestWorkspace(t *testing.T) (string, string) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Skipf("LLM endpoint unreachable (%s), skipping: %v", checkURL, err)
+		t.Fatalf("LLM endpoint unreachable (%s): %v", checkURL, err)
 	}
 	_ = resp.Body.Close()
 
