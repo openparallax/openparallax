@@ -73,6 +73,7 @@ type model struct {
 	client    pb.PipelineServiceClient
 	db        *storage.DB
 	sessionID string
+	otrMode   bool
 	agentName string
 	ctx       context.Context
 	program   *tea.Program
@@ -148,15 +149,29 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.input.Reset()
 
-			switch strings.ToLower(text) {
-			case "/quit", "/exit":
+			lower := strings.ToLower(text)
+			switch {
+			case lower == "/quit" || lower == "/exit":
 				m.quitting = true
 				return m, tea.Quit
-			case "/new":
+			case lower == "/new":
 				return m, m.handleNewSession()
+			case lower == "/otr":
+				return m, m.handleOTRToggle()
+			case lower == "/sessions":
+				m.handleListSessions()
+				return m, nil
+			case strings.HasPrefix(lower, "/switch "):
+				id := strings.TrimSpace(text[8:])
+				m.handleSwitchSession(id)
+				return m, nil
 			}
 
-			m.addLine(m.userStyle("You: ") + text)
+			prompt := m.userStyle("You: ")
+			if m.otrMode {
+				prompt = m.otrStyle("[OTR] You: ")
+			}
+			m.addLine(prompt + text)
 			m.thinking = true
 			m.stream = ""
 			m.thoughts = nil
@@ -190,15 +205,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case newSession:
 		m.sessionID = crypto.NewID()
+		mode := types.SessionNormal
+		label := "--- New session ---"
+		if m.otrMode {
+			mode = types.SessionOTR
+			label = "--- New OTR session (read-only, nothing persists) ---"
+		}
 		_ = m.db.InsertSession(&types.Session{
 			ID:        m.sessionID,
-			Mode:      types.SessionNormal,
+			Mode:      mode,
 			CreatedAt: time.Now(),
 		})
 		m.lines = nil
 		m.stream = ""
 		m.thoughts = nil
-		m.addLine(m.dimStyle("--- New session ---"))
+		m.addLine(m.dimStyle(label))
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -231,7 +252,10 @@ func (m *model) View() string {
 
 	// Header.
 	sb.WriteString(m.titleStyle(fmt.Sprintf(" %s ", m.agentName)))
-	sb.WriteString(m.dimStyle("  /quit to exit, /new for new session"))
+	if m.otrMode {
+		sb.WriteString(m.otrStyle(" [OTR] "))
+	}
+	sb.WriteString(m.dimStyle("  /quit  /new  /otr  /sessions"))
 	sb.WriteString("\n\n")
 
 	// Chat history.
@@ -293,17 +317,26 @@ func (m *model) errStyle(s string) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(s)
 }
 
+func (m *model) otrStyle(s string) string {
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3")).Render(s)
+}
+
 // startStreaming launches a goroutine that reads gRPC events and pushes them
 // into the bubbletea update loop via p.Send().
 func (m *model) startStreaming(text string) {
 	go func() {
 		msgID := crypto.NewID()
 
+		mode := pb.SessionMode_NORMAL
+		if m.otrMode {
+			mode = pb.SessionMode_OTR
+		}
+
 		stream, err := m.client.ProcessMessage(m.ctx, &pb.ProcessMessageRequest{
 			Content:   text,
 			SessionId: m.sessionID,
 			MessageId: msgID,
-			Mode:      pb.SessionMode_NORMAL,
+			Mode:      mode,
 			Source:    "cli",
 		})
 		if err != nil {
@@ -361,6 +394,10 @@ func (m *model) startStreaming(text string) {
 					}
 					m.program.Send(thoughtMsg(fmt.Sprintf("%s %s", mark, event.ActionCompleted.Summary)))
 				}
+			case pb.PipelineEventType_OTR_BLOCKED:
+				if event.OtrBlocked != nil {
+					m.program.Send(thoughtMsg(fmt.Sprintf("OTR blocked: %s", event.OtrBlocked.Reason)))
+				}
 			case pb.PipelineEventType_ERROR:
 				if event.PipelineError != nil {
 					m.program.Send(errMsg{err: fmt.Errorf("%s: %s", event.PipelineError.Code, event.PipelineError.Message)})
@@ -371,6 +408,74 @@ func (m *model) startStreaming(text string) {
 
 		m.program.Send(doneMsg(fullText))
 	}()
+}
+
+// handleOTRToggle switches between Normal and OTR mode by creating a new session.
+func (m *model) handleOTRToggle() tea.Cmd {
+	return func() tea.Msg {
+		m.otrMode = !m.otrMode
+		return newSession{}
+	}
+}
+
+// handleListSessions shows available Normal sessions.
+func (m *model) handleListSessions() {
+	sessions, err := m.db.ListSessions()
+	if err != nil || len(sessions) == 0 {
+		m.addLine(m.dimStyle("No sessions found."))
+		return
+	}
+	m.addLine(m.dimStyle("--- Sessions ---"))
+	for _, s := range sessions {
+		title := s.Title
+		if title == "" {
+			title = "(untitled)"
+		}
+		line := fmt.Sprintf("  %s  %s  %s", s.ID[:8], s.CreatedAt, title)
+		if s.ID == m.sessionID {
+			line += " (current)"
+		}
+		m.addLine(m.dimStyle(line))
+	}
+}
+
+// handleSwitchSession loads a different session's history.
+func (m *model) handleSwitchSession(id string) {
+	// Find a session matching the prefix.
+	sessions, err := m.db.ListSessions()
+	if err != nil {
+		m.addLine(m.errStyle("Error: " + err.Error()))
+		return
+	}
+	var fullID string
+	for _, s := range sessions {
+		if strings.HasPrefix(s.ID, id) {
+			fullID = s.ID
+			break
+		}
+	}
+	if fullID == "" {
+		m.addLine(m.errStyle("Session not found: " + id))
+		return
+	}
+
+	m.sessionID = fullID
+	m.otrMode = false
+	m.lines = nil
+	m.stream = ""
+	m.thoughts = nil
+
+	// Load history.
+	messages, _ := m.db.GetMessages(fullID)
+	for _, msg := range messages {
+		switch msg.Role {
+		case "user":
+			m.addLine(m.userStyle("You: ") + msg.Content)
+		case "assistant":
+			m.addLine(m.assistantStyle(m.agentName+": ") + msg.Content)
+		}
+	}
+	m.addLine(m.dimStyle(fmt.Sprintf("--- Switched to session %s ---", fullID[:8])))
 }
 
 // handleNewSession starts a fresh session.
