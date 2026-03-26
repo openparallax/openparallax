@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -66,6 +67,10 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	grpcAddr := fmt.Sprintf("localhost:%d", port)
 	fmt.Printf("Engine started on %s (LLM: %s/%s)\n", grpcAddr, cfg.LLM.Provider, cfg.LLM.Model)
+	if startVerbose {
+		logPath := filepath.Join(cfg.Workspace, ".openparallax", "engine.log")
+		fmt.Printf("Verbose log: %s\n", logPath)
+	}
 
 	// Start the CLI adapter.
 	agentName := cfg.Identity.Name
@@ -101,6 +106,7 @@ type processManager struct {
 	configPath string
 	verbose    bool
 	cmd        *exec.Cmd
+	logFile    *os.File
 	mu         sync.Mutex
 	crashes    []time.Time
 }
@@ -138,8 +144,14 @@ func (pm *processManager) spawnEngine(ctx context.Context) (int, error) {
 		cmdArgs = append(cmdArgs, "--verbose")
 	}
 	pm.cmd = exec.CommandContext(ctx, executable, cmdArgs...)
-	// Engine stderr is not piped to the terminal — bubbletea owns the screen.
-	// Verbose pipeline logging goes through gRPC events rendered as thinking steps.
+	if pm.verbose {
+		logPath := filepath.Join(filepath.Dir(pm.configPath), ".openparallax", "engine.log")
+		logFile, logErr := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		if logErr == nil {
+			pm.cmd.Stderr = logFile
+			pm.logFile = logFile
+		}
+	}
 
 	stdout, err := pm.cmd.StdoutPipe()
 	if err != nil {
@@ -253,5 +265,9 @@ func (pm *processManager) stopEngine() {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		_ = cmd.Process.Kill()
+	}
+
+	if pm.logFile != nil {
+		_ = pm.logFile.Close()
 	}
 }
