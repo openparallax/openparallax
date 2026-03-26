@@ -159,18 +159,24 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Shield evaluator — default to a different provider than the agent for cross-model security.
 	shieldProvider = defaultShieldProvider(llmProvider)
+	shieldOptions := []huh.Option[string]{
+		huh.NewOption("Anthropic (Claude)", "anthropic"),
+		huh.NewOption("OpenAI (GPT)", "openai"),
+		huh.NewOption("Google (Gemini)", "google"),
+		huh.NewOption("Ollama (Local)", "ollama"),
+		huh.NewOption("Skip (heuristic-only, not recommended)", ""),
+	}
+	for i, opt := range shieldOptions {
+		if opt.Value == shieldProvider {
+			shieldOptions[i] = opt.Selected(true)
+		}
+	}
 	err = huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Shield Evaluator Provider").
 				Description("The Shield evaluator should use a DIFFERENT model for stronger security.").
-				Options(
-					huh.NewOption("Anthropic (Claude)", "anthropic"),
-					huh.NewOption("OpenAI (GPT)", "openai"),
-					huh.NewOption("Google (Gemini)", "google"),
-					huh.NewOption("Ollama (Local)", "ollama"),
-					huh.NewOption("Skip (heuristic-only, not recommended)", ""),
-				).
+				Options(shieldOptions...).
 				Value(&shieldProvider),
 		),
 	).Run()
