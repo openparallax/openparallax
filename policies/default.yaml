@@ -1,0 +1,83 @@
+# Default policy: Balanced security.
+# Allows reads within the workspace, evaluates shell commands and external
+# communication at higher tiers, blocks access to sensitive system paths.
+
+deny:
+  - name: block_sensitive_system_paths
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+    paths:
+      - "~/.ssh/**"
+      - "~/.aws/**"
+      - "~/.gnupg/**"
+      - "~/.kube/**"
+      - "/etc/shadow"
+      - "/etc/sudoers"
+      - "C:\\Windows\\System32\\config\\**"
+
+  - name: block_write_to_soul
+    action_types:
+      - delete_file
+    paths:
+      - "**/SOUL.md"
+
+verify:
+  - name: evaluate_shell_commands
+    action_types:
+      - execute_command
+    tier_override: 1
+
+  - name: evaluate_external_communication
+    action_types:
+      - send_message
+      - send_email
+      - http_request
+    tier_override: 1
+
+  - name: evaluate_soul_modification
+    action_types:
+      - write_file
+    paths:
+      - "**/SOUL.md"
+      - "**/IDENTITY.md"
+    tier_override: 2
+
+  - name: evaluate_destructive_file_ops
+    action_types:
+      - delete_file
+      - move_file
+    tier_override: 1
+
+  - name: evaluate_git_push
+    action_types:
+      - git_push
+    tier_override: 1
+
+allow:
+  - name: allow_workspace_reads
+    action_types:
+      - read_file
+      - list_directory
+      - search_files
+
+  - name: allow_memory_search
+    action_types:
+      - memory_search
+
+  - name: allow_git_readonly
+    action_types:
+      - git_status
+      - git_diff
+      - git_log
+
+  - name: allow_calendar_reads
+    action_types:
+      - read_calendar
+
+  - name: allow_schedule_listing
+    action_types:
+      - list_schedules
