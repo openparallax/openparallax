@@ -49,11 +49,40 @@ func setupTestWorkspace(t *testing.T) (string, string) {
 	}
 	_ = resp.Body.Close()
 
+	// Create a minimal policy file in the test workspace.
+	policyDir := filepath.Join(dir, "policies")
+	require.NoError(t, os.MkdirAll(policyDir, 0o755))
+	policyContent := `allow:
+  - name: allow_all_reads
+    action_types:
+      - read_file
+      - list_directory
+      - search_files
+      - memory_search
+      - git_status
+      - git_diff
+      - git_log
+verify:
+  - name: evaluate_shell
+    action_types:
+      - execute_command
+    tier_override: 1
+`
+	policyPath := filepath.Join(policyDir, "test.yaml")
+	require.NoError(t, os.WriteFile(policyPath, []byte(policyContent), 0o644))
+
+	// Create a minimal evaluator prompt.
+	promptDir := filepath.Join(dir, "prompts")
+	require.NoError(t, os.MkdirAll(promptDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(promptDir, "evaluator-v1.md"),
+		[]byte("You are a security evaluator. Canary: {{CANARY_TOKEN}}"), 0o644))
+
 	configContent := fmt.Sprintf("workspace: %s\nllm:\n  provider: openai\n  model: %s\n  api_key_env: OPENAI_API_KEY\n", dir, model)
 	if baseURL != "" {
 		configContent += fmt.Sprintf("  base_url: %s\n", baseURL)
 	}
 	configContent += "identity:\n  name: TestBot\n"
+	configContent += fmt.Sprintf("shield:\n  policy_file: %s\n  heuristic_enabled: true\n", policyPath)
 
 	configPath := filepath.Join(dir, "config.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
