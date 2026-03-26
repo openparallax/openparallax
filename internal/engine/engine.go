@@ -20,6 +20,7 @@ import (
 	"github.com/openparallax/openparallax/internal/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
+	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/parser"
 	"github.com/openparallax/openparallax/internal/plog"
 	"github.com/openparallax/openparallax/internal/session"
@@ -46,6 +47,7 @@ type Engine struct {
 	executors *executors.Registry
 	shield    *shield.Pipeline
 	chronicle *chronicle.Chronicle
+	memory    *memory.Manager
 	audit     *audit.Logger
 	verifier  *Verifier
 	checker   *ResponseChecker
@@ -136,6 +138,8 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		return nil, fmt.Errorf("chronicle: %w", err)
 	}
 
+	mem := memory.NewManager(cfg.Workspace, db, provider)
+
 	return &Engine{
 		cfg:       cfg,
 		llm:       provider,
@@ -149,6 +153,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		executors: registry,
 		shield:    shieldPipeline,
 		chronicle: chron,
+		memory:    mem,
 		audit:     auditLogger,
 		verifier:  NewVerifier(),
 		checker:   NewResponseChecker(),
@@ -439,6 +444,11 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 		}
 	}
 
+	// Daily log (Normal mode only).
+	if !isOTR && len(actions) > 0 {
+		e.memory.LogAction(actions, results)
+	}
+
 	// Step 5: Generate streaming response with action results.
 	e.log.Log("response", "streaming with %d action result(s)", len(results))
 	return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, results)
@@ -500,6 +510,36 @@ func (e *Engine) GetStatus(_ context.Context, _ *pb.StatusRequest) (*pb.StatusRe
 		Model:        e.llm.Model(),
 		SessionCount: int32(sessionCount),
 	}, nil
+}
+
+// ReadMemory implements the PipelineService gRPC method.
+func (e *Engine) ReadMemory(_ context.Context, req *pb.MemoryReadRequest) (*pb.MemoryReadResponse, error) {
+	content, err := e.memory.Read(types.MemoryFileType(req.FileType))
+	if err != nil {
+		return nil, err
+	}
+	return &pb.MemoryReadResponse{
+		Content: content,
+		Path:    filepath.Join(e.cfg.Workspace, req.FileType),
+	}, nil
+}
+
+// SearchMemory implements the PipelineService gRPC method.
+func (e *Engine) SearchMemory(_ context.Context, req *pb.MemorySearchRequest) (*pb.MemorySearchResponse, error) {
+	results, err := e.memory.Search(req.Query, int(req.Limit))
+	if err != nil {
+		return nil, err
+	}
+	var pbResults []*pb.MemorySearchResult
+	for _, r := range results {
+		pbResults = append(pbResults, &pb.MemorySearchResult{
+			Path:    r.Path,
+			Section: r.Section,
+			Snippet: r.Snippet,
+			Score:   r.Score,
+		})
+	}
+	return &pb.MemorySearchResponse{Results: pbResults}, nil
 }
 
 // Shutdown implements the PipelineService gRPC method.
