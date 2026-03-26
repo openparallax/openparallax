@@ -15,6 +15,7 @@ import (
 
 	"github.com/openparallax/openparallax/internal/agent"
 	"github.com/openparallax/openparallax/internal/audit"
+	"github.com/openparallax/openparallax/internal/chronicle"
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
@@ -44,6 +45,7 @@ type Engine struct {
 	responder *agent.Responder
 	executors *executors.Registry
 	shield    *shield.Pipeline
+	chronicle *chronicle.Chronicle
 	audit     *audit.Logger
 	verifier  *Verifier
 	checker   *ResponseChecker
@@ -128,6 +130,12 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 	auditLogger.SetDB(db)
 
+	// Initialize Chronicle.
+	chron, err := chronicle.New(cfg.Workspace, cfg.Chronicle, db)
+	if err != nil {
+		return nil, fmt.Errorf("chronicle: %w", err)
+	}
+
 	return &Engine{
 		cfg:       cfg,
 		llm:       provider,
@@ -140,6 +148,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		responder: agent.NewResponder(provider),
 		executors: registry,
 		shield:    shieldPipeline,
+		chronicle: chron,
 		audit:     auditLogger,
 		verifier:  NewVerifier(),
 		checker:   NewResponseChecker(),
@@ -380,6 +389,13 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 			continue
 		}
 		e.log.Log("verify", "hash match: ok")
+
+		// Chronicle snapshot (Normal mode only, failure is non-blocking).
+		if !isOTR {
+			if _, snapErr := e.chronicle.Snapshot(action); snapErr != nil {
+				e.log.Log("chronicle", "snapshot failed: %s (continuing)", snapErr)
+			}
+		}
 
 		// Execute.
 		_ = stream.Send(&pb.PipelineEvent{
