@@ -30,7 +30,6 @@ func stubCommand(use, short string) *cobra.Command {
 
 func init() {
 	rootCmd.AddCommand(stubCommand("chat", "Start an interactive CLI chat session"))
-	rootCmd.AddCommand(stubCommand("audit", "Query and verify the audit log"))
 	rootCmd.AddCommand(stubCommand("chronicle", "Manage Chronicle snapshots and rollbacks"))
 	rootCmd.AddCommand(stubCommand("skills", "List loaded skills"))
 	rootCmd.AddCommand(stubCommand("memory", "View and search workspace memory"))
