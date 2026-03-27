@@ -365,26 +365,18 @@ func (m *model) startStreaming(text string) {
 				if event.ResponseComplete != nil {
 					fullText = event.ResponseComplete.Content
 				}
-			case pb.PipelineEventType_INTENT_PARSED:
-				if event.IntentParsed != nil {
-					m.program.Send(thoughtMsg(fmt.Sprintf("Understanding: %s", event.IntentParsed.Goal)))
-				}
-			case pb.PipelineEventType_ACTIONS_PLANNED:
-				if event.ActionsPlanned != nil && event.ActionsPlanned.Count > 0 {
-					m.program.Send(thoughtMsg(fmt.Sprintf("Planning %d action(s)", event.ActionsPlanned.Count)))
-				}
-			case pb.PipelineEventType_SELF_EVAL_PASSED:
-				if event.SelfEvalResult != nil && event.SelfEvalResult.Passed {
-					m.program.Send(thoughtMsg("Safety check: passed"))
+			case pb.PipelineEventType_ACTION_STARTED:
+				if event.ActionStarted != nil {
+					m.program.Send(thoughtMsg(fmt.Sprintf("\U0001f527 %s", event.ActionStarted.Summary)))
 				}
 			case pb.PipelineEventType_SHIELD_VERDICT:
 				if event.ShieldVerdict != nil {
 					decision := event.ShieldVerdict.Decision.String()
-					m.program.Send(thoughtMsg(fmt.Sprintf("Shield: %s (Tier %d)", decision, event.ShieldVerdict.Tier)))
-				}
-			case pb.PipelineEventType_ACTION_STARTED:
-				if event.ActionStarted != nil {
-					m.program.Send(thoughtMsg(fmt.Sprintf("\u25b8 %s", event.ActionStarted.Summary)))
+					mark := "\u2192"
+					if decision == "BLOCK" {
+						mark = "\u2717"
+					}
+					m.program.Send(thoughtMsg(fmt.Sprintf("%s Shield: %s (Tier %d)", mark, decision, event.ShieldVerdict.Tier)))
 				}
 			case pb.PipelineEventType_ACTION_COMPLETED:
 				if event.ActionCompleted != nil {
@@ -396,7 +388,7 @@ func (m *model) startStreaming(text string) {
 				}
 			case pb.PipelineEventType_OTR_BLOCKED:
 				if event.OtrBlocked != nil {
-					m.program.Send(thoughtMsg(fmt.Sprintf("OTR blocked: %s", event.OtrBlocked.Reason)))
+					m.program.Send(thoughtMsg(fmt.Sprintf("\u2717 OTR: %s", event.OtrBlocked.Reason)))
 				}
 			case pb.PipelineEventType_ERROR:
 				if event.PipelineError != nil {
