@@ -264,7 +264,21 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 	for rounds < maxToolRounds {
 		event, eventErr := toolStream.Next()
-		if eventErr == io.EOF {
+		if eventErr == io.EOF || event.Type == llm.EventDone {
+			// Stream ended. If we have pending tool results, send them
+			// back and continue with a new stream.
+			if len(toolResults) > 0 {
+				redactor.Flush()
+				e.log.Info("sending_tool_results", "session", sid, "count", len(toolResults))
+
+				if sendErr := toolStream.SendToolResults(toolResults); sendErr != nil {
+					e.log.Error("tool_result_send_failed", "session", sid, "error", sendErr)
+					break
+				}
+				toolResults = nil
+				rounds++
+				continue
+			}
 			break
 		}
 		if eventErr != nil {
@@ -282,29 +296,8 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 			e.log.Info("tool_call_received", "session", sid, "tool", tc.Name)
 
-			// Process through security pipeline.
 			result := e.processToolCall(ctx, tc, mode, sid, mid, stream)
 			toolResults = append(toolResults, result)
-
-		case llm.EventDone:
-			// If we have pending tool results, send them back and continue.
-			if len(toolResults) > 0 {
-				redactor.Flush()
-				e.log.Info("sending_tool_results", "session", sid, "count", len(toolResults))
-
-				if sendErr := toolStream.SendToolResults(toolResults); sendErr != nil {
-					e.log.Error("tool_result_send_failed", "session", sid, "error", sendErr)
-					break
-				}
-				toolResults = nil
-				rounds++
-				continue
-			}
-			// No tool results — stream is truly done.
-		}
-
-		if event.Type == llm.EventDone && len(toolResults) == 0 {
-			break
 		}
 	}
 
