@@ -189,6 +189,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case doneMsg:
 		m.thinking = false
+		// Persist thinking steps into the chat history so they remain visible.
+		if len(m.thoughts) > 0 {
+			for _, t := range m.thoughts {
+				m.addLine(m.dimStyle("  " + t))
+			}
+		}
 		content := string(msg)
 		if content == "" {
 			content = m.stream

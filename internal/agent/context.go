@@ -83,13 +83,10 @@ When you use tools and receive results:
 - Report results accurately based on what the tool returned.
 - If a tool call was blocked, explain that it was blocked and why.
 - If a tool call failed, explain the failure.
-- When reading files, you may summarize or highlight relevant parts, but never fabricate content that isn't in the file.
-- When multiple tools are called, report the outcome of each.
 
-When you don't use tools:
+When no tools are needed:
 - Be conversational and helpful.
-- If the user references something from a previous message, use your conversation history.
-- If you're unsure what the user wants, ask for clarification.`
+- If the user references something from a previous message, use your conversation history.`
 }
 
 func otrNotice() string {

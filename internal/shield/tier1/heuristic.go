@@ -43,11 +43,15 @@ func (h *HeuristicEngine) RuleCount() int {
 }
 
 // Evaluate checks an action against all heuristic rules.
-// Returns the highest-severity match, or an ALLOW result if no rules match.
+// Only scans security-relevant fields (command, path, url, source, destination)
+// to avoid false positives on file content being written.
 func (h *HeuristicEngine) Evaluate(action *types.ActionRequest) *ClassifierResult {
 	texts := []string{string(action.Type)}
-	for _, v := range action.Payload {
-		texts = append(texts, fmt.Sprintf("%v", v))
+	securityFields := []string{"command", "path", "source", "destination", "url", "pattern"}
+	for _, key := range securityFields {
+		if v, ok := action.Payload[key]; ok {
+			texts = append(texts, fmt.Sprintf("%v", v))
+		}
 	}
 	combined := strings.Join(texts, " ")
 

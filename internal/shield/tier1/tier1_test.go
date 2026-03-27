@@ -69,20 +69,26 @@ func TestHeuristicNullByte(t *testing.T) {
 	assert.Equal(t, types.VerdictBlock, r.Decision)
 }
 
-func TestHeuristicPrivateKey(t *testing.T) {
+func TestHeuristicPrivateKeyInCommand(t *testing.T) {
 	h := NewHeuristicEngine()
-	r := h.Evaluate(action(types.ActionWriteFile, map[string]any{
-		"content": "-----BEGIN RSA PRIVATE KEY-----\nMIIE...",
-	}))
+	r := h.Evaluate(cmd("echo '-----BEGIN RSA PRIVATE KEY-----' > /tmp/key"))
 	assert.Equal(t, types.VerdictBlock, r.Decision)
 }
 
-func TestHeuristicAWSKey(t *testing.T) {
+func TestHeuristicAWSKeyInCommand(t *testing.T) {
 	h := NewHeuristicEngine()
-	r := h.Evaluate(action(types.ActionWriteFile, map[string]any{
-		"content": "AKIAIOSFODNN7EXAMPLE",
-	}))
+	r := h.Evaluate(cmd("export AWS_KEY=AKIAIOSFODNN7EXAMPLE"))
 	assert.Equal(t, types.VerdictBlock, r.Decision)
+}
+
+func TestHeuristicFileContentNotScanned(t *testing.T) {
+	h := NewHeuristicEngine()
+	// File content should NOT trigger heuristics — that's the redactor's job.
+	r := h.Evaluate(action(types.ActionWriteFile, map[string]any{
+		"path":    "index.html",
+		"content": "<h1>Hello</h1>\n<script>console.log('test')</script>",
+	}))
+	assert.Equal(t, types.VerdictAllow, r.Decision)
 }
 
 func TestHeuristicZeroWidthChars(t *testing.T) {
