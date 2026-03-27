@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/openparallax/openparallax/internal/llm"
-	"github.com/openparallax/openparallax/internal/plog"
+	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/shield/tier0"
 	"github.com/openparallax/openparallax/internal/shield/tier1"
 	"github.com/openparallax/openparallax/internal/shield/tier2"
@@ -25,7 +25,7 @@ type Config struct {
 	RateLimit        int
 	VerdictTTL       int
 	DailyBudget      int
-	Log              *plog.Logger
+	Log              *logging.Logger
 }
 
 // Pipeline is the evaluation pipeline. Created once, used for all evaluations.
@@ -56,7 +56,9 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 			BaseURL:   cfg.Evaluator.BaseURL,
 		})
 		if provErr != nil {
-			cfg.Log.Log("shield", "Tier 2 evaluator not available: %s (continuing with Tier 0 + Tier 1)", provErr)
+			if cfg.Log != nil {
+				cfg.Log.Warn("tier2_not_available", "error", provErr)
+			}
 		} else {
 			promptPath := cfg.PromptPath
 			if promptPath == "" {
@@ -64,7 +66,9 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 			}
 			evaluator, err = tier2.NewEvaluator(evalProvider, promptPath, cfg.CanaryToken)
 			if err != nil {
-				cfg.Log.Log("shield", "Tier 2 evaluator init failed: %s (continuing with Tier 0 + Tier 1)", err)
+				if cfg.Log != nil {
+					cfg.Log.Warn("tier2_init_failed", "error", err)
+				}
 				evaluator = nil
 			}
 		}
@@ -72,7 +76,7 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 
 	log := cfg.Log
 	if log == nil {
-		log = plog.New(false)
+		log = logging.Nop()
 	}
 
 	gateway := NewGateway(GatewayConfig{

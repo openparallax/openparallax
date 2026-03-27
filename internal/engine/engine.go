@@ -20,9 +20,8 @@ import (
 	"github.com/openparallax/openparallax/internal/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
+	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/memory"
-	"github.com/openparallax/openparallax/internal/parser"
-	"github.com/openparallax/openparallax/internal/plog"
 	"github.com/openparallax/openparallax/internal/session"
 	"github.com/openparallax/openparallax/internal/shield"
 	"github.com/openparallax/openparallax/internal/storage"
@@ -31,22 +30,25 @@ import (
 	"google.golang.org/grpc"
 )
 
+// maxToolRounds limits the number of tool-call round-trips per message
+// to prevent infinite loops.
+const maxToolRounds = 10
+
 // Engine is the execution engine and gRPC server.
 type Engine struct {
 	pb.UnimplementedPipelineServiceServer
 
 	cfg       *types.AgentConfig
 	llm       llm.Provider
-	log       *plog.Logger
-	parser    *parser.Parser
+	log       *logging.Logger
 	agent     *agent.Agent
 	executors *executors.Registry
 	shield    *shield.Pipeline
+	enricher  *shield.MetadataEnricher
 	chronicle *chronicle.Chronicle
 	memory    *memory.Manager
 	audit     *audit.Logger
 	verifier  *Verifier
-	checker   *ResponseChecker
 	db        *storage.DB
 
 	server   *grpc.Server
@@ -57,14 +59,22 @@ type Engine struct {
 }
 
 // New creates an Engine from a config file path. When verbose is true,
-// diagnostic output for each pipeline stage is written to stderr.
+// diagnostic output for each pipeline stage is written to engine.log.
 func New(configPath string, verbose bool) (*Engine, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("config load: %w", err)
 	}
 
-	log := plog.New(verbose)
+	logLevel := logging.LevelInfo
+	if verbose {
+		logLevel = logging.LevelDebug
+	}
+	logPath := filepath.Join(cfg.Workspace, ".openparallax", "engine.log")
+	log, err := logging.New(logPath, logLevel)
+	if err != nil {
+		log = logging.Nop()
+	}
 
 	provider, err := llm.NewProvider(cfg.LLM)
 	if err != nil {
@@ -78,7 +88,6 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	registry := executors.NewRegistry(cfg.Workspace)
-
 	canaryToken := readCanaryToken(cfg.Workspace)
 
 	configDir := filepath.Dir(configPath)
@@ -97,7 +106,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		RateLimit:        cfg.General.RateLimit,
 		VerdictTTL:       cfg.General.VerdictTTLSeconds,
 		DailyBudget:      cfg.General.DailyBudget,
-		Log:              log,
+		Log:              nil, // Shield uses its own logging internally
 	})
 	if err != nil {
 		return nil, fmt.Errorf("shield init: %w", err)
@@ -116,22 +125,20 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	mem := memory.NewManager(cfg.Workspace, db, provider)
-
 	ag := agent.NewAgent(provider, cfg.Workspace, registry.AvailableActions())
 
 	return &Engine{
 		cfg:       cfg,
 		llm:       provider,
 		log:       log,
-		parser:    parser.New(provider),
 		agent:     ag,
 		executors: registry,
 		shield:    shieldPipeline,
+		enricher:  shield.NewMetadataEnricher(),
 		chronicle: chron,
 		memory:    mem,
 		audit:     auditLogger,
 		verifier:  NewVerifier(),
-		checker:   NewResponseChecker(),
 		db:        db,
 	}, nil
 }
@@ -155,6 +162,7 @@ func (e *Engine) Start() (int, error) {
 	if !ok {
 		return 0, fmt.Errorf("listener address is not TCP")
 	}
+	e.log.Info("grpc_server_started", "port", tcpAddr.Port)
 	return tcpAddr.Port, nil
 }
 
@@ -173,6 +181,7 @@ func (e *Engine) Stop() {
 	if e.db != nil {
 		_ = e.db.Close()
 	}
+	e.log.Info("grpc_server_shutdown")
 }
 
 // Port returns the port the engine is listening on, or 0 if not started.
@@ -188,119 +197,159 @@ func (e *Engine) Port() int {
 }
 
 // ProcessMessage implements the PipelineService gRPC method.
-// Pipeline: parse → plan → self-eval → [OTR check → Shield → verify → snapshot → execute] → respond.
+// Single tool-use LLM call with interception loop.
 func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.PipelineService_ProcessMessageServer) error {
 	ctx := stream.Context()
 	sid := req.SessionId
 	mid := req.MessageId
 	isOTR := req.Mode == pb.SessionMode_OTR
-
-	e.storeMessage(sid, mid, "user", req.Content)
-
 	mode := types.SessionNormal
 	if isOTR {
 		mode = types.SessionOTR
 	}
+
+	e.storeMessage(sid, mid, "user", req.Content)
+	e.log.Info("message_received", "session", sid, "length", len(req.Content))
+
+	// Load history.
+	history := e.getHistory(sid)
+
+	// Build system prompt with OTR awareness.
 	systemPrompt, err := e.agent.Context.Assemble(mode)
 	if err != nil {
 		return e.sendError(stream, sid, mid, "CONTEXT_FAILED", err.Error())
 	}
 
-	history := e.getHistory(sid)
-
-	// Build the pipeline summary — this is the single source of truth
-	// for the response generator about what happened.
-	summary := &types.PipelineSummary{UserMessage: req.Content}
-
-	// Parse intent.
-	intent, err := e.parser.Parse(ctx, req.Content)
-	if err != nil {
-		e.log.Log("parser", "failed: %s, falling back to conversation", err)
-		summary.Classification = types.GoalConversation
-		summary.ClassificationReason = "intent parsing failed: " + err.Error()
-		return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
+	// Load tool definitions (filtered for OTR).
+	allTools := agent.GenerateToolDefinitions(e.executors.AllToolSchemas())
+	tools := allTools
+	if isOTR {
+		tools = agent.FilterToolsForOTR(allTools)
 	}
 
-	summary.Classification = intent.Goal
-	summary.ClassificationReason = intent.Reasoning
+	// Build messages: history + current user message.
+	messages := make([]llm.ChatMessage, 0, len(history)+1)
+	messages = append(messages, history...)
+	messages = append(messages, llm.ChatMessage{Role: "user", Content: req.Content})
 
-	e.log.Log("parser", "intent: %s / %s (confidence: %.2f, reason: %s)",
-		intent.Goal, intent.PrimaryAction, intent.Confidence, intent.Reasoning)
-	e.emitIntentParsed(stream, sid, mid, intent)
+	e.log.Info("llm_call_started", "session", sid, "provider", e.llm.Name(),
+		"model", e.llm.Model(), "tools", len(tools), "history", len(messages))
 
-	if intent.Goal == types.GoalConversation || intent.PrimaryAction == "conversation" {
-		e.log.Log("parser", "conversation mode")
-		return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
-	}
-
-	// Plan and build actions.
-	actions, err := e.agent.PlanActions(ctx, intent, systemPrompt, history)
-	if err != nil || len(actions) == 0 {
-		e.log.Log("planner", "no actions produced, falling back to conversation")
-		return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
-	}
-
-	summary.ActionsPlanned = len(actions)
-	e.log.Log("planner", "%d action(s) planned", len(actions))
-	e.emitActionsPlanned(stream, sid, mid, len(actions))
-
-	// Self-eval gate.
-	passed, reason, _ := e.agent.SelfEval.Evaluate(ctx, actions, req.Content)
-	summary.SelfEvalPassed = passed
-	summary.SelfEvalReason = reason
-	e.emitSelfEval(stream, sid, mid, passed, reason)
-	if !passed {
-		e.log.Log("selfeval", "FAILED: %s", reason)
-		_ = e.audit.Log(audit.Entry{
-			EventType: types.AuditSelfProtection, SessionID: sid,
-			Details: "self-eval blocked: " + reason,
-		})
-		return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
-	}
-	e.log.Log("selfeval", "passed")
-
-	// Execute actions through security pipeline.
-	summary.Outcomes = e.executeActions(ctx, stream, sid, mid, actions, isOTR)
-
-	// Daily log (Normal mode only).
-	if !isOTR && len(actions) > 0 {
-		e.memory.LogAction(actions, outcomesToResults(summary.Outcomes))
-	}
-
-	e.log.Log("response", "streaming with %d outcome(s)", len(summary.Outcomes))
-	return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
-}
-
-// executeActions runs each action through OTR → Shield → verify → snapshot → execute.
-// Returns an ActionOutcome for every action.
-func (e *Engine) executeActions(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid string, actions []*types.ActionRequest, isOTR bool) []types.ActionOutcome {
-	outcomes := make([]types.ActionOutcome, 0, len(actions))
-	for _, action := range actions {
-		outcomes = append(outcomes, e.executeOneAction(ctx, stream, sid, mid, action, isOTR))
-	}
-	return outcomes
-}
-
-// executeOneAction processes a single action through the full security pipeline.
-func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid string, action *types.ActionRequest, isOTR bool) types.ActionOutcome {
-	// OTR enforcement.
-	if isOTR && !session.IsOTRAllowed(action.Type) {
-		reason := session.OTRBlockReason(action.Type)
-		e.log.Log("otr", "%s -> BLOCKED", action.Type)
+	// Initialize streaming redactor.
+	redactor := NewStreamingRedactor(func(text string) {
 		_ = stream.Send(&pb.PipelineEvent{
 			SessionId: sid, MessageId: mid,
-			EventType:  pb.PipelineEventType_OTR_BLOCKED,
-			OtrBlocked: &pb.OTRBlocked{Reason: reason},
+			EventType: pb.PipelineEventType_LLM_TOKEN,
+			LlmToken:  &pb.LLMToken{Text: text},
 		})
-		_ = e.audit.Log(audit.Entry{
-			EventType: types.AuditActionBlocked, SessionID: sid,
-			ActionType: string(action.Type), Details: "OTR: " + reason, OTR: true,
-		})
-		return types.ActionOutcome{
-			Action: action.Type, Status: types.StatusBlockedOTR,
-			Summary: string(action.Type), Reason: reason,
+	})
+
+	// Start tool-use stream.
+	toolStream, err := e.llm.StreamWithTools(ctx, messages, tools,
+		llm.WithSystem(systemPrompt), llm.WithMaxTokens(4096))
+	if err != nil {
+		e.log.Error("llm_call_failed", "session", sid, "error", err)
+		return e.sendError(stream, sid, mid, "LLM_CALL_FAILED", err.Error())
+	}
+	defer func() { _ = toolStream.Close() }()
+
+	// Main orchestration loop.
+	var toolResults []llm.ToolResult
+	rounds := 0
+
+	for rounds < maxToolRounds {
+		event, eventErr := toolStream.Next()
+		if eventErr == io.EOF {
+			break
+		}
+		if eventErr != nil {
+			e.log.Error("stream_error", "session", sid, "error", eventErr)
+			break
+		}
+
+		switch event.Type {
+		case llm.EventTextDelta:
+			redactor.Write(event.Text)
+
+		case llm.EventToolCallComplete:
+			redactor.Flush()
+			tc := event.ToolCall
+
+			e.log.Info("tool_call_received", "session", sid, "tool", tc.Name)
+
+			// Process through security pipeline.
+			result := e.processToolCall(ctx, tc, mode, sid, mid, stream)
+			toolResults = append(toolResults, result)
+
+		case llm.EventDone:
+			// If we have pending tool results, send them back and continue.
+			if len(toolResults) > 0 {
+				redactor.Flush()
+				e.log.Info("sending_tool_results", "session", sid, "count", len(toolResults))
+
+				if sendErr := toolStream.SendToolResults(toolResults); sendErr != nil {
+					e.log.Error("tool_result_send_failed", "session", sid, "error", sendErr)
+					break
+				}
+				toolResults = nil
+				rounds++
+				continue
+			}
+			// No tool results — stream is truly done.
+		}
+
+		if event.Type == llm.EventDone && len(toolResults) == 0 {
+			break
 		}
 	}
+
+	// Flush remaining buffered text.
+	redactor.Flush()
+
+	// Get full response text.
+	fullResponse := toolStream.FullText()
+
+	// Store assistant response.
+	e.storeMessage(sid, "", "assistant", fullResponse)
+
+	// Emit response complete.
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType:        pb.PipelineEventType_RESPONSE_COMPLETE,
+		ResponseComplete: &pb.ResponseComplete{Content: fullResponse},
+	})
+
+	e.log.Info("message_complete", "session", sid, "response_length", len(fullResponse), "rounds", rounds)
+
+	return nil
+}
+
+// processToolCall handles a single tool call through the full security pipeline.
+// Returns a ToolResult to send back to the LLM.
+func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode types.SessionMode, sid, mid string, stream pb.PipelineService_ProcessMessageServer) llm.ToolResult {
+	// Convert tool call to ActionRequest.
+	action := &types.ActionRequest{
+		RequestID: crypto.NewID(),
+		Type:      types.ActionType(tc.Name),
+		Payload:   tc.Arguments,
+		Timestamp: time.Now(),
+	}
+	hash, _ := crypto.HashAction(tc.Name, tc.Arguments)
+	action.Hash = hash
+
+	// Metadata enrichment.
+	e.enricher.Enrich(action)
+
+	isOTR := mode == types.SessionOTR
+
+	// Emit tool call started.
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType: pb.PipelineEventType_ACTION_STARTED,
+		ActionStarted: &pb.ActionStarted{
+			Summary: formatToolCallSummary(tc),
+		},
+	})
 
 	// Audit: proposed.
 	_ = e.audit.Log(audit.Entry{
@@ -308,9 +357,32 @@ func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService
 		ActionType: string(action.Type), Details: "hash: " + action.Hash, OTR: isOTR,
 	})
 
+	// OTR check (defense in depth — primary enforcement is tool filtering).
+	if isOTR && !session.IsOTRAllowed(action.Type) {
+		reason := session.OTRBlockReason(action.Type)
+		e.log.Info("otr_blocked", "session", sid, "tool", tc.Name)
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditActionBlocked, SessionID: sid,
+			ActionType: string(action.Type), Details: "OTR: " + reason, OTR: true,
+		})
+		_ = stream.Send(&pb.PipelineEvent{
+			SessionId: sid, MessageId: mid,
+			EventType:  pb.PipelineEventType_OTR_BLOCKED,
+			OtrBlocked: &pb.OTRBlocked{Reason: reason},
+		})
+		return llm.ToolResult{CallID: tc.ID, Content: "Blocked: " + reason, IsError: true}
+	}
+
 	// Shield evaluation.
 	verdict := e.shield.Evaluate(ctx, action)
-	e.emitShieldVerdict(stream, sid, mid, verdict)
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType: pb.PipelineEventType_SHIELD_VERDICT,
+		ShieldVerdict: &pb.ShieldVerdict{
+			Decision: verdictToProto(verdict.Decision), Tier: int32(verdict.Tier),
+			Confidence: verdict.Confidence, Reasoning: verdict.Reasoning,
+		},
+	})
 	_ = e.audit.Log(audit.Entry{
 		EventType: types.AuditActionEvaluated, SessionID: sid,
 		ActionType: string(action.Type),
@@ -318,69 +390,63 @@ func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService
 	})
 
 	if verdict.Decision == types.VerdictBlock {
-		e.log.Log("shield", "%s -> BLOCKED: %s", action.Type, verdict.Reasoning)
+		e.log.Info("shield_blocked", "session", sid, "tool", tc.Name, "reason", verdict.Reasoning)
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: verdict.Reasoning,
 		})
-		return types.ActionOutcome{
-			Action: action.Type, Status: types.StatusBlockedShield,
-			Summary: string(action.Type), Reason: verdict.Reasoning,
-		}
+		_ = stream.Send(&pb.PipelineEvent{
+			SessionId: sid, MessageId: mid,
+			EventType:       pb.PipelineEventType_ACTION_COMPLETED,
+			ActionCompleted: &pb.ActionCompleted{Success: false, Summary: "Blocked: " + verdict.Reasoning},
+		})
+		return llm.ToolResult{CallID: tc.ID, Content: "Blocked by security: " + verdict.Reasoning, IsError: true}
 	}
 
 	if verdict.Decision == types.VerdictEscalate {
-		e.log.Log("shield", "%s -> ESCALATE (approval not yet implemented)", action.Type)
-		return types.ActionOutcome{
-			Action: action.Type, Status: types.StatusBlockedEscalate,
-			Summary: string(action.Type), Reason: "requires human approval (not yet implemented)",
-		}
+		e.log.Info("shield_escalate", "session", sid, "tool", tc.Name)
+		return llm.ToolResult{CallID: tc.ID, Content: "Requires human approval (not yet implemented)", IsError: true}
 	}
 
-	// Hash verification (TOCTOU prevention).
-	if err := e.verifier.Verify(action); err != nil {
-		e.log.Log("verify", "%s -> hash mismatch", action.Type)
-		_ = e.audit.Log(audit.Entry{
-			EventType: types.AuditIntegrityViolation, SessionID: sid,
-			ActionType: string(action.Type), Details: "hash mismatch",
-		})
-		return types.ActionOutcome{
-			Action: action.Type, Status: types.StatusBlockedHash,
-			Summary: "integrity check failed", Reason: "hash verification failed",
-		}
+	// Hash verification.
+	if verifyErr := e.verifier.Verify(action); verifyErr != nil {
+		e.log.Error("hash_verify_failed", "session", sid, "tool", tc.Name)
+		return llm.ToolResult{CallID: tc.ID, Content: "Integrity check failed", IsError: true}
 	}
-	e.log.Log("verify", "hash match: ok")
 
-	// Chronicle snapshot (Normal mode only, non-blocking on failure).
+	// Chronicle snapshot (Normal mode only).
 	if !isOTR {
 		if _, snapErr := e.chronicle.Snapshot(action); snapErr != nil {
-			e.log.Log("chronicle", "snapshot failed: %s (continuing)", snapErr)
+			e.log.Warn("chronicle_snapshot_failed", "session", sid, "error", snapErr)
 		}
 	}
 
 	// Execute.
-	e.emitActionStarted(stream, sid, mid, action)
-	e.log.Log("executor", "%s starting", action.Type)
-
+	e.log.Info("executor_start", "session", sid, "tool", tc.Name)
 	start := time.Now()
 	result := e.executors.Execute(ctx, action)
 	result.DurationMs = time.Since(start).Milliseconds()
 
 	if result.Success {
-		e.log.Log("executor", "%s -> success (%s)", action.Type, result.Summary)
+		e.log.Info("executor_complete", "session", sid, "tool", tc.Name, "success", true, "ms", result.DurationMs)
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditActionExecuted, SessionID: sid,
 			ActionType: string(action.Type), Details: result.Summary,
 		})
 	} else {
-		e.log.Log("executor", "%s -> failed: %s", action.Type, result.Error)
+		e.log.Info("executor_complete", "session", sid, "tool", tc.Name, "success", false, "error", result.Error)
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditActionFailed, SessionID: sid,
 			ActionType: string(action.Type), Details: result.Error,
 		})
 	}
 
-	e.emitActionCompleted(stream, sid, mid, result)
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType:       pb.PipelineEventType_ACTION_COMPLETED,
+		ActionCompleted: &pb.ActionCompleted{Success: result.Success, Summary: result.Summary},
+	})
+
 	if result.Artifact != nil {
 		_ = stream.Send(&pb.PipelineEvent{
 			SessionId: sid, MessageId: mid,
@@ -389,52 +455,16 @@ func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService
 		})
 	}
 
-	status := types.StatusExecuted
+	// Format result for the LLM.
+	content := result.Summary
+	if result.Output != "" {
+		content = result.Output
+	}
 	if !result.Success {
-		status = types.StatusFailed
-	}
-	return types.ActionOutcome{
-		Action: action.Type, Status: status,
-		Summary: result.Summary, Output: result.Output, Reason: result.Error,
-	}
-}
-
-// streamResponse generates and streams the LLM response, with secret redaction.
-func (e *Engine) streamResponse(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid, systemPrompt string, history []llm.ChatMessage, summary *types.PipelineSummary) error {
-	reader, err := e.agent.Responder.Generate(ctx, systemPrompt, history, summary)
-	if err != nil {
-		return e.sendError(stream, sid, mid, "LLM_FAILED", err.Error())
-	}
-	defer func() { _ = reader.Close() }()
-
-	tokenCount := 0
-	for {
-		token, tokenErr := reader.Next()
-		if tokenErr == io.EOF {
-			break
-		}
-		if tokenErr != nil {
-			return e.sendError(stream, sid, mid, "STREAM_FAILED", tokenErr.Error())
-		}
-		tokenCount++
-		if sendErr := stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType: pb.PipelineEventType_LLM_TOKEN,
-			LlmToken:  &pb.LLMToken{Text: token},
-		}); sendErr != nil {
-			return sendErr
-		}
+		content = "Error: " + result.Error
 	}
 
-	fullText := e.checker.Redact(reader.FullText())
-	e.log.Log("response", "streamed %d tokens", tokenCount)
-	e.storeMessage(sid, "", "assistant", fullText)
-
-	return stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:        pb.PipelineEventType_RESPONSE_COMPLETE,
-		ResponseComplete: &pb.ResponseComplete{Content: fullText},
-	})
+	return llm.ToolResult{CallID: tc.ID, Content: content, IsError: !result.Success}
 }
 
 // --- gRPC RPC implementations ---
@@ -523,104 +553,27 @@ func (e *Engine) sendError(stream pb.PipelineService_ProcessMessageServer, sid, 
 	})
 }
 
-// --- Event emission helpers ---
-
-func (e *Engine) emitIntentParsed(stream pb.PipelineService_ProcessMessageServer, sid, mid string, intent *types.StructuredIntent) {
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType: pb.PipelineEventType_INTENT_PARSED,
-		IntentParsed: &pb.IntentParsed{
-			Goal: goalToProto(intent.Goal), Confidence: intent.Confidence, Destructive: intent.Destructive,
-		},
-	})
-}
-
-func (e *Engine) emitActionsPlanned(stream pb.PipelineService_ProcessMessageServer, sid, mid string, count int) {
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:      pb.PipelineEventType_ACTIONS_PLANNED,
-		ActionsPlanned: &pb.ActionsPlanned{Count: int32(count)},
-	})
-}
-
-func (e *Engine) emitSelfEval(stream pb.PipelineService_ProcessMessageServer, sid, mid string, passed bool, reason string) {
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:      pb.PipelineEventType_SELF_EVAL_PASSED,
-		SelfEvalResult: &pb.SelfEvalResult{Passed: passed, Reason: reason},
-	})
-}
-
-func (e *Engine) emitShieldVerdict(stream pb.PipelineService_ProcessMessageServer, sid, mid string, verdict *types.Verdict) {
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType: pb.PipelineEventType_SHIELD_VERDICT,
-		ShieldVerdict: &pb.ShieldVerdict{
-			Decision: verdictToProto(verdict.Decision), Tier: int32(verdict.Tier),
-			Confidence: verdict.Confidence, Reasoning: verdict.Reasoning,
-		},
-	})
-}
-
-func (e *Engine) emitActionStarted(stream pb.PipelineService_ProcessMessageServer, sid, mid string, action *types.ActionRequest) {
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:     pb.PipelineEventType_ACTION_STARTED,
-		ActionStarted: &pb.ActionStarted{Summary: formatActionSummary(action)},
-	})
-}
-
-func (e *Engine) emitActionCompleted(stream pb.PipelineService_ProcessMessageServer, sid, mid string, result *types.ActionResult) {
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:       pb.PipelineEventType_ACTION_COMPLETED,
-		ActionCompleted: &pb.ActionCompleted{Success: result.Success, Summary: result.Summary},
-	})
-}
-
 // --- Conversion helpers ---
 
-func formatActionSummary(a *types.ActionRequest) string {
-	switch a.Type {
-	case types.ActionReadFile:
-		return fmt.Sprintf("Reading %s", a.Payload["path"])
-	case types.ActionWriteFile:
-		return fmt.Sprintf("Writing %s", a.Payload["path"])
-	case types.ActionDeleteFile:
-		return fmt.Sprintf("Deleting %s", a.Payload["path"])
-	case types.ActionListDir:
-		return fmt.Sprintf("Listing %s", a.Payload["path"])
-	case types.ActionExecCommand:
-		cmd, _ := a.Payload["command"].(string)
+func formatToolCallSummary(tc *llm.ToolCall) string {
+	switch tc.Name {
+	case "read_file":
+		return fmt.Sprintf("Reading %s", tc.Arguments["path"])
+	case "write_file":
+		return fmt.Sprintf("Writing %s", tc.Arguments["path"])
+	case "delete_file":
+		return fmt.Sprintf("Deleting %s", tc.Arguments["path"])
+	case "list_directory":
+		return fmt.Sprintf("Listing %s", tc.Arguments["path"])
+	case "execute_command":
+		cmd, _ := tc.Arguments["command"].(string)
 		if len(cmd) > 60 {
 			cmd = cmd[:60] + "..."
 		}
 		return fmt.Sprintf("Running: %s", cmd)
 	default:
-		return string(a.Type)
+		return tc.Name
 	}
-}
-
-func goalToProto(g types.GoalType) pb.GoalType {
-	m := map[types.GoalType]pb.GoalType{
-		types.GoalFileManagement:       pb.GoalType_FILE_MANAGEMENT,
-		types.GoalCodeExecution:        pb.GoalType_CODE_EXECUTION,
-		types.GoalCommunication:        pb.GoalType_COMMUNICATION,
-		types.GoalInformationRetrieval: pb.GoalType_INFORMATION_RETRIEVAL,
-		types.GoalScheduling:           pb.GoalType_SCHEDULING,
-		types.GoalNoteTaking:           pb.GoalType_NOTE_TAKING,
-		types.GoalWebBrowsing:          pb.GoalType_WEB_BROWSING,
-		types.GoalGitOperations:        pb.GoalType_GIT_OPERATIONS,
-		types.GoalTextProcessing:       pb.GoalType_TEXT_PROCESSING,
-		types.GoalSystemManagement:     pb.GoalType_SYSTEM_MANAGEMENT,
-		types.GoalCreative:             pb.GoalType_CREATIVE,
-		types.GoalConversation:         pb.GoalType_CONVERSATION,
-		types.GoalCalendar:             pb.GoalType_CALENDAR,
-	}
-	if v, ok := m[g]; ok {
-		return v
-	}
-	return pb.GoalType_GOAL_TYPE_UNSPECIFIED
 }
 
 func verdictToProto(d types.VerdictDecision) pb.VerdictDecision {
@@ -644,21 +597,6 @@ func toProtoArtifact(a *types.Artifact) *pb.Artifact {
 	}
 }
 
-// outcomesToResults converts ActionOutcomes to ActionResults for the memory daily log.
-func outcomesToResults(outcomes []types.ActionOutcome) []*types.ActionResult {
-	results := make([]*types.ActionResult, len(outcomes))
-	for i, o := range outcomes {
-		results[i] = &types.ActionResult{
-			Success: o.Status == types.StatusExecuted,
-			Summary: o.Summary,
-			Output:  o.Output,
-			Error:   o.Reason,
-		}
-	}
-	return results
-}
-
-// readCanaryToken reads or generates the canary token for Shield.
 func readCanaryToken(workspace string) string {
 	canaryPath := filepath.Join(workspace, ".openparallax", "canary.token")
 	data, err := os.ReadFile(canaryPath)
@@ -669,7 +607,6 @@ func readCanaryToken(workspace string) string {
 	return token
 }
 
-// resolveFilePath finds a file by trying config dir, workspace, then cwd.
 func resolveFilePath(path, configDir, workspace string) string {
 	if path == "" || filepath.IsAbs(path) {
 		return path

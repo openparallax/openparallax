@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/plog"
+	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/shield/tier0"
 	"github.com/openparallax/openparallax/internal/shield/tier1"
 	"github.com/openparallax/openparallax/internal/shield/tier2"
@@ -24,7 +24,7 @@ type GatewayConfig struct {
 	RateLimit   int
 	VerdictTTL  int
 	DailyBudget int
-	Log         *plog.Logger
+	Log         *logging.Logger
 }
 
 // Gateway orchestrates the evaluation pipeline.
@@ -48,13 +48,13 @@ func NewGateway(cfg GatewayConfig) *Gateway {
 func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *types.Verdict {
 	// Rate limiting.
 	if !g.rateLimiter.Allow() {
-		g.cfg.Log.Log("shield", "%s -> BLOCK (rate limit exceeded)", action.Type)
+		g.cfg.Log.Info("shield_rate_limit", "action", action.Type)
 		return g.block(action, 0, 1.0, "rate limit exceeded")
 	}
 
 	// Self-protection: block access to Shield's own files.
 	if g.isSelfProtected(action) {
-		g.cfg.Log.Log("shield", "%s -> BLOCK (self-protection: %s)", action.Type, extractPath(action))
+		g.cfg.Log.Info("shield_self_protect", "action", action.Type, "path", extractPath(action))
 		return g.block(action, 0, 1.0, "access to security-critical files is blocked")
 	}
 
@@ -62,15 +62,15 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 	t0Result := g.cfg.Policy.Evaluate(action)
 	switch t0Result.Decision {
 	case tier0.Deny:
-		g.cfg.Log.Log("shield", "%s -> BLOCK (tier 0, policy: %s)", action.Type, t0Result.Reason)
+		g.cfg.Log.Info("shield_tier0_deny", "action", action.Type, "policy", t0Result.Reason)
 		return g.block(action, 0, 1.0, fmt.Sprintf("policy deny: %s", t0Result.Reason))
 	case tier0.Allow:
-		g.cfg.Log.Log("shield", "%s -> ALLOW (tier 0, policy: %s)", action.Type, t0Result.Reason)
+		g.cfg.Log.Info("shield_tier0_allow", "action", action.Type, "policy", t0Result.Reason)
 		return g.allow(action, 0, 1.0, fmt.Sprintf("policy allow: %s", t0Result.Reason))
 	case tier0.Escalate:
-		g.cfg.Log.Log("shield", "%s -> escalated to tier %d (policy: %s)", action.Type, t0Result.EscalateTo, t0Result.Reason)
+		g.cfg.Log.Info("shield_tier0_escalate", "action", action.Type, "to_tier", t0Result.EscalateTo, "policy", t0Result.Reason)
 	case tier0.NoMatch:
-		g.cfg.Log.Log("shield", "%s -> no policy match, proceeding to tier 1", action.Type)
+		g.cfg.Log.Debug("shield_tier0_nomatch", "action", action.Type)
 	}
 
 	// Determine minimum tier from escalation.
@@ -90,13 +90,13 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 		t1Result, err := g.cfg.Classifier.Classify(ctx, action)
 		switch {
 		case err != nil && g.cfg.FailClosed:
-			g.cfg.Log.Log("shield", "%s -> BLOCK (tier 1 error: %s)", action.Type, err)
+			g.cfg.Log.Warn("shield_tier1_error", "action", action.Type, "error", err)
 			return g.block(action, 1, 0.5, "classifier error: "+err.Error())
 		case err == nil && t1Result.Decision == types.VerdictBlock:
-			g.cfg.Log.Log("shield", "%s -> BLOCK (tier 1, %s)", action.Type, t1Result.Reason)
+			g.cfg.Log.Info("shield_tier1_block", "action", action.Type, "reason", t1Result.Reason)
 			return g.blockResult(action, 1, t1Result.Confidence, t1Result.Reason)
 		case err == nil && minTier < 2:
-			g.cfg.Log.Log("shield", "%s -> ALLOW (tier 1, confidence: %.2f)", action.Type, t1Result.Confidence)
+			g.cfg.Log.Info("shield_tier1_allow", "action", action.Type, "confidence", t1Result.Confidence)
 			return g.allow(action, 1, t1Result.Confidence, "classifier approved")
 		}
 	}
@@ -104,14 +104,14 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 	// Tier 2: LLM evaluator.
 	if g.cfg.Evaluator == nil {
 		if g.cfg.FailClosed {
-			g.cfg.Log.Log("shield", "%s -> BLOCK (tier 2 required but not available)", action.Type)
+			g.cfg.Log.Info("shield_tier2_unavailable", "action", action.Type)
 			return g.block(action, 2, 0.5, "Tier 2 evaluation required but not available")
 		}
 		return g.allow(action, 1, 0.5, "Tier 2 not available, allowing with reduced confidence")
 	}
 
 	if !g.checkBudget() {
-		g.cfg.Log.Log("shield", "%s -> BLOCK (daily tier 2 budget exhausted)", action.Type)
+		g.cfg.Log.Info("shield_budget_exhausted", "action", action.Type)
 		if g.cfg.FailClosed {
 			return g.block(action, 2, 0.5, "daily evaluation budget exhausted")
 		}
@@ -120,13 +120,12 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 	t2Result, err := g.cfg.Evaluator.Evaluate(ctx, action)
 	if err != nil {
 		if g.cfg.FailClosed {
-			g.cfg.Log.Log("shield", "%s -> BLOCK (tier 2 error: %s)", action.Type, err)
+			g.cfg.Log.Warn("shield_tier2_error", "action", action.Type, "error", err)
 			return g.block(action, 2, 0.5, "evaluator error: "+err.Error())
 		}
 	}
 
-	g.cfg.Log.Log("shield", "%s -> %s (tier 2, confidence: %.2f, reason: %s)",
-		action.Type, t2Result.Decision, t2Result.Confidence, t2Result.Reason)
+	g.cfg.Log.Info("shield_tier2_result", "action", action.Type, "decision", t2Result.Decision, "confidence", t2Result.Confidence)
 
 	if t2Result.Decision == types.VerdictBlock {
 		return g.blockResult(action, 2, t2Result.Confidence, t2Result.Reason)

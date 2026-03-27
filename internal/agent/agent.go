@@ -7,37 +7,20 @@ import (
 	"github.com/openparallax/openparallax/internal/types"
 )
 
-// Agent coordinates the reasoning pipeline: context assembly, planning,
-// building, self-evaluation, response generation, and history compaction.
+// Agent coordinates context assembly and history compaction.
+// In the tool-use architecture, the LLM decides what tools to call —
+// there is no separate planner, builder, or self-evaluator.
 type Agent struct {
 	Context   *ContextAssembler
-	Planner   *Planner
-	Builder   *ActionBuilder
-	SelfEval  *SelfEvaluator
-	Responder *Responder
 	Compactor *Compactor
 }
 
-// NewAgent creates an Agent with all reasoning components initialized.
-func NewAgent(provider llm.Provider, workspacePath string, availableActions []types.ActionType) *Agent {
+// NewAgent creates an Agent.
+func NewAgent(provider llm.Provider, workspacePath string, _ []types.ActionType) *Agent {
 	return &Agent{
 		Context:   NewContextAssembler(workspacePath),
-		Planner:   NewPlanner(provider, availableActions),
-		Builder:   NewActionBuilder(),
-		SelfEval:  NewSelfEvaluator(provider),
-		Responder: NewResponder(provider),
 		Compactor: NewCompactor(provider),
 	}
-}
-
-// PlanActions takes a StructuredIntent and produces ActionRequests.
-// Returns nil with no error for pure conversation (no actions needed).
-func (a *Agent) PlanActions(ctx context.Context, intent *types.StructuredIntent, systemPrompt string, history []llm.ChatMessage) ([]*types.ActionRequest, error) {
-	rawPlan, err := a.Planner.Plan(ctx, intent, systemPrompt, history)
-	if err != nil {
-		return nil, err
-	}
-	return a.Builder.Build(rawPlan)
 }
 
 // CompactHistory compresses old messages when the context window is getting full.

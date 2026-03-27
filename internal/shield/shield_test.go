@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/openparallax/openparallax/internal/plog"
+	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func newTestPipeline(t *testing.T) *Pipeline {
 		RateLimit:        100,
 		VerdictTTL:       60,
 		DailyBudget:      100,
-		Log:              plog.New(false),
+		Log:              logging.Nop(),
 	})
 	require.NoError(t, err)
 	return p
