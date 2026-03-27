@@ -62,4 +62,7 @@ type StructuredIntent struct {
 
 	// RawInput is the original user message.
 	RawInput string `json:"raw_input"`
+
+	// Reasoning explains why the parser chose this classification.
+	Reasoning string `json:"reasoning"`
 }

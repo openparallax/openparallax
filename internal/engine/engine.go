@@ -204,34 +204,46 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 	history := e.getHistory(sid)
 
+	// Build the pipeline summary — this is the single source of truth
+	// for the response generator about what happened.
+	summary := &types.PipelineSummary{UserMessage: req.Content}
+
 	// Parse intent.
 	intent, err := e.parser.Parse(ctx, req.Content)
 	if err != nil {
 		e.log.Log("parser", "failed: %s, falling back to conversation", err)
-		return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, nil)
+		summary.Classification = types.GoalConversation
+		summary.ClassificationReason = "intent parsing failed: " + err.Error()
+		return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
 	}
 
-	e.log.Log("parser", "intent: %s / %s (confidence: %.2f, destructive: %v)",
-		intent.Goal, intent.PrimaryAction, intent.Confidence, intent.Destructive)
+	summary.Classification = intent.Goal
+	summary.ClassificationReason = intent.Reasoning
+
+	e.log.Log("parser", "intent: %s / %s (confidence: %.2f, reason: %s)",
+		intent.Goal, intent.PrimaryAction, intent.Confidence, intent.Reasoning)
 	e.emitIntentParsed(stream, sid, mid, intent)
 
 	if intent.Goal == types.GoalConversation || intent.PrimaryAction == "conversation" {
 		e.log.Log("parser", "conversation mode")
-		return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, nil)
+		return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
 	}
 
 	// Plan and build actions.
 	actions, err := e.agent.PlanActions(ctx, intent, systemPrompt, history)
 	if err != nil || len(actions) == 0 {
 		e.log.Log("planner", "no actions produced, falling back to conversation")
-		return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, nil)
+		return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
 	}
 
+	summary.ActionsPlanned = len(actions)
 	e.log.Log("planner", "%d action(s) planned", len(actions))
 	e.emitActionsPlanned(stream, sid, mid, len(actions))
 
 	// Self-eval gate.
 	passed, reason, _ := e.agent.SelfEval.Evaluate(ctx, actions, req.Content)
+	summary.SelfEvalPassed = passed
+	summary.SelfEvalReason = reason
 	e.emitSelfEval(stream, sid, mid, passed, reason)
 	if !passed {
 		e.log.Log("selfeval", "FAILED: %s", reason)
@@ -239,37 +251,34 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 			EventType: types.AuditSelfProtection, SessionID: sid,
 			Details: "self-eval blocked: " + reason,
 		})
-		return e.sendError(stream, sid, mid, "SELF_EVAL_FAILED", "Safety check failed: "+reason)
+		return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
 	}
 	e.log.Log("selfeval", "passed")
 
 	// Execute actions through security pipeline.
-	results := e.executeActions(ctx, stream, sid, mid, actions, isOTR)
+	summary.Outcomes = e.executeActions(ctx, stream, sid, mid, actions, isOTR)
 
 	// Daily log (Normal mode only).
 	if !isOTR && len(actions) > 0 {
-		e.memory.LogAction(actions, results)
+		e.memory.LogAction(actions, outcomesToResults(summary.Outcomes))
 	}
 
-	e.log.Log("response", "streaming with %d action result(s)", len(results))
-	return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, results)
+	e.log.Log("response", "streaming with %d outcome(s)", len(summary.Outcomes))
+	return e.streamResponse(ctx, stream, sid, mid, systemPrompt, history, summary)
 }
 
 // executeActions runs each action through OTR → Shield → verify → snapshot → execute.
-// Returns a result for every action (success, blocked, or failed).
-func (e *Engine) executeActions(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid string, actions []*types.ActionRequest, isOTR bool) []*types.ActionResult {
-	var results []*types.ActionResult
-
+// Returns an ActionOutcome for every action.
+func (e *Engine) executeActions(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid string, actions []*types.ActionRequest, isOTR bool) []types.ActionOutcome {
+	outcomes := make([]types.ActionOutcome, 0, len(actions))
 	for _, action := range actions {
-		result := e.executeOneAction(ctx, stream, sid, mid, action, isOTR)
-		results = append(results, result)
+		outcomes = append(outcomes, e.executeOneAction(ctx, stream, sid, mid, action, isOTR))
 	}
-
-	return results
+	return outcomes
 }
 
 // executeOneAction processes a single action through the full security pipeline.
-func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid string, action *types.ActionRequest, isOTR bool) *types.ActionResult {
+func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid string, action *types.ActionRequest, isOTR bool) types.ActionOutcome {
 	// OTR enforcement.
 	if isOTR && !session.IsOTRAllowed(action.Type) {
 		reason := session.OTRBlockReason(action.Type)
@@ -283,9 +292,9 @@ func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: "OTR: " + reason, OTR: true,
 		})
-		return &types.ActionResult{
-			RequestID: action.RequestID, Success: false,
-			Error: reason, Summary: fmt.Sprintf("OTR blocked: %s", action.Type),
+		return types.ActionOutcome{
+			Action: action.Type, Status: types.StatusBlockedOTR,
+			Summary: string(action.Type), Reason: reason,
 		}
 	}
 
@@ -310,17 +319,17 @@ func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: verdict.Reasoning,
 		})
-		return &types.ActionResult{
-			RequestID: action.RequestID, Success: false,
-			Error: "blocked by Shield: " + verdict.Reasoning, Summary: fmt.Sprintf("blocked: %s", action.Type),
+		return types.ActionOutcome{
+			Action: action.Type, Status: types.StatusBlockedShield,
+			Summary: string(action.Type), Reason: verdict.Reasoning,
 		}
 	}
 
 	if verdict.Decision == types.VerdictEscalate {
 		e.log.Log("shield", "%s -> ESCALATE (approval not yet implemented)", action.Type)
-		return &types.ActionResult{
-			RequestID: action.RequestID, Success: false,
-			Error: "requires human approval (not yet implemented)", Summary: fmt.Sprintf("escalated: %s", action.Type),
+		return types.ActionOutcome{
+			Action: action.Type, Status: types.StatusBlockedEscalate,
+			Summary: string(action.Type), Reason: "requires human approval (not yet implemented)",
 		}
 	}
 
@@ -331,9 +340,9 @@ func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService
 			EventType: types.AuditIntegrityViolation, SessionID: sid,
 			ActionType: string(action.Type), Details: "hash mismatch",
 		})
-		return &types.ActionResult{
-			RequestID: action.RequestID, Success: false,
-			Error: "hash verification failed", Summary: "integrity check failed",
+		return types.ActionOutcome{
+			Action: action.Type, Status: types.StatusBlockedHash,
+			Summary: "integrity check failed", Reason: "hash verification failed",
 		}
 	}
 	e.log.Log("verify", "hash match: ok")
@@ -376,12 +385,19 @@ func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService
 		})
 	}
 
-	return result
+	status := types.StatusExecuted
+	if !result.Success {
+		status = types.StatusFailed
+	}
+	return types.ActionOutcome{
+		Action: action.Type, Status: status,
+		Summary: result.Summary, Output: result.Output, Reason: result.Error,
+	}
 }
 
 // streamResponse generates and streams the LLM response, with secret redaction.
-func (e *Engine) streamResponse(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid, content, systemPrompt string, history []llm.ChatMessage, results []*types.ActionResult) error {
-	reader, err := e.agent.Responder.Generate(ctx, content, systemPrompt, history, results)
+func (e *Engine) streamResponse(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid, systemPrompt string, history []llm.ChatMessage, summary *types.PipelineSummary) error {
+	reader, err := e.agent.Responder.Generate(ctx, systemPrompt, history, summary)
 	if err != nil {
 		return e.sendError(stream, sid, mid, "LLM_FAILED", err.Error())
 	}
@@ -622,6 +638,20 @@ func toProtoArtifact(a *types.Artifact) *pb.Artifact {
 		Content: a.Content, Language: a.Language,
 		SizeBytes: a.SizeBytes, PreviewType: a.PreviewType,
 	}
+}
+
+// outcomesToResults converts ActionOutcomes to ActionResults for the memory daily log.
+func outcomesToResults(outcomes []types.ActionOutcome) []*types.ActionResult {
+	results := make([]*types.ActionResult, len(outcomes))
+	for i, o := range outcomes {
+		results[i] = &types.ActionResult{
+			Success: o.Status == types.StatusExecuted,
+			Summary: o.Summary,
+			Output:  o.Output,
+			Error:   o.Reason,
+		}
+	}
+	return results
 }
 
 // readCanaryToken reads or generates the canary token for Shield.

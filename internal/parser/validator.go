@@ -55,6 +55,7 @@ func (v *Validator) Validate(raw *RawIntent, originalInput string) (*types.Struc
 		Destructive:   destructive,
 		Sensitivity:   sensitivity,
 		RawInput:      originalInput,
+		Reasoning:     raw.Reasoning,
 	}, nil
 }
 
