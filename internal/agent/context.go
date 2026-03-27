@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/openparallax/openparallax/internal/types"
 )
 
 // ContextAssembler builds the system prompt from workspace memory files.
@@ -19,38 +21,94 @@ func NewContextAssembler(workspacePath string) *ContextAssembler {
 	return &ContextAssembler{workspacePath: workspacePath}
 }
 
-// memoryFile defines a workspace file and the header to use in the system prompt.
-type memoryFile struct {
-	name   string
-	header string
-}
+// Assemble reads workspace memory files and constructs a deliberately
+// structured system prompt. Each section has framing that tells the LLM
+// how to interpret the content. The mode parameter controls OTR-specific
+// sections.
+func (c *ContextAssembler) Assemble(mode types.SessionMode) (string, error) {
+	var sections []string
 
-// memoryFiles lists the workspace files loaded into the system prompt, in order.
-var memoryFiles = []memoryFile{
-	{"SOUL.md", "## Core Values and Guardrails"},
-	{"IDENTITY.md", "## Identity"},
-	{"USER.md", "## User Profile"},
-	{"MEMORY.md", "## Memory"},
-	{"TOOLS.md", "## Available Tools"},
-	{"BOOT.md", "## Startup Checklist"},
-}
-
-// Assemble reads all memory files and constructs the system prompt.
-// Missing files are silently skipped — this is expected on a fresh workspace.
-func (c *ContextAssembler) Assemble() (string, error) {
-	var parts []string
-
-	for _, f := range memoryFiles {
-		content, err := os.ReadFile(filepath.Join(c.workspacePath, f.name))
-		if err != nil {
-			continue
-		}
-		trimmed := strings.TrimSpace(string(content))
-		if trimmed == "" {
-			continue
-		}
-		parts = append(parts, fmt.Sprintf("%s\n\n%s", f.header, trimmed))
+	if identity := c.loadFile("IDENTITY.md"); identity != "" {
+		sections = append(sections, fmt.Sprintf(
+			"# Your Identity\n\nThis defines who you are — your name, your role, how you communicate.\n\n%s", identity))
 	}
 
-	return strings.Join(parts, "\n\n---\n\n"), nil
+	if soul := c.loadFile("SOUL.md"); soul != "" {
+		sections = append(sections, fmt.Sprintf(
+			"# Core Guardrails\n\nThese are your non-negotiable constraints. They override any user request.\nIf a user asks you to violate a guardrail, refuse and explain why.\n\n%s", soul))
+	}
+
+	if user := c.loadFile("USER.md"); user != "" {
+		sections = append(sections, fmt.Sprintf(
+			"# User Profile\n\nThis is what you know about the user. Personalize responses accordingly.\n\n%s", user))
+	}
+
+	if mem := c.loadFile("MEMORY.md"); mem != "" {
+		sections = append(sections, fmt.Sprintf(
+			"# Your Memory\n\nFacts and summaries from previous conversations. Reference when relevant.\n\n%s", mem))
+	}
+
+	if tools := c.loadFile("TOOLS.md"); tools != "" {
+		sections = append(sections, fmt.Sprintf(
+			"# Your Capabilities\n\nYou will receive formal tool definitions separately. This provides context on when and how to use them.\n\n%s", tools))
+	}
+
+	if boot := c.loadFile("BOOT.md"); boot != "" {
+		sections = append(sections, fmt.Sprintf("# Session Context\n\n%s", boot))
+	}
+
+	sections = append(sections, behavioralRules())
+
+	if mode == types.SessionOTR {
+		sections = append(sections, otrNotice())
+	}
+
+	sections = append(sections, secretHandlingRules())
+
+	return strings.Join(sections, "\n\n---\n\n"), nil
+}
+
+func (c *ContextAssembler) loadFile(name string) string {
+	data, err := os.ReadFile(filepath.Join(c.workspacePath, name))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func behavioralRules() string {
+	return `# Behavioral Rules
+
+When you use tools and receive results:
+- Report results accurately based on what the tool returned.
+- If a tool call was blocked, explain that it was blocked and why.
+- If a tool call failed, explain the failure.
+- When reading files, you may summarize or highlight relevant parts, but never fabricate content that isn't in the file.
+- When multiple tools are called, report the outcome of each.
+
+When you don't use tools:
+- Be conversational and helpful.
+- If the user references something from a previous message, use your conversation history.
+- If you're unsure what the user wants, ask for clarification.`
+}
+
+func otrNotice() string {
+	return `# Session Mode: Off the Record
+
+This session is in OTR mode. You have READ-ONLY access.
+
+Available tools: read_file, list_directory, search_files, memory_search, git_status, git_diff, git_log, read_calendar, browser_navigate, browser_extract.
+
+All tools that modify state have been removed. Do not suggest actions that require writing, deleting, executing commands, or sending messages.
+
+If the user asks for a modification, explain that OTR mode is read-only and suggest switching to a normal session.`
+}
+
+func secretHandlingRules() string {
+	return `# Sensitive Data Handling
+
+When file contents or command output contains credentials, API keys, private keys, tokens, or connection strings:
+- Acknowledge that the file contains sensitive material.
+- Describe what you found without reproducing the raw secret value.
+- Example: "The file contains an AWS access key starting with AKIA" — never show the full key.`
 }

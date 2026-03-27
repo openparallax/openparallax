@@ -197,7 +197,11 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 	e.storeMessage(sid, mid, "user", req.Content)
 
-	systemPrompt, err := e.agent.Context.Assemble()
+	mode := types.SessionNormal
+	if isOTR {
+		mode = types.SessionOTR
+	}
+	systemPrompt, err := e.agent.Context.Assemble(mode)
 	if err != nil {
 		return e.sendError(stream, sid, mid, "CONTEXT_FAILED", err.Error())
 	}
