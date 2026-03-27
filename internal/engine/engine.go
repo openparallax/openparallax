@@ -220,6 +220,11 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 		return e.sendError(stream, sid, mid, "CONTEXT_FAILED", err.Error())
 	}
 
+	// Compact history if approaching context limits.
+	// Reserve 30% for the current turn (system prompt + user message + tool results + response).
+	contextBudget := e.llm.EstimateTokens(systemPrompt) + 4096
+	history, _ = e.agent.CompactHistory(ctx, history, contextBudget)
+
 	// Load tool definitions (filtered for OTR).
 	allTools := agent.GenerateToolDefinitions(e.executors.AllToolSchemas())
 	tools := allTools
