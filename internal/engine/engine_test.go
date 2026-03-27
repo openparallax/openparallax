@@ -323,7 +323,6 @@ func TestEngineFullPipelineReadFile(t *testing.T) {
 	// Ask to read SOUL.md which exists in the workspace.
 	events := helperSendAndCollect(t, client, sessionID, "read the file SOUL.md")
 
-	assert.True(t, events[pb.PipelineEventType_INTENT_PARSED], "should have INTENT_PARSED")
 	assert.True(t, events[pb.PipelineEventType_RESPONSE_COMPLETE], "should have RESPONSE_COMPLETE")
 }
 

@@ -295,8 +295,10 @@ func (r *openaiToolStreamReader) Next() (StreamEvent, error) {
 		if choice.FinishReason == "tool_calls" {
 			r.pending = nil
 			r.pendingAt = 0
-			for i := 0; i < len(r.accum); i++ {
-				acc := r.accum[i]
+			for _, acc := range r.accum {
+				if acc == nil {
+					continue
+				}
 				var args map[string]any
 				if err := json.Unmarshal([]byte(acc.argsJSON), &args); err != nil {
 					args = map[string]any{"raw": acc.argsJSON}
