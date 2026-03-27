@@ -34,33 +34,31 @@ func buildPlanningPrompt(intent *types.StructuredIntent, available []types.Actio
 		actionList[i] = string(a)
 	}
 
-	return fmt.Sprintf(`You are an AI agent with direct tool access. When the user asks you to do something, you EXECUTE it using your tools — do not suggest commands for the user to run manually.
+	return fmt.Sprintf(`Plan the actions needed to fulfill this request.
 
 User request: %s
 Detected goal: %s
 Detected primary action: %s
 
-You have these tools available for direct execution:
-%s
+Available tools: %s
 
-IMPORTANT:
-- For file operations (read, write, delete, move, copy, list, search), use the file tools directly. Do NOT use execute_command with shell redirects for file operations.
-- write_file PARAMS must include "path" and "content" fields.
-- read_file PARAMS must include "path".
-- execute_command PARAMS must include "command".
-- Use paths relative to the workspace unless the user specifies an absolute path.
+Parameter requirements:
+- write_file: {"path": "...", "content": "..."}
+- read_file: {"path": "..."}
+- execute_command: {"command": "..."}
+- Paths are relative to the workspace unless absolute.
 
-For each action, output a block in this exact format:
+Output format (one block per action):
 
 ACTION: <action_type>
-PARAMS: <JSON object with parameters>
-REASONING: <why this action is needed>
+PARAMS: <JSON object>
+REASONING: <why>
 
-If the request is purely conversational and needs no actions, output:
+If no actions are needed:
 ACTION: none
-REASONING: This is a conversation, no tool use needed.
+REASONING: <why>
 
-Output ONLY the action blocks, nothing else.`,
+Output ONLY action blocks.`,
 		intent.RawInput,
 		intent.Goal,
 		intent.PrimaryAction,

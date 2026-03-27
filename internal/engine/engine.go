@@ -39,11 +39,7 @@ type Engine struct {
 	llm       llm.Provider
 	log       *plog.Logger
 	parser    *parser.Parser
-	planner   *agent.Planner
-	builder   *agent.ActionBuilder
-	selfEval  *agent.SelfEvaluator
-	context   *agent.ContextAssembler
-	responder *agent.Responder
+	agent     *agent.Agent
 	executors *executors.Registry
 	shield    *shield.Pipeline
 	chronicle *chronicle.Chronicle
@@ -83,27 +79,12 @@ func New(configPath string, verbose bool) (*Engine, error) {
 
 	registry := executors.NewRegistry(cfg.Workspace)
 
-	// Read canary token.
-	canaryToken := ""
-	canaryPath := filepath.Join(cfg.Workspace, ".openparallax", "canary.token")
-	if data, readErr := readFileQuiet(canaryPath); readErr == nil {
-		canaryToken = string(data)
-	}
-	if canaryToken == "" {
-		var genErr error
-		canaryToken, genErr = crypto.GenerateCanary()
-		if genErr != nil {
-			return nil, fmt.Errorf("canary generation: %w", genErr)
-		}
-	}
+	canaryToken := readCanaryToken(cfg.Workspace)
 
-	// Resolve policy and prompt paths. Try relative to config dir first,
-	// then workspace, then working directory.
 	configDir := filepath.Dir(configPath)
 	policyFile := resolveFilePath(cfg.Shield.PolicyFile, configDir, cfg.Workspace)
 	promptPath := resolveFilePath("prompts/evaluator-v1.md", configDir, cfg.Workspace)
 
-	// Initialize Shield pipeline.
 	shieldPipeline, err := shield.NewPipeline(shield.Config{
 		PolicyFile:       policyFile,
 		OnnxThreshold:    cfg.Shield.OnnxThreshold,
@@ -122,7 +103,6 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		return nil, fmt.Errorf("shield init: %w", err)
 	}
 
-	// Initialize audit logger with SQLite indexing.
 	auditPath := filepath.Join(cfg.Workspace, ".openparallax", "audit.jsonl")
 	auditLogger, err := audit.NewLogger(auditPath)
 	if err != nil {
@@ -130,7 +110,6 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 	auditLogger.SetDB(db)
 
-	// Initialize Chronicle.
 	chron, err := chronicle.New(cfg.Workspace, cfg.Chronicle, db)
 	if err != nil {
 		return nil, fmt.Errorf("chronicle: %w", err)
@@ -138,16 +117,14 @@ func New(configPath string, verbose bool) (*Engine, error) {
 
 	mem := memory.NewManager(cfg.Workspace, db, provider)
 
+	ag := agent.NewAgent(provider, cfg.Workspace, registry.AvailableActions())
+
 	return &Engine{
 		cfg:       cfg,
 		llm:       provider,
 		log:       log,
 		parser:    parser.New(provider),
-		planner:   agent.NewPlanner(provider, registry.AvailableActions()),
-		builder:   agent.NewActionBuilder(),
-		selfEval:  agent.NewSelfEvaluator(provider),
-		context:   agent.NewContextAssembler(cfg.Workspace),
-		responder: agent.NewResponder(provider),
+		agent:     ag,
 		executors: registry,
 		shield:    shieldPipeline,
 		chronicle: chron,
@@ -211,255 +188,200 @@ func (e *Engine) Port() int {
 }
 
 // ProcessMessage implements the PipelineService gRPC method.
-// Full secured pipeline: parse -> plan -> self-eval -> shield -> verify -> execute -> respond.
+// Pipeline: parse → plan → self-eval → [OTR check → Shield → verify → snapshot → execute] → respond.
 func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.PipelineService_ProcessMessageServer) error {
 	ctx := stream.Context()
 	sid := req.SessionId
 	mid := req.MessageId
+	isOTR := req.Mode == pb.SessionMode_OTR
 
 	e.storeMessage(sid, mid, "user", req.Content)
 
-	systemPrompt, err := e.context.Assemble()
+	systemPrompt, err := e.agent.Context.Assemble()
 	if err != nil {
 		return e.sendError(stream, sid, mid, "CONTEXT_FAILED", err.Error())
 	}
 
 	history := e.getHistory(sid)
 
-	// Step 1: Parse intent.
+	// Parse intent.
 	intent, err := e.parser.Parse(ctx, req.Content)
 	if err != nil {
 		e.log.Log("parser", "failed: %s, falling back to conversation", err)
-		return e.streamConversation(ctx, stream, sid, mid, req.Content, systemPrompt, history)
+		return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, nil)
 	}
 
 	e.log.Log("parser", "intent: %s / %s (confidence: %.2f, destructive: %v)",
 		intent.Goal, intent.PrimaryAction, intent.Confidence, intent.Destructive)
-
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType: pb.PipelineEventType_INTENT_PARSED,
-		IntentParsed: &pb.IntentParsed{
-			Goal:        goalToProto(intent.Goal),
-			Confidence:  intent.Confidence,
-			Destructive: intent.Destructive,
-		},
-	})
+	e.emitIntentParsed(stream, sid, mid, intent)
 
 	if intent.Goal == types.GoalConversation || intent.PrimaryAction == "conversation" {
-		e.log.Log("parser", "conversation mode, skipping action pipeline")
-		return e.streamConversation(ctx, stream, sid, mid, req.Content, systemPrompt, history)
+		e.log.Log("parser", "conversation mode")
+		return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, nil)
 	}
 
-	// Step 2: Plan actions.
-	rawPlan, err := e.planner.Plan(ctx, intent, systemPrompt, history)
-	if err != nil {
-		e.log.Log("planner", "failed: %s, falling back to conversation", err)
-		return e.streamConversation(ctx, stream, sid, mid, req.Content, systemPrompt, history)
-	}
-
-	actions, err := e.builder.Build(rawPlan)
+	// Plan and build actions.
+	actions, err := e.agent.PlanActions(ctx, intent, systemPrompt, history)
 	if err != nil || len(actions) == 0 {
-		e.log.Log("builder", "no actions produced, falling back to conversation")
-		return e.streamConversation(ctx, stream, sid, mid, req.Content, systemPrompt, history)
+		e.log.Log("planner", "no actions produced, falling back to conversation")
+		return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, nil)
 	}
 
-	e.log.Log("planner", "raw plan: %d ACTION block(s) parsed", len(actions))
+	e.log.Log("planner", "%d action(s) planned", len(actions))
+	e.emitActionsPlanned(stream, sid, mid, len(actions))
 
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:      pb.PipelineEventType_ACTIONS_PLANNED,
-		ActionsPlanned: &pb.ActionsPlanned{Count: int32(len(actions))},
-	})
-
-	// Step 3: Self-eval (Layer 0) — enforcing gate.
-	passed, reason, _ := e.selfEval.Evaluate(ctx, actions, req.Content)
-	if passed {
-		e.log.Log("selfeval", "passed")
-	} else {
-		e.log.Log("selfeval", "FAILED: %s", reason)
-	}
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:      pb.PipelineEventType_SELF_EVAL_PASSED,
-		SelfEvalResult: &pb.SelfEvalResult{Passed: passed, Reason: reason},
-	})
+	// Self-eval gate.
+	passed, reason, _ := e.agent.SelfEval.Evaluate(ctx, actions, req.Content)
+	e.emitSelfEval(stream, sid, mid, passed, reason)
 	if !passed {
+		e.log.Log("selfeval", "FAILED: %s", reason)
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditSelfProtection, SessionID: sid,
-			Details: fmt.Sprintf("self-eval blocked: %s", reason),
+			Details: "self-eval blocked: " + reason,
 		})
-		return e.sendError(stream, sid, mid, "SELF_EVAL_FAILED",
-			fmt.Sprintf("Safety check failed: %s", reason))
+		return e.sendError(stream, sid, mid, "SELF_EVAL_FAILED", "Safety check failed: "+reason)
 	}
+	e.log.Log("selfeval", "passed")
 
-	// Determine session mode.
-	isOTR := req.Mode == pb.SessionMode_OTR
-
-	// Step 4: Evaluate and execute each action.
-	var results []*types.ActionResult
-	for _, action := range actions {
-		// OTR enforcement: block non-read actions.
-		if isOTR && !session.IsOTRAllowed(action.Type) {
-			reason := session.OTRBlockReason(action.Type)
-			e.log.Log("otr", "%s -> BLOCKED: %s", action.Type, reason)
-			_ = stream.Send(&pb.PipelineEvent{
-				SessionId: sid, MessageId: mid,
-				EventType: pb.PipelineEventType_OTR_BLOCKED,
-				OtrBlocked: &pb.OTRBlocked{
-					Reason: reason,
-				},
-			})
-			_ = e.audit.Log(audit.Entry{
-				EventType: types.AuditActionBlocked, SessionID: sid,
-				ActionType: string(action.Type),
-				Details:    "OTR: " + reason,
-				OTR:        true,
-			})
-			results = append(results, &types.ActionResult{
-				RequestID: action.RequestID, Success: false,
-				Error:   reason,
-				Summary: fmt.Sprintf("OTR blocked: %s", action.Type),
-			})
-			continue
-		}
-
-		// Audit: action proposed.
-		_ = e.audit.Log(audit.Entry{
-			EventType: types.AuditActionProposed, SessionID: sid,
-			ActionType: string(action.Type),
-			Details:    fmt.Sprintf("hash: %s", action.Hash),
-			OTR:        isOTR,
-		})
-
-		// Shield evaluation (runs even in OTR).
-		verdict := e.shield.Evaluate(ctx, action)
-
-		_ = stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType: pb.PipelineEventType_SHIELD_VERDICT,
-			ShieldVerdict: &pb.ShieldVerdict{
-				Decision:   verdictToProto(verdict.Decision),
-				Tier:       int32(verdict.Tier),
-				Confidence: verdict.Confidence,
-				Reasoning:  verdict.Reasoning,
-			},
-		})
-
-		_ = e.audit.Log(audit.Entry{
-			EventType: types.AuditActionEvaluated, SessionID: sid,
-			ActionType: string(action.Type),
-			Details:    fmt.Sprintf("%s (tier %d): %s", verdict.Decision, verdict.Tier, verdict.Reasoning),
-		})
-
-		if verdict.Decision == types.VerdictBlock {
-			e.log.Log("shield", "%s -> BLOCKED: %s", action.Type, verdict.Reasoning)
-			_ = e.audit.Log(audit.Entry{
-				EventType: types.AuditActionBlocked, SessionID: sid,
-				ActionType: string(action.Type),
-				Details:    verdict.Reasoning,
-			})
-			results = append(results, &types.ActionResult{
-				RequestID: action.RequestID, Success: false,
-				Error:   fmt.Sprintf("blocked by Shield: %s", verdict.Reasoning),
-				Summary: fmt.Sprintf("blocked: %s", action.Type),
-			})
-			continue
-		}
-
-		if verdict.Decision == types.VerdictEscalate {
-			e.log.Log("shield", "%s -> ESCALATE (approval not yet implemented)", action.Type)
-			results = append(results, &types.ActionResult{
-				RequestID: action.RequestID, Success: false,
-				Error:   "requires human approval (not yet implemented)",
-				Summary: fmt.Sprintf("escalated: %s", action.Type),
-			})
-			continue
-		}
-
-		// Hash verification.
-		if verifyErr := e.verifier.Verify(action); verifyErr != nil {
-			e.log.Log("verify", "%s -> hash mismatch!", action.Type)
-			_ = e.audit.Log(audit.Entry{
-				EventType: types.AuditIntegrityViolation, SessionID: sid,
-				ActionType: string(action.Type),
-				Details:    "hash mismatch between evaluation and execution",
-			})
-			results = append(results, &types.ActionResult{
-				RequestID: action.RequestID, Success: false,
-				Error: "hash verification failed", Summary: "integrity check failed",
-			})
-			continue
-		}
-		e.log.Log("verify", "hash match: ok")
-
-		// Chronicle snapshot (Normal mode only, failure is non-blocking).
-		if !isOTR {
-			if _, snapErr := e.chronicle.Snapshot(action); snapErr != nil {
-				e.log.Log("chronicle", "snapshot failed: %s (continuing)", snapErr)
-			}
-		}
-
-		// Execute.
-		_ = stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType:     pb.PipelineEventType_ACTION_STARTED,
-			ActionStarted: &pb.ActionStarted{Summary: formatActionSummary(action)},
-		})
-
-		e.log.Log("executor", "%s starting", action.Type)
-		start := time.Now()
-		result := e.executors.Execute(ctx, action)
-		result.DurationMs = time.Since(start).Milliseconds()
-		results = append(results, result)
-
-		if result.Success {
-			e.log.Log("executor", "%s -> success (%s)", action.Type, result.Summary)
-			_ = e.audit.Log(audit.Entry{
-				EventType: types.AuditActionExecuted, SessionID: sid,
-				ActionType: string(action.Type), Details: result.Summary,
-			})
-		} else {
-			e.log.Log("executor", "%s -> failed: %s", action.Type, result.Error)
-			_ = e.audit.Log(audit.Entry{
-				EventType: types.AuditActionFailed, SessionID: sid,
-				ActionType: string(action.Type), Details: result.Error,
-			})
-		}
-
-		_ = stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType:       pb.PipelineEventType_ACTION_COMPLETED,
-			ActionCompleted: &pb.ActionCompleted{Success: result.Success, Summary: result.Summary},
-		})
-
-		if result.Artifact != nil {
-			_ = stream.Send(&pb.PipelineEvent{
-				SessionId: sid, MessageId: mid,
-				EventType:      pb.PipelineEventType_ACTION_ARTIFACT,
-				ActionArtifact: &pb.ActionArtifact{Artifact: toProtoArtifact(result.Artifact)},
-			})
-		}
-	}
+	// Execute actions through security pipeline.
+	results := e.executeActions(ctx, stream, sid, mid, actions, isOTR)
 
 	// Daily log (Normal mode only).
 	if !isOTR && len(actions) > 0 {
 		e.memory.LogAction(actions, results)
 	}
 
-	// Step 5: Generate streaming response with action results.
 	e.log.Log("response", "streaming with %d action result(s)", len(results))
 	return e.streamResponse(ctx, stream, sid, mid, req.Content, systemPrompt, history, results)
 }
 
-// streamConversation generates a streaming response without any action execution.
-func (e *Engine) streamConversation(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid, content, systemPrompt string, history []llm.ChatMessage) error {
-	return e.streamResponse(ctx, stream, sid, mid, content, systemPrompt, history, nil)
+// executeActions runs each action through OTR → Shield → verify → snapshot → execute.
+// Returns a result for every action (success, blocked, or failed).
+func (e *Engine) executeActions(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid string, actions []*types.ActionRequest, isOTR bool) []*types.ActionResult {
+	var results []*types.ActionResult
+
+	for _, action := range actions {
+		result := e.executeOneAction(ctx, stream, sid, mid, action, isOTR)
+		results = append(results, result)
+	}
+
+	return results
+}
+
+// executeOneAction processes a single action through the full security pipeline.
+func (e *Engine) executeOneAction(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid string, action *types.ActionRequest, isOTR bool) *types.ActionResult {
+	// OTR enforcement.
+	if isOTR && !session.IsOTRAllowed(action.Type) {
+		reason := session.OTRBlockReason(action.Type)
+		e.log.Log("otr", "%s -> BLOCKED", action.Type)
+		_ = stream.Send(&pb.PipelineEvent{
+			SessionId: sid, MessageId: mid,
+			EventType:  pb.PipelineEventType_OTR_BLOCKED,
+			OtrBlocked: &pb.OTRBlocked{Reason: reason},
+		})
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditActionBlocked, SessionID: sid,
+			ActionType: string(action.Type), Details: "OTR: " + reason, OTR: true,
+		})
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error: reason, Summary: fmt.Sprintf("OTR blocked: %s", action.Type),
+		}
+	}
+
+	// Audit: proposed.
+	_ = e.audit.Log(audit.Entry{
+		EventType: types.AuditActionProposed, SessionID: sid,
+		ActionType: string(action.Type), Details: "hash: " + action.Hash, OTR: isOTR,
+	})
+
+	// Shield evaluation.
+	verdict := e.shield.Evaluate(ctx, action)
+	e.emitShieldVerdict(stream, sid, mid, verdict)
+	_ = e.audit.Log(audit.Entry{
+		EventType: types.AuditActionEvaluated, SessionID: sid,
+		ActionType: string(action.Type),
+		Details:    fmt.Sprintf("%s (tier %d): %s", verdict.Decision, verdict.Tier, verdict.Reasoning),
+	})
+
+	if verdict.Decision == types.VerdictBlock {
+		e.log.Log("shield", "%s -> BLOCKED: %s", action.Type, verdict.Reasoning)
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditActionBlocked, SessionID: sid,
+			ActionType: string(action.Type), Details: verdict.Reasoning,
+		})
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error: "blocked by Shield: " + verdict.Reasoning, Summary: fmt.Sprintf("blocked: %s", action.Type),
+		}
+	}
+
+	if verdict.Decision == types.VerdictEscalate {
+		e.log.Log("shield", "%s -> ESCALATE (approval not yet implemented)", action.Type)
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error: "requires human approval (not yet implemented)", Summary: fmt.Sprintf("escalated: %s", action.Type),
+		}
+	}
+
+	// Hash verification (TOCTOU prevention).
+	if err := e.verifier.Verify(action); err != nil {
+		e.log.Log("verify", "%s -> hash mismatch", action.Type)
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditIntegrityViolation, SessionID: sid,
+			ActionType: string(action.Type), Details: "hash mismatch",
+		})
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error: "hash verification failed", Summary: "integrity check failed",
+		}
+	}
+	e.log.Log("verify", "hash match: ok")
+
+	// Chronicle snapshot (Normal mode only, non-blocking on failure).
+	if !isOTR {
+		if _, snapErr := e.chronicle.Snapshot(action); snapErr != nil {
+			e.log.Log("chronicle", "snapshot failed: %s (continuing)", snapErr)
+		}
+	}
+
+	// Execute.
+	e.emitActionStarted(stream, sid, mid, action)
+	e.log.Log("executor", "%s starting", action.Type)
+
+	start := time.Now()
+	result := e.executors.Execute(ctx, action)
+	result.DurationMs = time.Since(start).Milliseconds()
+
+	if result.Success {
+		e.log.Log("executor", "%s -> success (%s)", action.Type, result.Summary)
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditActionExecuted, SessionID: sid,
+			ActionType: string(action.Type), Details: result.Summary,
+		})
+	} else {
+		e.log.Log("executor", "%s -> failed: %s", action.Type, result.Error)
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditActionFailed, SessionID: sid,
+			ActionType: string(action.Type), Details: result.Error,
+		})
+	}
+
+	e.emitActionCompleted(stream, sid, mid, result)
+	if result.Artifact != nil {
+		_ = stream.Send(&pb.PipelineEvent{
+			SessionId: sid, MessageId: mid,
+			EventType:      pb.PipelineEventType_ACTION_ARTIFACT,
+			ActionArtifact: &pb.ActionArtifact{Artifact: toProtoArtifact(result.Artifact)},
+		})
+	}
+
+	return result
 }
 
 // streamResponse generates and streams the LLM response, with secret redaction.
 func (e *Engine) streamResponse(ctx context.Context, stream pb.PipelineService_ProcessMessageServer, sid, mid, content, systemPrompt string, history []llm.ChatMessage, results []*types.ActionResult) error {
-	reader, err := e.responder.Generate(ctx, content, systemPrompt, history, results)
+	reader, err := e.agent.Responder.Generate(ctx, content, systemPrompt, history, results)
 	if err != nil {
 		return e.sendError(stream, sid, mid, "LLM_FAILED", err.Error())
 	}
@@ -485,7 +407,7 @@ func (e *Engine) streamResponse(ctx context.Context, stream pb.PipelineService_P
 	}
 
 	fullText := e.checker.Redact(reader.FullText())
-	e.log.Log("response", "streaming %d tokens", tokenCount)
+	e.log.Log("response", "streamed %d tokens", tokenCount)
 	e.storeMessage(sid, "", "assistant", fullText)
 
 	return stream.Send(&pb.PipelineEvent{
@@ -495,6 +417,8 @@ func (e *Engine) streamResponse(ctx context.Context, stream pb.PipelineService_P
 	})
 }
 
+// --- gRPC RPC implementations ---
+
 // GetStatus implements the PipelineService gRPC method.
 func (e *Engine) GetStatus(_ context.Context, _ *pb.StatusRequest) (*pb.StatusResponse, error) {
 	sessionCount, _ := e.db.SessionCount()
@@ -502,12 +426,20 @@ func (e *Engine) GetStatus(_ context.Context, _ *pb.StatusRequest) (*pb.StatusRe
 	if agentName == "" {
 		agentName = types.DefaultIdentity.Name
 	}
-
 	return &pb.StatusResponse{
 		AgentName:    agentName,
 		Model:        e.llm.Model(),
 		SessionCount: int32(sessionCount),
 	}, nil
+}
+
+// Shutdown implements the PipelineService gRPC method.
+func (e *Engine) Shutdown(_ context.Context, _ *pb.ShutdownRequest) (*pb.ShutdownResponse, error) {
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		e.Stop()
+	}()
+	return &pb.ShutdownResponse{Clean: true}, nil
 }
 
 // ReadMemory implements the PipelineService gRPC method.
@@ -531,23 +463,13 @@ func (e *Engine) SearchMemory(_ context.Context, req *pb.MemorySearchRequest) (*
 	var pbResults []*pb.MemorySearchResult
 	for _, r := range results {
 		pbResults = append(pbResults, &pb.MemorySearchResult{
-			Path:    r.Path,
-			Section: r.Section,
-			Snippet: r.Snippet,
-			Score:   r.Score,
+			Path: r.Path, Section: r.Section, Snippet: r.Snippet, Score: r.Score,
 		})
 	}
 	return &pb.MemorySearchResponse{Results: pbResults}, nil
 }
 
-// Shutdown implements the PipelineService gRPC method.
-func (e *Engine) Shutdown(_ context.Context, _ *pb.ShutdownRequest) (*pb.ShutdownResponse, error) {
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		e.Stop()
-	}()
-	return &pb.ShutdownResponse{Clean: true}, nil
-}
+// --- Internal helpers ---
 
 func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
 	if messageID == "" {
@@ -580,6 +502,63 @@ func (e *Engine) sendError(stream pb.PipelineService_ProcessMessageServer, sid, 
 		},
 	})
 }
+
+// --- Event emission helpers ---
+
+func (e *Engine) emitIntentParsed(stream pb.PipelineService_ProcessMessageServer, sid, mid string, intent *types.StructuredIntent) {
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType: pb.PipelineEventType_INTENT_PARSED,
+		IntentParsed: &pb.IntentParsed{
+			Goal: goalToProto(intent.Goal), Confidence: intent.Confidence, Destructive: intent.Destructive,
+		},
+	})
+}
+
+func (e *Engine) emitActionsPlanned(stream pb.PipelineService_ProcessMessageServer, sid, mid string, count int) {
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType:      pb.PipelineEventType_ACTIONS_PLANNED,
+		ActionsPlanned: &pb.ActionsPlanned{Count: int32(count)},
+	})
+}
+
+func (e *Engine) emitSelfEval(stream pb.PipelineService_ProcessMessageServer, sid, mid string, passed bool, reason string) {
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType:      pb.PipelineEventType_SELF_EVAL_PASSED,
+		SelfEvalResult: &pb.SelfEvalResult{Passed: passed, Reason: reason},
+	})
+}
+
+func (e *Engine) emitShieldVerdict(stream pb.PipelineService_ProcessMessageServer, sid, mid string, verdict *types.Verdict) {
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType: pb.PipelineEventType_SHIELD_VERDICT,
+		ShieldVerdict: &pb.ShieldVerdict{
+			Decision: verdictToProto(verdict.Decision), Tier: int32(verdict.Tier),
+			Confidence: verdict.Confidence, Reasoning: verdict.Reasoning,
+		},
+	})
+}
+
+func (e *Engine) emitActionStarted(stream pb.PipelineService_ProcessMessageServer, sid, mid string, action *types.ActionRequest) {
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType:     pb.PipelineEventType_ACTION_STARTED,
+		ActionStarted: &pb.ActionStarted{Summary: formatActionSummary(action)},
+	})
+}
+
+func (e *Engine) emitActionCompleted(stream pb.PipelineService_ProcessMessageServer, sid, mid string, result *types.ActionResult) {
+	_ = stream.Send(&pb.PipelineEvent{
+		SessionId: sid, MessageId: mid,
+		EventType:       pb.PipelineEventType_ACTION_COMPLETED,
+		ActionCompleted: &pb.ActionCompleted{Success: result.Success, Summary: result.Summary},
+	})
+}
+
+// --- Conversion helpers ---
 
 func formatActionSummary(a *types.ActionRequest) string {
 	switch a.Type {
@@ -645,28 +624,26 @@ func toProtoArtifact(a *types.Artifact) *pb.Artifact {
 	}
 }
 
-func readFileQuiet(path string) ([]byte, error) {
-	return os.ReadFile(path)
+// readCanaryToken reads or generates the canary token for Shield.
+func readCanaryToken(workspace string) string {
+	canaryPath := filepath.Join(workspace, ".openparallax", "canary.token")
+	data, err := os.ReadFile(canaryPath)
+	if err == nil && len(data) > 0 {
+		return string(data)
+	}
+	token, _ := crypto.GenerateCanary()
+	return token
 }
 
-// resolveFilePath finds a file by trying multiple base directories.
-// Returns the absolute path if it's already absolute. Otherwise tries
-// relative to configDir, then workspace, then working directory.
+// resolveFilePath finds a file by trying config dir, workspace, then cwd.
 func resolveFilePath(path, configDir, workspace string) string {
-	if path == "" {
+	if path == "" || filepath.IsAbs(path) {
 		return path
 	}
-	if filepath.IsAbs(path) {
-		return path
-	}
-	candidates := []string{
-		filepath.Join(configDir, path),
-		filepath.Join(workspace, path),
-		path,
-	}
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
-			return c
+	for _, base := range []string{configDir, workspace, "."} {
+		candidate := filepath.Join(base, path)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
 		}
 	}
 	return filepath.Join(configDir, path)

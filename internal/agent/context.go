@@ -52,14 +52,5 @@ func (c *ContextAssembler) Assemble() (string, error) {
 		parts = append(parts, fmt.Sprintf("%s\n\n%s", f.header, trimmed))
 	}
 
-	result := strings.Join(parts, "\n\n---\n\n")
-
-	// Core behavioral instruction that applies to all interactions.
-	result += "\n\n---\n\n## Behavioral Rules\n\n"
-	result += "You are an AI agent. You can execute real actions through your action pipeline.\n"
-	result += "NEVER generate fake tool calls, XML tags, or pretend to execute actions in your response text.\n"
-	result += "NEVER output <tool_call>, <tool_response>, or similar markup. Your responses are plain text for the user.\n"
-	result += "When you want to perform an action, the system handles it through the planning pipeline. You describe results based on what actually happened.\n"
-
-	return result, nil
+	return strings.Join(parts, "\n\n---\n\n"), nil
 }
