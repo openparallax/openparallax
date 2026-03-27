@@ -39,6 +39,21 @@ func (r *Registry) AvailableActions() []types.ActionType {
 	return actions
 }
 
+// AllToolSchemas collects tool schemas from all registered executors.
+func (r *Registry) AllToolSchemas() []ToolSchema {
+	seen := make(map[types.ActionType]bool)
+	var schemas []ToolSchema
+	for _, exec := range r.executors {
+		for _, schema := range exec.ToolSchemas() {
+			if !seen[schema.ActionType] {
+				seen[schema.ActionType] = true
+				schemas = append(schemas, schema)
+			}
+		}
+	}
+	return schemas
+}
+
 // Execute dispatches an action to the appropriate executor.
 func (r *Registry) Execute(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
 	exec, ok := r.executors[action.Type]

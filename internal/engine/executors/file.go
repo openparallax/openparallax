@@ -32,6 +32,21 @@ func (f *FileExecutor) SupportedActions() []types.ActionType {
 	}
 }
 
+// ToolSchemas returns tool definitions for all 8 file operations.
+func (f *FileExecutor) ToolSchemas() []ToolSchema {
+	pathParam := map[string]any{"type": "string", "description": "File path relative to workspace, or absolute. Supports ~ for home directory."}
+	return []ToolSchema{
+		{ActionType: types.ActionReadFile, Name: "read_file", Description: "Read the contents of a file. Use when the user asks to see, read, show, or check a file.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam}, "required": []string{"path"}}},
+		{ActionType: types.ActionWriteFile, Name: "write_file", Description: "Create or overwrite a file with the given content. Use when the user asks to create, write, save, or update a file.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam, "content": map[string]any{"type": "string", "description": "The content to write to the file."}}, "required": []string{"path", "content"}}},
+		{ActionType: types.ActionDeleteFile, Name: "delete_file", Description: "Delete a file. Use when the user asks to remove or delete a specific file.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam}, "required": []string{"path"}}},
+		{ActionType: types.ActionMoveFile, Name: "move_file", Description: "Move or rename a file.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"source": map[string]any{"type": "string", "description": "Source file path."}, "destination": map[string]any{"type": "string", "description": "Destination file path."}}, "required": []string{"source", "destination"}}},
+		{ActionType: types.ActionCopyFile, Name: "copy_file", Description: "Copy a file to a new location.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"source": map[string]any{"type": "string", "description": "Source file path."}, "destination": map[string]any{"type": "string", "description": "Destination file path."}}, "required": []string{"source", "destination"}}},
+		{ActionType: types.ActionCreateDir, Name: "create_directory", Description: "Create a directory (including parent directories).", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam}, "required": []string{"path"}}},
+		{ActionType: types.ActionListDir, Name: "list_directory", Description: "List the contents of a directory with file names and sizes.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam}, "required": []string{"path"}}},
+		{ActionType: types.ActionSearchFiles, Name: "search_files", Description: "Search for files matching a glob pattern within a directory.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam, "pattern": map[string]any{"type": "string", "description": "Glob pattern to match (e.g., *.go, *.md)."}}, "required": []string{"path"}}},
+	}
+}
+
 // Execute dispatches to the appropriate file operation.
 func (f *FileExecutor) Execute(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
 	switch action.Type {

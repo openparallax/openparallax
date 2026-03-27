@@ -23,6 +23,27 @@ func (s *ShellExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{types.ActionExecCommand}
 }
 
+// ToolSchemas returns the tool definition for shell command execution.
+func (s *ShellExecutor) ToolSchemas() []ToolSchema {
+	return []ToolSchema{
+		{
+			ActionType:  types.ActionExecCommand,
+			Name:        "execute_command",
+			Description: "Execute a shell command and return its output. Use when the user asks to run a command, script, or check system state via the terminal.",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"command": map[string]any{
+						"type":        "string",
+						"description": "The shell command to execute.",
+					},
+				},
+				"required": []string{"command"},
+			},
+		},
+	}
+}
+
 // Execute runs the shell command with a 30-second timeout.
 func (s *ShellExecutor) Execute(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
 	command, _ := action.Payload["command"].(string)
