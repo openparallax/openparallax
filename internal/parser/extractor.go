@@ -21,11 +21,11 @@ func NewExtractor(provider llm.Provider) *Extractor {
 
 // RawIntent is the unvalidated output from the LLM.
 type RawIntent struct {
-	Goal        string            `json:"goal"`
-	Action      string            `json:"action"`
-	Parameters  map[string]string `json:"parameters"`
-	Confidence  float64           `json:"confidence"`
-	Destructive bool              `json:"destructive"`
+	Goal        string         `json:"goal"`
+	Action      string         `json:"action"`
+	Parameters  map[string]any `json:"parameters"`
+	Confidence  float64        `json:"confidence"`
+	Destructive bool           `json:"destructive"`
 }
 
 // Extract sends the user input to the LLM with an injection-resistant prompt

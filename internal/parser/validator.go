@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/openparallax/openparallax/internal/types"
@@ -23,16 +24,13 @@ func NewValidator() *Validator {
 }
 
 // Validate takes a RawIntent from the LLM and produces a validated StructuredIntent.
-// It normalizes the goal type, cross-checks destructive flags, clamps confidence,
-// and overrides sensitivity based on file paths.
 func (v *Validator) Validate(raw *RawIntent, originalInput string) (*types.StructuredIntent, error) {
 	goal := v.taxonomy.Normalize(raw.Goal)
-
 	action := types.ActionType(strings.ToLower(raw.Action))
-
 	destructive := raw.Destructive || v.keywords.IsDestructive(originalInput)
 
-	sensitivity := v.sensitivity.Evaluate(raw.Parameters)
+	params := flattenParams(raw.Parameters)
+	sensitivity := v.sensitivity.Evaluate(params)
 	if destructive && sensitivity < types.SensitivityRestricted {
 		sensitivity = types.SensitivityRestricted
 	}
@@ -52,10 +50,19 @@ func (v *Validator) Validate(raw *RawIntent, originalInput string) (*types.Struc
 	return &types.StructuredIntent{
 		Goal:          goal,
 		PrimaryAction: action,
-		Parameters:    raw.Parameters,
+		Parameters:    params,
 		Confidence:    confidence,
 		Destructive:   destructive,
 		Sensitivity:   sensitivity,
 		RawInput:      originalInput,
 	}, nil
+}
+
+// flattenParams converts map[string]any to map[string]string by stringifying values.
+func flattenParams(raw map[string]any) map[string]string {
+	result := make(map[string]string, len(raw))
+	for k, v := range raw {
+		result[k] = fmt.Sprintf("%v", v)
+	}
+	return result
 }
