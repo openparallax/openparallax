@@ -32,7 +32,9 @@ func TestContextAssemblerSkipsMissingFiles(t *testing.T) {
 	prompt, err := assembler.Assemble()
 	require.NoError(t, err)
 
-	assert.Empty(t, prompt)
+	// Even with no memory files, behavioral rules are present.
+	assert.Contains(t, prompt, "Behavioral Rules")
+	assert.NotContains(t, prompt, "Core Values")
 }
 
 func TestContextAssemblerSkipsEmptyFiles(t *testing.T) {
