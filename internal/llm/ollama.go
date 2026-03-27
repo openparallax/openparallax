@@ -34,11 +34,13 @@ type ollamaChatRequest struct {
 	Messages []ollamaChatMessage `json:"messages"`
 	Stream   bool                `json:"stream"`
 	Options  *ollamaOptions      `json:"options,omitempty"`
+	Tools    []map[string]any    `json:"tools,omitempty"`
 }
 
 type ollamaChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string           `json:"role"`
+	Content   string           `json:"content"`
+	ToolCalls []ollamaToolCall `json:"tool_calls,omitempty"`
 }
 
 type ollamaOptions struct {
@@ -93,8 +95,64 @@ func (o *OllamaProvider) StreamWithHistory(ctx context.Context, messages []ChatM
 }
 
 // StreamWithTools sends a conversation with tool definitions.
+// Ollama tool support varies by model. Falls back to text-only if the model
+// doesn't support tools — the LLM will respond conversationally.
 func (o *OllamaProvider) StreamWithTools(ctx context.Context, messages []ChatMessage, tools []ToolDefinition, opts ...Option) (ToolStreamReader, error) {
-	return nil, fmt.Errorf("StreamWithTools not yet implemented for Ollama provider")
+	cfg := applyOptions(opts)
+	oMsgs := toOllamaMessages(messages)
+	if cfg.SystemPrompt != "" {
+		oMsgs = append([]ollamaChatMessage{{Role: "system", Content: cfg.SystemPrompt}}, oMsgs...)
+	}
+
+	reqBody := ollamaChatRequest{
+		Model:    o.model,
+		Messages: oMsgs,
+		Stream:   true,
+		Options:  &ollamaOptions{Temperature: cfg.Temperature, NumPredict: cfg.MaxTokens},
+	}
+
+	// Add tools in OpenAI-compatible format.
+	if len(tools) > 0 {
+		var toolDefs []map[string]any
+		for _, t := range tools {
+			toolDefs = append(toolDefs, map[string]any{
+				"type": "function",
+				"function": map[string]any{
+					"name":        t.Name,
+					"description": t.Description,
+					"parameters":  t.Parameters,
+				},
+			})
+		}
+		reqBody.Tools = toolDefs
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", o.baseURL+"/api/chat", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := o.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("ollama stream request failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("ollama returned status %d: %s", resp.StatusCode, respBody)
+	}
+
+	return &ollamaToolStreamReader{
+		body:    resp.Body,
+		scanner: bufio.NewScanner(resp.Body),
+	}, nil
 }
 
 // EstimateTokens returns a rough token estimate (1 token per 4 characters).
@@ -232,6 +290,94 @@ func (r *ollamaStreamReader) FullText() string {
 	defer r.mu.Unlock()
 	return r.buf
 }
+
+// --- ollamaToolStreamReader (tool-use, wraps NDJSON) ---
+
+type ollamaToolStreamReader struct {
+	body    io.ReadCloser
+	scanner *bufio.Scanner
+	mu      sync.Mutex
+	buf     string
+	done    bool
+}
+
+func (r *ollamaToolStreamReader) Next() (StreamEvent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.done {
+		return StreamEvent{Type: EventDone}, io.EOF
+	}
+
+	for r.scanner.Scan() {
+		line := r.scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+
+		var resp ollamaChatResponse
+		if err := json.Unmarshal(line, &resp); err != nil {
+			continue
+		}
+
+		if resp.Done {
+			r.done = true
+			return StreamEvent{Type: EventDone}, nil
+		}
+
+		// Check for tool calls in the response message.
+		if len(resp.Message.ToolCalls) > 0 {
+			for _, tc := range resp.Message.ToolCalls {
+				args := make(map[string]any)
+				if tc.Function.Arguments != nil {
+					args = tc.Function.Arguments
+				}
+				return StreamEvent{
+					Type: EventToolCallComplete,
+					ToolCall: &ToolCall{
+						ID:        tc.Function.Name,
+						Name:      tc.Function.Name,
+						Arguments: args,
+					},
+				}, nil
+			}
+		}
+
+		text := resp.Message.Content
+		if text != "" {
+			r.buf += text
+			return StreamEvent{Type: EventTextDelta, Text: text}, nil
+		}
+	}
+
+	if err := r.scanner.Err(); err != nil {
+		return StreamEvent{Type: EventError}, err
+	}
+	r.done = true
+	return StreamEvent{Type: EventDone}, io.EOF
+}
+
+func (r *ollamaToolStreamReader) SendToolResults(_ []ToolResult) error {
+	return fmt.Errorf("ollama tool result continuation not yet supported")
+}
+
+func (r *ollamaToolStreamReader) Close() error { return r.body.Close() }
+
+func (r *ollamaToolStreamReader) FullText() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.buf
+}
+
+// ollamaToolCall represents a tool call in Ollama's response format.
+type ollamaToolCall struct {
+	Function struct {
+		Name      string         `json:"name"`
+		Arguments map[string]any `json:"arguments"`
+	} `json:"function"`
+}
+
+var _ ToolStreamReader = (*ollamaToolStreamReader)(nil)
 
 // toOllamaMessages converts ChatMessage slice to Ollama message format.
 func toOllamaMessages(msgs []ChatMessage) []ollamaChatMessage {
