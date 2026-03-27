@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 
@@ -112,6 +113,11 @@ func (a *AnthropicProvider) StreamWithHistory(ctx context.Context, messages []Ch
 
 	stream := a.client.Messages.NewStreaming(ctx, params)
 	return &anthropicStreamReader{stream: stream}, nil
+}
+
+// StreamWithTools sends a conversation with tool definitions.
+func (a *AnthropicProvider) StreamWithTools(ctx context.Context, messages []ChatMessage, tools []ToolDefinition, opts ...Option) (ToolStreamReader, error) {
+	return nil, fmt.Errorf("StreamWithTools not yet implemented for Anthropic provider")
 }
 
 // EstimateTokens returns a rough token estimate (1 token per 4 characters).

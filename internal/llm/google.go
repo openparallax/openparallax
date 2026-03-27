@@ -79,6 +79,11 @@ func (g *GoogleProvider) StreamWithHistory(ctx context.Context, messages []ChatM
 	return &geminiStreamReader{iter: iter}, nil
 }
 
+// StreamWithTools sends a conversation with tool definitions.
+func (g *GoogleProvider) StreamWithTools(ctx context.Context, messages []ChatMessage, tools []ToolDefinition, opts ...Option) (ToolStreamReader, error) {
+	return nil, fmt.Errorf("StreamWithTools not yet implemented for Google provider")
+}
+
 // EstimateTokens returns a rough token estimate (1 token per 4 characters).
 func (g *GoogleProvider) EstimateTokens(text string) int { return len(text) / 4 }
 

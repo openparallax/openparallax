@@ -92,6 +92,11 @@ func (o *OllamaProvider) StreamWithHistory(ctx context.Context, messages []ChatM
 	return o.doStreamChat(ctx, oMsgs, cfg)
 }
 
+// StreamWithTools sends a conversation with tool definitions.
+func (o *OllamaProvider) StreamWithTools(ctx context.Context, messages []ChatMessage, tools []ToolDefinition, opts ...Option) (ToolStreamReader, error) {
+	return nil, fmt.Errorf("StreamWithTools not yet implemented for Ollama provider")
+}
+
 // EstimateTokens returns a rough token estimate (1 token per 4 characters).
 func (o *OllamaProvider) EstimateTokens(text string) int { return len(text) / 4 }
 
@@ -232,7 +237,7 @@ func (r *ollamaStreamReader) FullText() string {
 func toOllamaMessages(msgs []ChatMessage) []ollamaChatMessage {
 	result := make([]ollamaChatMessage, len(msgs))
 	for i, m := range msgs {
-		result[i] = ollamaChatMessage(m)
+		result[i] = ollamaChatMessage{Role: m.Role, Content: m.Content}
 	}
 	return result
 }
