@@ -97,13 +97,11 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		}
 	}
 
-	// Resolve policy and prompt paths relative to the config file's directory.
+	// Resolve policy and prompt paths. Try relative to config dir first,
+	// then workspace, then working directory.
 	configDir := filepath.Dir(configPath)
-	policyFile := cfg.Shield.PolicyFile
-	if policyFile != "" && !filepath.IsAbs(policyFile) {
-		policyFile = filepath.Join(configDir, policyFile)
-	}
-	promptPath := filepath.Join(configDir, "prompts", "evaluator-v1.md")
+	policyFile := resolveFilePath(cfg.Shield.PolicyFile, configDir, cfg.Workspace)
+	promptPath := resolveFilePath("prompts/evaluator-v1.md", configDir, cfg.Workspace)
 
 	// Initialize Shield pipeline.
 	shieldPipeline, err := shield.NewPipeline(shield.Config{
@@ -649,4 +647,27 @@ func toProtoArtifact(a *types.Artifact) *pb.Artifact {
 
 func readFileQuiet(path string) ([]byte, error) {
 	return os.ReadFile(path)
+}
+
+// resolveFilePath finds a file by trying multiple base directories.
+// Returns the absolute path if it's already absolute. Otherwise tries
+// relative to configDir, then workspace, then working directory.
+func resolveFilePath(path, configDir, workspace string) string {
+	if path == "" {
+		return path
+	}
+	if filepath.IsAbs(path) {
+		return path
+	}
+	candidates := []string{
+		filepath.Join(configDir, path),
+		filepath.Join(workspace, path),
+		path,
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return filepath.Join(configDir, path)
 }
