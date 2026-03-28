@@ -1,16 +1,19 @@
 // Package mcp provides an MCP (Model Context Protocol) client for connecting
-// to external tool servers. Each MCP server is lazily spawned on first tool
-// call and automatically shut down after an idle timeout.
+// to external tool servers using the mcp-go SDK. Each MCP server is lazily
+// spawned on first tool call and automatically shut down after an idle timeout.
 package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
+
+	mcpclient "github.com/mark3labs/mcp-go/client"
+	mcptypes "github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/logging"
@@ -41,7 +44,6 @@ func NewManager(configs []types.MCPServerConfig, log *logging.Logger) *Manager {
 }
 
 // DiscoverTools returns tool definitions from all configured MCP servers.
-// Spawns each server briefly to discover tools.
 func (m *Manager) DiscoverTools(ctx context.Context) []llm.ToolDefinition {
 	var tools []llm.ToolDefinition
 	for _, client := range m.clients {
@@ -61,7 +63,6 @@ func (m *Manager) DiscoverTools(ctx context.Context) []llm.ToolDefinition {
 }
 
 // Route finds the correct MCP client for a namespaced tool name.
-// Returns the client, the original tool name, and whether it matched.
 func (m *Manager) Route(toolName string) (*Client, string, bool) {
 	parts := strings.SplitN(toolName, ":", 3)
 	if len(parts) != 3 || parts[0] != "mcp" {
@@ -78,14 +79,12 @@ func (m *Manager) ShutdownAll() {
 	}
 }
 
-// Client manages a single MCP server process.
+// Client manages a single MCP server process via the mcp-go SDK.
 type Client struct {
 	config   types.MCPServerConfig
 	idle     time.Duration
 	log      *logging.Logger
-	process  *exec.Cmd
-	stdin    *stdinWriter
-	stdout   *stdoutReader
+	conn     *mcpclient.Client
 	tools    []llm.ToolDefinition
 	lastCall time.Time
 	mu       sync.Mutex
@@ -113,11 +112,21 @@ func (c *Client) CallTool(ctx context.Context, name string, args map[string]any)
 	}
 	c.lastCall = time.Now()
 
-	result, err := c.callToolLocked(ctx, name, args)
+	result, err := c.conn.CallTool(ctx, mcptypes.CallToolRequest{
+		Params: mcptypes.CallToolParams{
+			Name:      name,
+			Arguments: args,
+		},
+	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("mcp call %s/%s: %w", c.config.Name, name, err)
 	}
-	return result, nil
+
+	if result.IsError {
+		return extractResultText(result), fmt.Errorf("tool error: %s", extractResultText(result))
+	}
+
+	return extractResultText(result), nil
 }
 
 // Shutdown stops the MCP server process.
@@ -133,44 +142,41 @@ func (c *Client) ensureRunningLocked(ctx context.Context) error {
 		return nil
 	}
 
-	// Resolve environment variables.
-	env := os.Environ()
+	// Build env vars with expansion.
+	var env []string
 	for k, v := range c.config.Env {
-		expanded := os.ExpandEnv(v)
-		env = append(env, k+"="+expanded)
+		env = append(env, k+"="+os.ExpandEnv(v))
 	}
 
-	c.process = exec.CommandContext(ctx, c.config.Command, c.config.Args...)
-	c.process.Env = env
-
-	// Set up stdio pipes for JSON-RPC communication.
-	stdinPipe, err := c.process.StdinPipe()
+	conn, err := mcpclient.NewStdioMCPClient(c.config.Command, env, c.config.Args...)
 	if err != nil {
-		return fmt.Errorf("mcp stdin pipe: %w", err)
-	}
-	stdoutPipe, err := c.process.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("mcp stdout pipe: %w", err)
-	}
-
-	if err := c.process.Start(); err != nil {
 		return fmt.Errorf("mcp start %s: %w", c.config.Name, err)
 	}
 
-	c.stdin = newStdinWriter(stdinPipe)
-	c.stdout = newStdoutReader(stdoutPipe)
+	// Initialize protocol.
+	initReq := mcptypes.InitializeRequest{}
+	initReq.Params.ProtocolVersion = mcptypes.LATEST_PROTOCOL_VERSION
+	initReq.Params.ClientInfo = mcptypes.Implementation{
+		Name:    "openparallax",
+		Version: "1.0.0",
+	}
+	if _, initErr := conn.Initialize(ctx, initReq); initErr != nil {
+		_ = conn.Close()
+		return fmt.Errorf("mcp init %s: %w", c.config.Name, initErr)
+	}
+
+	// Discover tools.
+	toolsResult, err := conn.ListTools(ctx, mcptypes.ListToolsRequest{})
+	if err != nil {
+		_ = conn.Close()
+		return fmt.Errorf("mcp list tools %s: %w", c.config.Name, err)
+	}
+
+	c.conn = conn
+	c.tools = convertMCPTools(toolsResult.Tools)
 	c.running = true
 	c.lastCall = time.Now()
 
-	// Initialize MCP protocol.
-	tools, err := c.initializeLocked(ctx)
-	if err != nil {
-		c.shutdownLocked()
-		return fmt.Errorf("mcp init %s: %w", c.config.Name, err)
-	}
-	c.tools = tools
-
-	// Start idle timeout goroutine.
 	go c.idleShutdownLoop()
 
 	if c.log != nil {
@@ -184,9 +190,9 @@ func (c *Client) shutdownLocked() {
 		return
 	}
 	c.running = false
-	if c.process != nil && c.process.Process != nil {
-		_ = c.process.Process.Kill()
-		_ = c.process.Wait()
+	if c.conn != nil {
+		_ = c.conn.Close()
+		c.conn = nil
 	}
 	if c.log != nil {
 		c.log.Info("mcp_stopped", "server", c.config.Name)
@@ -209,4 +215,46 @@ func (c *Client) idleShutdownLoop() {
 		}
 		c.mu.Unlock()
 	}
+}
+
+func convertMCPTools(tools []mcptypes.Tool) []llm.ToolDefinition {
+	var defs []llm.ToolDefinition
+	for _, t := range tools {
+		params := make(map[string]any)
+		if t.RawInputSchema != nil {
+			_ = json.Unmarshal(t.RawInputSchema, &params)
+		} else {
+			params["type"] = "object"
+			props := make(map[string]any)
+			for name, prop := range t.InputSchema.Properties {
+				props[name] = prop
+			}
+			params["properties"] = props
+			if len(t.InputSchema.Required) > 0 {
+				params["required"] = t.InputSchema.Required
+			}
+		}
+		defs = append(defs, llm.ToolDefinition{
+			Name:        t.Name,
+			Description: t.Description,
+			Parameters:  params,
+		})
+	}
+	return defs
+}
+
+func extractResultText(result *mcptypes.CallToolResult) string {
+	if result == nil {
+		return ""
+	}
+	var texts []string
+	for _, c := range result.Content {
+		if tc, ok := c.(mcptypes.TextContent); ok {
+			texts = append(texts, tc.Text)
+		}
+	}
+	if len(texts) == 0 {
+		return ""
+	}
+	return strings.Join(texts, "\n")
 }

@@ -33,6 +33,7 @@ func init() {
 	rootCmd.AddCommand(stubCommand("skills", "List loaded skills"))
 	rootCmd.AddCommand(stubCommand("config", "View and modify configuration"))
 	rootCmd.AddCommand(stubCommand("get-classifier", "Download the ONNX classifier model and sidecar binary"))
+	rootCmd.AddCommand(getVectorExtCmd())
 	rootCmd.AddCommand(&cobra.Command{
 		Use:          "internal-agent",
 		Short:        "Run the agent process (internal use only)",

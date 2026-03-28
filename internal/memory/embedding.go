@@ -19,24 +19,33 @@ type EmbeddingProvider interface {
 
 // EmbeddingConfig configures the embedding provider.
 type EmbeddingConfig struct {
-	Provider string `yaml:"provider" json:"provider"` // "openai", "ollama", "none"
-	Model    string `yaml:"model" json:"model"`
-	APIKey   string `yaml:"-" json:"-"`
-	BaseURL  string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
+	Provider  string `yaml:"provider" json:"provider"` // "openai", "google", "ollama", "none"
+	Model     string `yaml:"model" json:"model"`
+	APIKeyEnv string `yaml:"api_key_env,omitempty" json:"api_key_env,omitempty"`
+	APIKey    string `yaml:"-" json:"-"`
+	BaseURL   string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
 }
 
 // NewEmbeddingProvider creates an embedding provider from config.
 // Returns nil if provider is "none" or empty.
 func NewEmbeddingProvider(cfg EmbeddingConfig) EmbeddingProvider {
+	// Resolve API key: explicit > env var from config > default env var per provider.
+	resolveKey := func(defaultEnv string) string {
+		if cfg.APIKey != "" {
+			return cfg.APIKey
+		}
+		if cfg.APIKeyEnv != "" {
+			return os.Getenv(cfg.APIKeyEnv)
+		}
+		return os.Getenv(defaultEnv)
+	}
+
 	switch cfg.Provider {
 	case "openai":
 		if cfg.Model == "" {
 			cfg.Model = "text-embedding-3-small"
 		}
-		apiKey := cfg.APIKey
-		if apiKey == "" {
-			apiKey = os.Getenv("OPENAI_API_KEY")
-		}
+		apiKey := resolveKey("OPENAI_API_KEY")
 		if apiKey == "" {
 			return nil
 		}
@@ -45,6 +54,17 @@ func NewEmbeddingProvider(cfg EmbeddingConfig) EmbeddingProvider {
 			baseURL = "https://api.openai.com/v1"
 		}
 		return &openAIEmbedder{apiKey: apiKey, model: cfg.Model, baseURL: baseURL}
+
+	case "google":
+		if cfg.Model == "" {
+			cfg.Model = "text-embedding-004"
+		}
+		apiKey := resolveKey("GOOGLE_API_KEY")
+		if apiKey == "" {
+			return nil
+		}
+		return &googleEmbedder{apiKey: apiKey, model: cfg.Model}
+
 	case "ollama":
 		if cfg.Model == "" {
 			cfg.Model = "nomic-embed-text"
@@ -54,6 +74,7 @@ func NewEmbeddingProvider(cfg EmbeddingConfig) EmbeddingProvider {
 			baseURL = "http://localhost:11434"
 		}
 		return &ollamaEmbedder{model: cfg.Model, baseURL: baseURL}
+
 	default:
 		return nil
 	}
@@ -168,6 +189,74 @@ func (e *ollamaEmbedder) Embed(ctx context.Context, texts []string) ([][]float32
 		}
 		_ = resp.Body.Close()
 		embeddings = append(embeddings, result.Embedding)
+	}
+	return embeddings, nil
+}
+
+// --- Google embedding provider ---
+
+type googleEmbedder struct {
+	apiKey string
+	model  string
+}
+
+func (e *googleEmbedder) Dimension() int {
+	switch e.model {
+	case "text-embedding-004":
+		return 768
+	default:
+		return 768
+	}
+}
+
+func (e *googleEmbedder) ModelID() string { return e.model }
+
+func (e *googleEmbedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+	var embeddings [][]float32
+	for _, text := range texts {
+		body := map[string]any{
+			"model": fmt.Sprintf("models/%s", e.model),
+			"content": map[string]any{
+				"parts": []map[string]any{
+					{"text": text},
+				},
+			},
+		}
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+
+		url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:embedContent?key=%s",
+			e.model, e.apiKey)
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			respBody, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			return nil, fmt.Errorf("google embedding API error %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var result struct {
+			Embedding struct {
+				Values []float32 `json:"values"`
+			} `json:"embedding"`
+		}
+		if decErr := json.NewDecoder(resp.Body).Decode(&result); decErr != nil {
+			_ = resp.Body.Close()
+			return nil, decErr
+		}
+		_ = resp.Body.Close()
+		embeddings = append(embeddings, result.Embedding.Values)
 	}
 	return embeddings, nil
 }

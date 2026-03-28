@@ -140,6 +140,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
+			m.triggerShutdown()
 			m.quitting = true
 			return m, tea.Quit
 		case tea.KeyEnter:
@@ -155,6 +156,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			lower := strings.ToLower(text)
 			switch {
 			case lower == "/quit" || lower == "/exit":
+				m.triggerShutdown()
 				m.quitting = true
 				return m, tea.Quit
 			case lower == "/new":
@@ -520,6 +522,14 @@ func (m *model) handleSwitchSession(id string) {
 		}
 	}
 	m.addLine(m.dimStyle(fmt.Sprintf("--- Switched to session %s ---", fullID[:8])))
+}
+
+// triggerShutdown calls the engine's Shutdown RPC which summarizes active
+// sessions and persists memory. Waits up to 5 seconds.
+func (m *model) triggerShutdown() {
+	ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
+	defer cancel()
+	_, _ = m.client.Shutdown(ctx, &pb.ShutdownRequest{})
 }
 
 // handleNewSession starts a fresh session.
