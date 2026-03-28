@@ -10,6 +10,9 @@ deny:
       - delete_file
       - copy_file
       - move_file
+      - copy_directory
+      - move_directory
+      - delete_directory
     paths:
       - "~/.ssh/**"
       - "~/.aws/**"
@@ -25,6 +28,7 @@ deny:
   - name: block_destructive_file_ops
     action_types:
       - delete_file
+      - delete_directory
 
   - name: block_git_force_push
     action_types:
@@ -35,12 +39,24 @@ deny:
       - browser_click
       - browser_type
 
+  - name: block_identity_deletion
+    action_types:
+      - delete_file
+      - delete_directory
+    paths:
+      - "**/SOUL.md"
+      - "**/IDENTITY.md"
+      - "**/TOOLS.md"
+      - "**/BOOT.md"
+
 verify:
   - name: evaluate_all_writes
     action_types:
       - write_file
       - move_file
       - copy_file
+      - copy_directory
+      - move_directory
       - create_directory
       - memory_write
       - canvas_create

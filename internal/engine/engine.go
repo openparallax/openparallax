@@ -32,7 +32,7 @@ import (
 
 // maxToolRounds limits the number of tool-call round-trips per message
 // to prevent infinite loops.
-const maxToolRounds = 10
+const maxToolRounds = 25
 
 // Engine is the execution engine and gRPC server.
 type Engine struct {
@@ -339,6 +339,24 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	// Metadata enrichment.
 	e.enricher.Enrich(action)
 
+	// Hardcoded protection check — before OTR, before Shield, before audit.
+	allowed, protection, protReason := CheckProtection(action, e.cfg.Workspace)
+	if !allowed {
+		e.log.Warn("protection_blocked", "session", sid, "tool", tc.Name, "reason", protReason)
+		_ = stream.Send(&pb.PipelineEvent{
+			SessionId: sid, MessageId: mid,
+			EventType:       pb.PipelineEventType_ACTION_COMPLETED,
+			ActionCompleted: &pb.ActionCompleted{Success: false, Summary: "Blocked: " + protReason},
+		})
+		return llm.ToolResult{CallID: tc.ID, Content: "Blocked: " + protReason, IsError: true}
+	}
+	switch protection {
+	case EscalateTier2:
+		action.MinTier = 2
+	case WriteTier1Min:
+		action.MinTier = 1
+	}
+
 	isOTR := mode == types.SessionOTR
 
 	// Emit tool call started.
@@ -454,12 +472,14 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 		})
 	}
 
-	// Format result for the LLM.
+	// Format result for the LLM. On failure, prefer the full output (which
+	// includes stderr) so the LLM knows *why* the command failed, not just
+	// "exit status 1".
 	content := result.Summary
 	if result.Output != "" {
 		content = result.Output
 	}
-	if !result.Success {
+	if !result.Success && result.Output == "" {
 		content = "Error: " + result.Error
 	}
 

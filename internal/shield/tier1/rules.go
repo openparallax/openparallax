@@ -34,5 +34,8 @@ func CrossPlatformDetectionRules() []platform.HeuristicRule {
 
 		// Encoding evasion (1 rule)
 		{ID: "EE-001", Name: "zero_width_chars", Pattern: `[\x{200B}\x{200C}\x{200D}\x{FEFF}\x{00AD}]`, Category: "encoding_evasion", Severity: "high", Description: "Zero-width character detected"},
+
+		// Self-protection (1 rule)
+		{ID: "SP-001", Name: "shell_writes_protected_file", Pattern: `(?i)(>{1,2}\s*|tee\s+|cp\s+.*|mv\s+.*|rm\s+|del\s+|erase\s+|Set-Content\s+|Out-File\s+|Remove-Item\s+).*(SOUL\.md|IDENTITY\.md|TOOLS\.md|BOOT\.md)`, Category: "self_protection", Severity: "critical", Description: "Shell command writes to or deletes a protected identity file"},
 	}
 }

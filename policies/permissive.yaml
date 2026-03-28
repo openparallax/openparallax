@@ -37,6 +37,9 @@ allow:
       - delete_file
       - move_file
       - copy_file
+      - copy_directory
+      - move_directory
+      - delete_directory
       - create_directory
       - list_directory
       - search_files

@@ -3,8 +3,6 @@ package shield
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -52,12 +50,6 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 		return g.block(action, 0, 1.0, "rate limit exceeded")
 	}
 
-	// Self-protection: block access to Shield's own files.
-	if g.isSelfProtected(action) {
-		g.cfg.Log.Info("shield_self_protect", "action", action.Type, "path", extractPath(action))
-		return g.block(action, 0, 1.0, "access to security-critical files is blocked")
-	}
-
 	// Tier 0: Policy engine.
 	t0Result := g.cfg.Policy.Evaluate(action)
 	switch t0Result.Decision {
@@ -66,20 +58,31 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 		return g.block(action, 0, 1.0, fmt.Sprintf("policy deny: %s", t0Result.Reason))
 	case tier0.Allow:
 		g.cfg.Log.Info("shield_tier0_allow", "action", action.Type, "policy", t0Result.Reason)
-		return g.allow(action, 0, 1.0, fmt.Sprintf("policy allow: %s", t0Result.Reason))
+		// Only return immediately if no MinTier override requires higher evaluation.
+		if action.MinTier <= 0 {
+			return g.allow(action, 0, 1.0, fmt.Sprintf("policy allow: %s", t0Result.Reason))
+		}
+		g.cfg.Log.Info("shield_mintier_override", "action", action.Type, "min_tier", action.MinTier)
 	case tier0.Escalate:
 		g.cfg.Log.Info("shield_tier0_escalate", "action", action.Type, "to_tier", t0Result.EscalateTo, "policy", t0Result.Reason)
 	case tier0.NoMatch:
 		g.cfg.Log.Debug("shield_tier0_nomatch", "action", action.Type)
 	}
 
-	// Determine minimum tier from escalation.
+	// Determine minimum tier from multiple sources.
 	minTier := 1
+
+	// From protection layer (hardcoded).
+	if action.MinTier > minTier {
+		minTier = action.MinTier
+	}
+
+	// From Tier 0 escalation (policy).
 	if t0Result.Decision == tier0.Escalate && t0Result.EscalateTo > minTier {
 		minTier = t0Result.EscalateTo
 	}
 
-	// Action type minimum tier.
+	// From action type defaults.
 	actionMin := actionTypeMinTier(action.Type)
 	if actionMin > minTier {
 		minTier = actionMin
@@ -176,40 +179,6 @@ func actionTypeMinTier(at types.ActionType) int {
 	}
 }
 
-// isSelfProtected blocks access to Shield's own config, canary, audit, and prompt files.
-// Matches exact filenames or the .openparallax/ directory prefix to avoid false positives
-// on filenames that happen to contain substrings like "audit".
-func (g *Gateway) isSelfProtected(action *types.ActionRequest) bool {
-	rawPath := extractPath(action)
-	if rawPath == "" {
-		return false
-	}
-
-	normalized := strings.ToLower(filepath.ToSlash(rawPath))
-	filename := filepath.Base(normalized)
-
-	// Exact filename matches for security-critical files.
-	protectedFiles := []string{
-		"canary.token",
-		"evaluator-v1.md",
-		"audit.jsonl",
-		"openparallax.db",
-		"config.yaml",
-	}
-	for _, f := range protectedFiles {
-		if filename == f {
-			return true
-		}
-	}
-
-	// Block any path inside the .openparallax/ internal directory.
-	if strings.Contains(normalized, ".openparallax/") {
-		return true
-	}
-
-	return false
-}
-
 func (g *Gateway) checkBudget() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -223,15 +192,4 @@ func (g *Gateway) checkBudget() bool {
 	}
 	g.budgetCount++
 	return true
-}
-
-// extractPath pulls the file path from an action's payload.
-func extractPath(action *types.ActionRequest) string {
-	if p, ok := action.Payload["path"].(string); ok && p != "" {
-		return p
-	}
-	if p, ok := action.Payload["command"].(string); ok && p != "" {
-		return p
-	}
-	return ""
 }

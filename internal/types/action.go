@@ -23,6 +23,12 @@ const (
 	ActionListDir ActionType = "list_directory"
 	// ActionSearchFiles searches for files matching a pattern.
 	ActionSearchFiles ActionType = "search_files"
+	// ActionCopyDir copies a directory recursively.
+	ActionCopyDir ActionType = "copy_directory"
+	// ActionMoveDir moves or renames a directory.
+	ActionMoveDir ActionType = "move_directory"
+	// ActionDeleteDir deletes a directory recursively.
+	ActionDeleteDir ActionType = "delete_directory"
 	// ActionExecCommand executes a shell command.
 	ActionExecCommand ActionType = "execute_command"
 	// ActionSendMessage sends a message via a channel adapter.
@@ -85,6 +91,7 @@ const (
 var AllActionTypes = []ActionType{
 	ActionReadFile, ActionWriteFile, ActionDeleteFile, ActionMoveFile,
 	ActionCopyFile, ActionCreateDir, ActionListDir, ActionSearchFiles,
+	ActionCopyDir, ActionMoveDir, ActionDeleteDir,
 	ActionExecCommand, ActionSendMessage, ActionSendEmail, ActionHTTPRequest,
 	ActionBrowserNav, ActionBrowserClick, ActionBrowserType, ActionBrowserExtract,
 	ActionBrowserShot, ActionCreateSchedule, ActionDeleteSchedule, ActionListSchedules,
@@ -112,6 +119,11 @@ type ActionRequest struct {
 
 	// DataClassification is the IFC tag for data involved in this action.
 	DataClassification *DataClassification `json:"data_classification,omitempty"`
+
+	// MinTier is the minimum Shield tier required for this action.
+	// Set by the protection layer. Respected by the Shield gateway.
+	// 0 = no minimum (use normal routing).
+	MinTier int `json:"min_tier,omitempty"`
 
 	// Timestamp is when the action was proposed.
 	Timestamp time.Time `json:"timestamp"`

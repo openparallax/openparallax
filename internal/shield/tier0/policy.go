@@ -5,6 +5,8 @@ package tier0
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gobwas/glob"
 	"github.com/openparallax/openparallax/internal/platform"
@@ -125,21 +127,33 @@ func (r *policyRule) matches(action *types.ActionRequest) bool {
 		}
 	}
 
-	// Check path match.
+	// Check path match — test ALL path fields (path, source, destination, etc.)
+	// so that copy/move to a protected path is caught by the destination field.
 	if len(r.compiled) > 0 {
-		path := extractPath(action)
-		if path == "" {
+		allPaths := extractPolicyPaths(action)
+		if len(allPaths) == 0 {
 			return false
 		}
-		normalized := platform.NormalizePath(path)
-		matched := false
-		for _, g := range r.compiled {
-			if g.Match(normalized) {
-				matched = true
+		anyPathMatched := false
+		for _, path := range allPaths {
+			normalized := filepath.ToSlash(platform.NormalizePath(path))
+			// Bare filenames like "SOUL.md" have no directory component, so
+			// glob patterns like "**/SOUL.md" won't match. Prepend "./" to
+			// give the glob a path separator to work with.
+			if !strings.Contains(normalized, "/") {
+				normalized = "./" + normalized
+			}
+			for _, g := range r.compiled {
+				if g.Match(normalized) {
+					anyPathMatched = true
+					break
+				}
+			}
+			if anyPathMatched {
 				break
 			}
 		}
-		if !matched {
+		if !anyPathMatched {
 			return false
 		}
 	}
@@ -147,18 +161,17 @@ func (r *policyRule) matches(action *types.ActionRequest) bool {
 	return true
 }
 
-// extractPath pulls the file path from an action's payload.
-func extractPath(action *types.ActionRequest) string {
-	if p, ok := action.Payload["path"].(string); ok && p != "" {
-		return p
+// extractPolicyPaths returns all filesystem paths from an action's payload.
+// Checks path, source, destination, dir, file, and target fields so that
+// copy/move operations are caught by both source and destination.
+func extractPolicyPaths(action *types.ActionRequest) []string {
+	var paths []string
+	for _, key := range []string{"path", "source", "destination", "dir", "file", "target"} {
+		if v, ok := action.Payload[key].(string); ok && v != "" {
+			paths = append(paths, v)
+		}
 	}
-	if p, ok := action.Payload["source"].(string); ok && p != "" {
-		return p
-	}
-	if p, ok := action.Payload["command"].(string); ok && p != "" {
-		return p
-	}
-	return ""
+	return paths
 }
 
 // compileRules compiles glob patterns in each rule with tilde expansion

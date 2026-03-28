@@ -29,10 +29,11 @@ func (f *FileExecutor) SupportedActions() []types.ActionType {
 		types.ActionReadFile, types.ActionWriteFile, types.ActionDeleteFile,
 		types.ActionMoveFile, types.ActionCopyFile, types.ActionCreateDir,
 		types.ActionListDir, types.ActionSearchFiles,
+		types.ActionCopyDir, types.ActionMoveDir, types.ActionDeleteDir,
 	}
 }
 
-// ToolSchemas returns tool definitions for all 8 file operations.
+// ToolSchemas returns tool definitions for all file and directory operations.
 func (f *FileExecutor) ToolSchemas() []ToolSchema {
 	pathParam := map[string]any{"type": "string", "description": "File path relative to workspace, or absolute. Supports ~ for home directory."}
 	return []ToolSchema{
@@ -42,8 +43,11 @@ func (f *FileExecutor) ToolSchemas() []ToolSchema {
 		{ActionType: types.ActionMoveFile, Name: "move_file", Description: "Move or rename a file.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"source": map[string]any{"type": "string", "description": "Source file path."}, "destination": map[string]any{"type": "string", "description": "Destination file path."}}, "required": []string{"source", "destination"}}},
 		{ActionType: types.ActionCopyFile, Name: "copy_file", Description: "Copy a file to a new location.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"source": map[string]any{"type": "string", "description": "Source file path."}, "destination": map[string]any{"type": "string", "description": "Destination file path."}}, "required": []string{"source", "destination"}}},
 		{ActionType: types.ActionCreateDir, Name: "create_directory", Description: "Create a directory (including parent directories).", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam}, "required": []string{"path"}}},
-		{ActionType: types.ActionListDir, Name: "list_directory", Description: "List the contents of a directory with file names and sizes.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam}, "required": []string{"path"}}},
+		{ActionType: types.ActionListDir, Name: "list_directory", Description: "List the contents of a directory with file names and sizes. Set recursive to true to list all nested contents.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam, "recursive": map[string]any{"type": "boolean", "description": "If true, list contents recursively including subdirectories. Defaults to false."}}, "required": []string{"path"}}},
 		{ActionType: types.ActionSearchFiles, Name: "search_files", Description: "Search for files matching a glob pattern within a directory.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam, "pattern": map[string]any{"type": "string", "description": "Glob pattern to match (e.g., *.go, *.md)."}}, "required": []string{"path"}}},
+		{ActionType: types.ActionCopyDir, Name: "copy_directory", Description: "Copy an entire directory recursively to a new location. Use for copying folders with all their contents.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"source": map[string]any{"type": "string", "description": "Source directory path."}, "destination": map[string]any{"type": "string", "description": "Destination directory path."}}, "required": []string{"source", "destination"}}},
+		{ActionType: types.ActionMoveDir, Name: "move_directory", Description: "Move or rename an entire directory.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"source": map[string]any{"type": "string", "description": "Source directory path."}, "destination": map[string]any{"type": "string", "description": "Destination directory path."}}, "required": []string{"source", "destination"}}},
+		{ActionType: types.ActionDeleteDir, Name: "delete_directory", Description: "Delete a directory and all its contents recursively. Use with caution.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam}, "required": []string{"path"}}},
 	}
 }
 
@@ -66,6 +70,12 @@ func (f *FileExecutor) Execute(ctx context.Context, action *types.ActionRequest)
 		return f.listDir(action)
 	case types.ActionSearchFiles:
 		return f.searchFiles(action)
+	case types.ActionCopyDir:
+		return f.copyDir(action)
+	case types.ActionMoveDir:
+		return f.moveDir(action)
+	case types.ActionDeleteDir:
+		return f.deleteDir(action)
 	default:
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "unknown file action"}
 	}
@@ -171,6 +181,12 @@ func (f *FileExecutor) createDir(action *types.ActionRequest) *types.ActionResul
 
 func (f *FileExecutor) listDir(action *types.ActionRequest) *types.ActionResult {
 	path := f.resolvePath(action.Payload["path"])
+	recursive, _ := action.Payload["recursive"].(bool)
+
+	if recursive {
+		return f.listDirRecursive(action.RequestID, path)
+	}
+
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "list failed"}
@@ -198,6 +214,138 @@ func (f *FileExecutor) listDir(action *types.ActionRequest) *types.ActionResult 
 			ID: crypto.NewID(), Type: "command_output", Title: fmt.Sprintf("ls %s", filepath.Base(path)),
 			Content: output, SizeBytes: int64(len(output)), PreviewType: "terminal",
 		},
+	}
+}
+
+func (f *FileExecutor) listDirRecursive(requestID, root string) *types.ActionResult {
+	var lines []string
+	count := 0
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if count >= 500 {
+			return filepath.SkipAll
+		}
+		rel, _ := filepath.Rel(root, path)
+		if rel == "." {
+			return nil
+		}
+		info, _ := d.Info()
+		size := int64(0)
+		if info != nil {
+			size = info.Size()
+		}
+		prefix := "  "
+		if d.IsDir() {
+			prefix = "d "
+		}
+		lines = append(lines, fmt.Sprintf("%s%-40s %d bytes", prefix, rel, size))
+		count++
+		return nil
+	})
+	if err != nil {
+		return &types.ActionResult{RequestID: requestID, Success: false, Error: err.Error(), Summary: "recursive list failed"}
+	}
+
+	output := strings.Join(lines, "\n")
+	return &types.ActionResult{
+		RequestID: requestID, Success: true,
+		Output: output, Summary: fmt.Sprintf("listed %d entries recursively in %s", count, filepath.Base(root)),
+		Artifact: &types.Artifact{
+			ID: crypto.NewID(), Type: "command_output", Title: fmt.Sprintf("ls -R %s", filepath.Base(root)),
+			Content: output, SizeBytes: int64(len(output)), PreviewType: "terminal",
+		},
+	}
+}
+
+func (f *FileExecutor) copyDir(action *types.ActionRequest) *types.ActionResult {
+	src := f.resolvePath(action.Payload["source"])
+	dst := f.resolvePath(action.Payload["destination"])
+
+	info, err := os.Stat(src)
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "copy_directory failed: source not found"}
+	}
+	if !info.IsDir() {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "source is not a directory", Summary: "copy_directory failed: not a directory"}
+	}
+
+	count := 0
+	err = filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(dst, rel)
+
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		count++
+		return os.WriteFile(target, data, 0o644)
+	})
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "copy_directory failed"}
+	}
+
+	return &types.ActionResult{
+		RequestID: action.RequestID, Success: true,
+		Output:  fmt.Sprintf("copied %d files from %s to %s", count, src, dst),
+		Summary: fmt.Sprintf("copied directory %s (%d files)", filepath.Base(src), count),
+	}
+}
+
+func (f *FileExecutor) moveDir(action *types.ActionRequest) *types.ActionResult {
+	src := f.resolvePath(action.Payload["source"])
+	dst := f.resolvePath(action.Payload["destination"])
+
+	info, err := os.Stat(src)
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "move_directory failed: source not found"}
+	}
+	if !info.IsDir() {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "source is not a directory", Summary: "move_directory failed: not a directory"}
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "move_directory failed"}
+	}
+	if err := os.Rename(src, dst); err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "move_directory failed"}
+	}
+
+	return &types.ActionResult{
+		RequestID: action.RequestID, Success: true,
+		Output:  fmt.Sprintf("moved directory %s to %s", src, dst),
+		Summary: fmt.Sprintf("moved directory %s to %s", filepath.Base(src), filepath.Base(dst)),
+	}
+}
+
+func (f *FileExecutor) deleteDir(action *types.ActionRequest) *types.ActionResult {
+	path := f.resolvePath(action.Payload["path"])
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "delete_directory failed: not found"}
+	}
+	if !info.IsDir() {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "path is not a directory", Summary: "delete_directory failed: not a directory"}
+	}
+
+	if err := os.RemoveAll(path); err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "delete_directory failed"}
+	}
+
+	return &types.ActionResult{
+		RequestID: action.RequestID, Success: true,
+		Output:  fmt.Sprintf("deleted directory %s", path),
+		Summary: fmt.Sprintf("deleted directory %s", filepath.Base(path)),
 	}
 }
 

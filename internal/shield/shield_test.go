@@ -75,33 +75,41 @@ func TestGatewayHeuristicBlocksCurlPipeBash(t *testing.T) {
 	assert.Equal(t, types.VerdictBlock, v.Decision)
 }
 
-func TestGatewaySelfProtectionAuditLog(t *testing.T) {
+// Self-protection for system files (audit.jsonl, canary.token, config.yaml)
+// is now handled by the engine's hardcoded protection layer (Layer 1),
+// NOT by the Shield gateway. These tests verify Shield evaluates normally.
+
+func TestGatewaySOULWriteEscalatesToTier2(t *testing.T) {
 	p := newTestPipeline(t)
 	v := p.Evaluate(context.Background(), &types.ActionRequest{
-		Type:    types.ActionReadFile,
-		Payload: map[string]any{"path": ".openparallax/audit.jsonl"},
+		Type:    types.ActionWriteFile,
+		Payload: map[string]any{"path": "SOUL.md", "content": "evil"},
 		Hash:    "testhash",
 	})
+	// Should escalate to tier 2 via policy verify rule — and since no Tier 2
+	// evaluator is configured, fail-closed blocks it.
 	assert.Equal(t, types.VerdictBlock, v.Decision)
 }
 
-func TestGatewaySelfProtectionEvaluatorPrompt(t *testing.T) {
+func TestGatewaySOULDeleteBlocked(t *testing.T) {
 	p := newTestPipeline(t)
 	v := p.Evaluate(context.Background(), &types.ActionRequest{
-		Type:    types.ActionReadFile,
-		Payload: map[string]any{"path": "prompts/evaluator-v1.md"},
+		Type:    types.ActionDeleteFile,
+		Payload: map[string]any{"path": "SOUL.md"},
 		Hash:    "testhash",
 	})
+	// Blocked by policy deny rule: block_identity_deletion.
 	assert.Equal(t, types.VerdictBlock, v.Decision)
 }
 
-func TestGatewaySelfProtectionCanary(t *testing.T) {
+func TestGatewayCopyToSOULBlocked(t *testing.T) {
 	p := newTestPipeline(t)
 	v := p.Evaluate(context.Background(), &types.ActionRequest{
-		Type:    types.ActionReadFile,
-		Payload: map[string]any{"path": ".openparallax/canary.token"},
+		Type:    types.ActionCopyFile,
+		Payload: map[string]any{"source": "junk.txt", "destination": "SOUL.md"},
 		Hash:    "testhash",
 	})
+	// Destination field is now checked by policy — escalates to Tier 2, fail-closed blocks.
 	assert.Equal(t, types.VerdictBlock, v.Decision)
 }
 

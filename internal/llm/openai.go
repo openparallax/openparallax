@@ -138,7 +138,7 @@ func (o *OpenAIProvider) buildParams(cfg *CompletionConfig, messages []ChatMessa
 				oaiMsgs = append(oaiMsgs, openai.AssistantMessage(m.Content))
 			}
 		case "tool":
-			oaiMsgs = append(oaiMsgs, openai.ToolMessage(m.ToolCallID, m.Content))
+			oaiMsgs = append(oaiMsgs, openai.ToolMessage(m.Content, m.ToolCallID))
 		}
 	}
 	params.Messages = oaiMsgs

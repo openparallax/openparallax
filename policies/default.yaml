@@ -10,6 +10,9 @@ deny:
       - delete_file
       - copy_file
       - move_file
+      - copy_directory
+      - move_directory
+      - delete_directory
     paths:
       - "~/.ssh/**"
       - "~/.aws/**"
@@ -19,11 +22,17 @@ deny:
       - "/etc/sudoers"
       - "C:\\Windows\\System32\\config\\**"
 
-  - name: block_write_to_soul
+  - name: block_identity_deletion
     action_types:
       - delete_file
+      - delete_directory
     paths:
       - "**/SOUL.md"
+      - "**/IDENTITY.md"
+      - "**/TOOLS.md"
+      - "**/BOOT.md"
+      - "**/AGENTS.md"
+      - "**/HEARTBEAT.md"
 
 verify:
   - name: evaluate_shell_commands
@@ -41,15 +50,43 @@ verify:
   - name: evaluate_soul_modification
     action_types:
       - write_file
+      - copy_file
+      - move_file
     paths:
       - "**/SOUL.md"
       - "**/IDENTITY.md"
+      - "**/TOOLS.md"
+      - "**/BOOT.md"
     tier_override: 2
+
+  - name: evaluate_agent_config_modification
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+      - delete_file
+    paths:
+      - "**/AGENTS.md"
+      - "**/HEARTBEAT.md"
+    tier_override: 2
+
+  - name: evaluate_user_data_modification
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+      - delete_file
+    paths:
+      - "**/USER.md"
+      - "**/MEMORY.md"
+    tier_override: 1
 
   - name: evaluate_destructive_file_ops
     action_types:
       - delete_file
+      - delete_directory
       - move_file
+      - move_directory
     tier_override: 1
 
   - name: evaluate_git_push
