@@ -8,6 +8,7 @@ openparallax
 openparallax-shield
 openparallax-classifier
 dist/
+!internal/web/dist/
 
 # Test
 *.test

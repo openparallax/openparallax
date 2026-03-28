@@ -210,19 +210,28 @@ func (e *Engine) Port() int {
 }
 
 // ProcessMessage implements the PipelineService gRPC method.
-// Single tool-use LLM call with interception loop.
+// Thin wrapper around processMessageCore using a gRPC event sender.
 func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.PipelineService_ProcessMessageServer) error {
-	ctx := stream.Context()
-	sid := req.SessionId
-	mid := req.MessageId
-	isOTR := req.Mode == pb.SessionMode_OTR
 	mode := types.SessionNormal
-	if isOTR {
+	if req.Mode == pb.SessionMode_OTR {
 		mode = types.SessionOTR
 	}
+	sender := newGRPCEventSender(stream)
+	return e.processMessageCore(stream.Context(), sender, req.SessionId, req.MessageId, req.Content, mode)
+}
 
-	e.storeMessage(sid, mid, "user", req.Content)
-	e.log.Info("message_received", "session", sid, "length", len(req.Content))
+// ProcessMessageForWeb is the public entry point for the web server.
+// It uses a transport-neutral EventSender to deliver pipeline events.
+func (e *Engine) ProcessMessageForWeb(ctx context.Context, sender EventSender, sid, mid, content string, mode types.SessionMode) error {
+	return e.processMessageCore(ctx, sender, sid, mid, content, mode)
+}
+
+// processMessageCore is the shared pipeline logic for both gRPC and WebSocket.
+func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid, mid, content string, mode types.SessionMode) error {
+	isOTR := mode == types.SessionOTR
+
+	e.storeMessage(sid, mid, "user", content)
+	e.log.Info("message_received", "session", sid, "length", len(content))
 
 	// Load history.
 	history := e.getHistory(sid)
@@ -236,11 +245,10 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 	}
 	systemPrompt, err := e.agent.Context.AssembleWithSkills(mode, skillSummary, activeSkills)
 	if err != nil {
-		return e.sendError(stream, sid, mid, "CONTEXT_FAILED", err.Error())
+		return e.sendErrorEvent(sender, sid, mid, "CONTEXT_FAILED", err.Error())
 	}
 
 	// Compact history if approaching context limits.
-	// Reserve 30% for the current turn (system prompt + user message + tool results + response).
 	contextBudget := e.llm.EstimateTokens(systemPrompt) + 4096
 	history, _ = e.agent.CompactHistory(ctx, history, contextBudget)
 
@@ -258,17 +266,17 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 	// Build messages: history + current user message.
 	messages := make([]llm.ChatMessage, 0, len(history)+1)
 	messages = append(messages, history...)
-	messages = append(messages, llm.ChatMessage{Role: "user", Content: req.Content})
+	messages = append(messages, llm.ChatMessage{Role: "user", Content: content})
 
 	e.log.Info("llm_call_started", "session", sid, "provider", e.llm.Name(),
 		"model", e.llm.Model(), "tools", len(tools), "history", len(messages))
 
 	// Initialize streaming redactor.
 	redactor := NewStreamingRedactor(func(text string) {
-		_ = stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType: pb.PipelineEventType_LLM_TOKEN,
-			LlmToken:  &pb.LLMToken{Text: text},
+		_ = sender.SendEvent(&PipelineEvent{
+			SessionID: sid, MessageID: mid,
+			Type:     EventLLMToken,
+			LLMToken: &LLMTokenEvent{Text: text},
 		})
 	})
 
@@ -277,7 +285,7 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 		llm.WithSystem(systemPrompt), llm.WithMaxTokens(4096))
 	if err != nil {
 		e.log.Error("llm_call_failed", "session", sid, "error", err)
-		return e.sendError(stream, sid, mid, "LLM_CALL_FAILED", err.Error())
+		return e.sendErrorEvent(sender, sid, mid, "LLM_CALL_FAILED", err.Error())
 	}
 	defer func() { _ = toolStream.Close() }()
 
@@ -290,8 +298,6 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 	for rounds < maxToolRounds {
 		event, eventErr := toolStream.Next()
 		if eventErr == io.EOF || event.Type == llm.EventDone {
-			// Stream ended. If we have pending tool results, send them
-			// back and continue with a new stream.
 			if len(toolResults) > 0 {
 				redactor.Flush()
 				e.log.Info("sending_tool_results", "session", sid, "count", len(toolResults))
@@ -321,50 +327,46 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 			e.log.Info("tool_call_received", "session", sid, "tool", tc.Name, "call_id", tc.ID)
 
-			result := e.processToolCall(ctx, tc, mode, sid, mid, stream)
+			result := e.processToolCall(ctx, tc, mode, sid, mid, sender)
 			e.log.Debug("tool_result", "call_id", result.CallID, "is_error", result.IsError, "content_len", len(result.Content))
 			toolResults = append(toolResults, result)
 
-			// Track for daily action log.
 			executedActions = append(executedActions, &types.ActionRequest{Type: types.ActionType(tc.Name), Payload: tc.Arguments})
 			executedResults = append(executedResults, &types.ActionResult{Success: !result.IsError, Summary: executors.Truncate(result.Content, 100)})
 
-			// Activate matching skills for this tool.
 			if e.agent.Skills != nil {
 				e.agent.Skills.MatchSkills([]string{tc.Name})
 			}
 		}
 	}
 
-	// Flush remaining buffered text.
 	redactor.Flush()
-
-	// Get full response text.
 	fullResponse := toolStream.FullText()
-
-	// Store assistant response.
 	e.storeMessage(sid, "", "assistant", fullResponse)
 
-	// Emit response complete.
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:        pb.PipelineEventType_RESPONSE_COMPLETE,
-		ResponseComplete: &pb.ResponseComplete{Content: fullResponse},
+	_ = sender.SendEvent(&PipelineEvent{
+		SessionID: sid, MessageID: mid,
+		Type:             EventResponseComplete,
+		ResponseComplete: &ResponseCompleteEvent{Content: fullResponse},
 	})
 
-	// Daily action log (Normal mode only, if tools were used).
 	if !isOTR && len(executedActions) > 0 {
 		e.memory.LogAction(executedActions, executedResults)
 	}
 
 	e.log.Info("message_complete", "session", sid, "response_length", len(fullResponse), "rounds", rounds)
-
 	return nil
 }
 
+func truncateForLog(s string) string {
+	if len(s) > 100 {
+		return s[:100] + "..."
+	}
+	return s
+}
+
 // processToolCall handles a single tool call through the full security pipeline.
-// Returns a ToolResult to send back to the LLM.
-func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode types.SessionMode, sid, mid string, stream pb.PipelineService_ProcessMessageServer) llm.ToolResult {
+func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode types.SessionMode, sid, mid string, sender EventSender) llm.ToolResult {
 	// Convert tool call to ActionRequest.
 	action := &types.ActionRequest{
 		RequestID: crypto.NewID(),
@@ -382,10 +384,9 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	allowed, protection, protReason := CheckProtection(action, e.cfg.Workspace)
 	if !allowed {
 		e.log.Warn("protection_blocked", "session", sid, "tool", tc.Name, "reason", protReason)
-		_ = stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType:       pb.PipelineEventType_ACTION_COMPLETED,
-			ActionCompleted: &pb.ActionCompleted{Success: false, Summary: "Blocked: " + protReason},
+		_ = sender.SendEvent(&PipelineEvent{
+			SessionID: sid, MessageID: mid, Type: EventActionCompleted,
+			ActionCompleted: &ActionCompletedEvent{ToolName: tc.Name, Success: false, Summary: "Blocked: " + protReason},
 		})
 		return llm.ToolResult{CallID: tc.ID, Content: "Blocked: " + protReason, IsError: true}
 	}
@@ -399,12 +400,9 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	isOTR := mode == types.SessionOTR
 
 	// Emit tool call started.
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType: pb.PipelineEventType_ACTION_STARTED,
-		ActionStarted: &pb.ActionStarted{
-			Summary: formatToolCallSummary(tc),
-		},
+	_ = sender.SendEvent(&PipelineEvent{
+		SessionID: sid, MessageID: mid, Type: EventActionStarted,
+		ActionStarted: &ActionStartedEvent{ToolName: tc.Name, Summary: formatToolCallSummary(tc)},
 	})
 
 	// Audit: proposed.
@@ -421,21 +419,19 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: "OTR: " + reason, OTR: true,
 		})
-		_ = stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType:  pb.PipelineEventType_OTR_BLOCKED,
-			OtrBlocked: &pb.OTRBlocked{Reason: reason},
+		_ = sender.SendEvent(&PipelineEvent{
+			SessionID: sid, MessageID: mid, Type: EventOTRBlocked,
+			OTRBlocked: &OTRBlockedEvent{Reason: reason},
 		})
 		return llm.ToolResult{CallID: tc.ID, Content: "Blocked: " + reason, IsError: true}
 	}
 
 	// Shield evaluation.
 	verdict := e.shield.Evaluate(ctx, action)
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType: pb.PipelineEventType_SHIELD_VERDICT,
-		ShieldVerdict: &pb.ShieldVerdict{
-			Decision: verdictToProto(verdict.Decision), Tier: int32(verdict.Tier),
+	_ = sender.SendEvent(&PipelineEvent{
+		SessionID: sid, MessageID: mid, Type: EventShieldVerdict,
+		ShieldVerdict: &ShieldVerdictEvent{
+			ToolName: tc.Name, Decision: string(verdict.Decision), Tier: verdict.Tier,
 			Confidence: verdict.Confidence, Reasoning: verdict.Reasoning,
 		},
 	})
@@ -451,10 +447,9 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: verdict.Reasoning,
 		})
-		_ = stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType:       pb.PipelineEventType_ACTION_COMPLETED,
-			ActionCompleted: &pb.ActionCompleted{Success: false, Summary: "Blocked: " + verdict.Reasoning},
+		_ = sender.SendEvent(&PipelineEvent{
+			SessionID: sid, MessageID: mid, Type: EventActionCompleted,
+			ActionCompleted: &ActionCompletedEvent{ToolName: tc.Name, Success: false, Summary: "Blocked: " + verdict.Reasoning},
 		})
 		return llm.ToolResult{CallID: tc.ID, Content: "Blocked by security: " + verdict.Reasoning, IsError: true}
 	}
@@ -533,17 +528,15 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 		})
 	}
 
-	_ = stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType:       pb.PipelineEventType_ACTION_COMPLETED,
-		ActionCompleted: &pb.ActionCompleted{Success: result.Success, Summary: result.Summary},
+	_ = sender.SendEvent(&PipelineEvent{
+		SessionID: sid, MessageID: mid, Type: EventActionCompleted,
+		ActionCompleted: &ActionCompletedEvent{ToolName: tc.Name, Success: result.Success, Summary: result.Summary},
 	})
 
 	if result.Artifact != nil {
-		_ = stream.Send(&pb.PipelineEvent{
-			SessionId: sid, MessageId: mid,
-			EventType:      pb.PipelineEventType_ACTION_ARTIFACT,
-			ActionArtifact: &pb.ActionArtifact{Artifact: toProtoArtifact(result.Artifact)},
+		_ = sender.SendEvent(&PipelineEvent{
+			SessionID: sid, MessageID: mid, Type: EventActionArtifact,
+			ActionArtifact: &ActionArtifactEvent{Artifact: result.Artifact},
 		})
 	}
 
@@ -660,15 +653,29 @@ func (e *Engine) getHistory(sessionID string) []llm.ChatMessage {
 	return result
 }
 
-func (e *Engine) sendError(stream pb.PipelineService_ProcessMessageServer, sid, mid, code, message string) error {
-	return stream.Send(&pb.PipelineEvent{
-		SessionId: sid, MessageId: mid,
-		EventType: pb.PipelineEventType_ERROR,
-		PipelineError: &pb.PipelineError{
-			Code: code, Message: message, Recoverable: true,
-		},
+func (e *Engine) sendErrorEvent(sender EventSender, sid, mid, code, message string) error {
+	return sender.SendEvent(&PipelineEvent{
+		SessionID: sid, MessageID: mid, Type: EventError,
+		Error: &PipelineErrorEvent{Code: code, Message: message, Recoverable: true},
 	})
 }
+
+// --- Accessors for the web server ---
+
+// DB returns the storage database.
+func (e *Engine) DB() *storage.DB { return e.db }
+
+// Memory returns the memory manager.
+func (e *Engine) Memory() *memory.Manager { return e.memory }
+
+// Config returns the agent configuration.
+func (e *Engine) Config() *types.AgentConfig { return e.cfg }
+
+// Log returns the logger.
+func (e *Engine) Log() *logging.Logger { return e.log }
+
+// LLMModel returns the configured LLM model name.
+func (e *Engine) LLMModel() string { return e.llm.Model() }
 
 // --- Conversion helpers ---
 
@@ -690,19 +697,6 @@ func formatToolCallSummary(tc *llm.ToolCall) string {
 		return fmt.Sprintf("Running: %s", cmd)
 	default:
 		return tc.Name
-	}
-}
-
-func verdictToProto(d types.VerdictDecision) pb.VerdictDecision {
-	switch d {
-	case types.VerdictAllow:
-		return pb.VerdictDecision_ALLOW
-	case types.VerdictBlock:
-		return pb.VerdictDecision_BLOCK
-	case types.VerdictEscalate:
-		return pb.VerdictDecision_ESCALATE
-	default:
-		return pb.VerdictDecision_VERDICT_DECISION_UNSPECIFIED
 	}
 }
 

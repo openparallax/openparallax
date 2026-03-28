@@ -3,10 +3,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/openparallax/openparallax/internal/engine"
+	"github.com/openparallax/openparallax/internal/engine/executors"
+	"github.com/openparallax/openparallax/internal/web"
 	"github.com/spf13/cobra"
 )
 
@@ -48,10 +52,41 @@ func runInternalEngine(cmd *cobra.Command, args []string) error {
 
 	_, _ = fmt.Fprintf(os.Stdout, "PORT:%d\n", port)
 
+	// Start web server if configured.
+	var webServer *web.Server
+	cfg := eng.Config()
+	if cfg.Web.Enabled {
+		webPort := cfg.Web.Port
+		if webPort == 0 {
+			webPort = 3000
+		}
+		webServer = web.NewServer(eng, eng.Log(), webPort)
+		go func() {
+			if err := webServer.Start(); err != nil {
+				eng.Log().Error("web_server_failed", "error", err)
+			}
+		}()
+
+		url := fmt.Sprintf("http://127.0.0.1:%d", webPort)
+		eng.Log().Info("web_ui_available", "url", url)
+
+		if browserPath := executors.DetectBrowser(); browserPath != "" {
+			parts := strings.Fields(browserPath)
+			if len(parts) > 1 {
+				_ = exec.Command(parts[0], append(parts[1:], url)...).Start()
+			} else {
+				_ = exec.Command(browserPath, url).Start()
+			}
+		}
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 	<-sigCh
 
+	if webServer != nil {
+		webServer.Stop()
+	}
 	eng.Stop()
 	return nil
 }
