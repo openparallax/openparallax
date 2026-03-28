@@ -4,22 +4,25 @@ import (
 	"context"
 
 	"github.com/openparallax/openparallax/internal/llm"
+	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
-// Agent coordinates context assembly and history compaction.
+// Agent coordinates context assembly, history compaction, and skill management.
 // In the tool-use architecture, the LLM decides what tools to call —
 // there is no separate planner, builder, or self-evaluator.
 type Agent struct {
 	Context   *ContextAssembler
 	Compactor *Compactor
+	Skills    *SkillManager
 }
 
 // NewAgent creates an Agent.
-func NewAgent(provider llm.Provider, workspacePath string, _ []types.ActionType) *Agent {
+func NewAgent(provider llm.Provider, workspacePath string, _ []types.ActionType, mem *memory.Manager) *Agent {
 	return &Agent{
 		Context:   NewContextAssembler(workspacePath),
-		Compactor: NewCompactor(provider),
+		Compactor: NewCompactor(provider, mem),
+		Skills:    NewSkillManager(workspacePath),
 	}
 }
 

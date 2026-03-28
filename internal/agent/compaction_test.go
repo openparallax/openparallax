@@ -22,7 +22,7 @@ func TestCompactUnderBudget(t *testing.T) {
 	provider, err := llm.NewOpenAIProvider(apiKey, model, os.Getenv("OPENAI_BASE_URL"))
 	require.NoError(t, err)
 
-	c := NewCompactor(provider)
+	c := NewCompactor(provider, nil)
 	messages := []llm.ChatMessage{
 		{Role: "user", Content: "Hello"},
 		{Role: "assistant", Content: "Hi there!"},
@@ -45,7 +45,7 @@ func TestCompactOverBudget(t *testing.T) {
 	provider, err := llm.NewOpenAIProvider(apiKey, model, os.Getenv("OPENAI_BASE_URL"))
 	require.NoError(t, err)
 
-	c := NewCompactor(provider)
+	c := NewCompactor(provider, nil)
 
 	// Create messages that exceed the budget.
 	var messages []llm.ChatMessage
@@ -78,7 +78,7 @@ func TestCompactPreservesRecent(t *testing.T) {
 	provider, err := llm.NewOpenAIProvider(apiKey, model, os.Getenv("OPENAI_BASE_URL"))
 	require.NoError(t, err)
 
-	c := NewCompactor(provider)
+	c := NewCompactor(provider, nil)
 
 	messages := []llm.ChatMessage{
 		{Role: "user", Content: "Old message 1"},

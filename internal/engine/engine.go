@@ -21,6 +21,7 @@ import (
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/logging"
+	"github.com/openparallax/openparallax/internal/mcp"
 	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/session"
 	"github.com/openparallax/openparallax/internal/shield"
@@ -38,18 +39,19 @@ const maxToolRounds = 25
 type Engine struct {
 	pb.UnimplementedPipelineServiceServer
 
-	cfg       *types.AgentConfig
-	llm       llm.Provider
-	log       *logging.Logger
-	agent     *agent.Agent
-	executors *executors.Registry
-	shield    *shield.Pipeline
-	enricher  *shield.MetadataEnricher
-	chronicle *chronicle.Chronicle
-	memory    *memory.Manager
-	audit     *audit.Logger
-	verifier  *Verifier
-	db        *storage.DB
+	cfg        *types.AgentConfig
+	llm        llm.Provider
+	log        *logging.Logger
+	agent      *agent.Agent
+	executors  *executors.Registry
+	shield     *shield.Pipeline
+	enricher   *shield.MetadataEnricher
+	chronicle  *chronicle.Chronicle
+	memory     *memory.Manager
+	audit      *audit.Logger
+	verifier   *Verifier
+	db         *storage.DB
+	mcpManager *mcp.Manager
 
 	server   *grpc.Server
 	listener net.Listener
@@ -126,21 +128,28 @@ func New(configPath string, verbose bool) (*Engine, error) {
 
 	mem := memory.NewManager(cfg.Workspace, db, provider)
 	registry.RegisterMemory(mem)
-	ag := agent.NewAgent(provider, cfg.Workspace, registry.AvailableActions())
+	ag := agent.NewAgent(provider, cfg.Workspace, registry.AvailableActions(), mem)
+
+	// MCP manager (optional — only if servers are configured).
+	var mcpMgr *mcp.Manager
+	if len(cfg.MCP.Servers) > 0 {
+		mcpMgr = mcp.NewManager(cfg.MCP.Servers, log)
+	}
 
 	return &Engine{
-		cfg:       cfg,
-		llm:       provider,
-		log:       log,
-		agent:     ag,
-		executors: registry,
-		shield:    shieldPipeline,
-		enricher:  shield.NewMetadataEnricher(),
-		chronicle: chron,
-		memory:    mem,
-		audit:     auditLogger,
-		verifier:  NewVerifier(),
-		db:        db,
+		cfg:        cfg,
+		llm:        provider,
+		log:        log,
+		agent:      ag,
+		executors:  registry,
+		shield:     shieldPipeline,
+		enricher:   shield.NewMetadataEnricher(),
+		chronicle:  chron,
+		memory:     mem,
+		audit:      auditLogger,
+		verifier:   NewVerifier(),
+		db:         db,
+		mcpManager: mcpMgr,
 	}, nil
 }
 
@@ -173,6 +182,9 @@ func (e *Engine) Stop() {
 	e.shutdown = true
 	e.mu.Unlock()
 
+	if e.mcpManager != nil {
+		e.mcpManager.ShutdownAll()
+	}
 	if e.server != nil {
 		e.server.GracefulStop()
 	}
@@ -215,8 +227,14 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 	// Load history.
 	history := e.getHistory(sid)
 
-	// Build system prompt with OTR awareness.
-	systemPrompt, err := e.agent.Context.Assemble(mode)
+	// Build system prompt with OTR awareness and skills.
+	skillSummary := ""
+	activeSkills := ""
+	if e.agent.Skills != nil {
+		skillSummary = e.agent.Skills.LightSummary()
+		activeSkills = e.agent.Skills.ActiveSkillBodies()
+	}
+	systemPrompt, err := e.agent.Context.AssembleWithSkills(mode, skillSummary, activeSkills)
 	if err != nil {
 		return e.sendError(stream, sid, mid, "CONTEXT_FAILED", err.Error())
 	}
@@ -228,6 +246,10 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 	// Load tool definitions (filtered for OTR).
 	allTools := agent.GenerateToolDefinitions(e.executors.AllToolSchemas())
+	if e.mcpManager != nil {
+		mcpTools := e.mcpManager.DiscoverTools(ctx)
+		allTools = append(allTools, mcpTools...)
+	}
 	tools := allTools
 	if isOTR {
 		tools = agent.FilterToolsForOTR(allTools)
@@ -306,6 +328,11 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 			// Track for daily action log.
 			executedActions = append(executedActions, &types.ActionRequest{Type: types.ActionType(tc.Name), Payload: tc.Arguments})
 			executedResults = append(executedResults, &types.ActionResult{Success: !result.IsError, Summary: truncateForLog(result.Content)})
+
+			// Activate matching skills for this tool.
+			if e.agent.Skills != nil {
+				e.agent.Skills.MatchSkills([]string{tc.Name})
+			}
 		}
 	}
 
@@ -458,11 +485,45 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 		}
 	}
 
-	// Execute.
+	// IFC check: if the action sends data externally and we've seen sensitive
+	// data in this session, block the flow.
+	if action.DataClassification != nil && !shield.IsFlowAllowed(action.DataClassification, action.Type) {
+		reason := "IFC violation: sensitive data cannot flow to this destination"
+		e.log.Info("ifc_blocked", "session", sid, "tool", tc.Name,
+			"sensitivity", action.DataClassification.Sensitivity, "source", action.DataClassification.SourcePath)
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditActionBlocked, SessionID: sid,
+			ActionType: string(action.Type), Details: reason,
+		})
+		return llm.ToolResult{CallID: tc.ID, Content: "Blocked: " + reason, IsError: true}
+	}
+
+	// Route: MCP tools or built-in executors.
 	e.log.Info("executor_start", "session", sid, "tool", tc.Name)
 	start := time.Now()
-	result := e.executors.Execute(ctx, action)
-	result.DurationMs = time.Since(start).Milliseconds()
+	var result *types.ActionResult
+
+	if e.mcpManager != nil {
+		if client, toolName, isMCP := e.mcpManager.Route(tc.Name); isMCP {
+			mcpResult, mcpErr := client.CallTool(ctx, toolName, tc.Arguments)
+			if mcpErr != nil {
+				result = &types.ActionResult{
+					RequestID: action.RequestID, Success: false,
+					Error: mcpErr.Error(), Summary: "MCP call failed: " + mcpErr.Error(),
+				}
+			} else {
+				result = &types.ActionResult{
+					RequestID: action.RequestID, Success: true,
+					Output: mcpResult, Summary: "MCP call completed",
+				}
+			}
+			result.DurationMs = time.Since(start).Milliseconds()
+		}
+	}
+	if result == nil {
+		result = e.executors.Execute(ctx, action)
+		result.DurationMs = time.Since(start).Milliseconds()
+	}
 
 	if result.Success {
 		e.log.Info("executor_complete", "session", sid, "tool", tc.Name, "success", true, "ms", result.DurationMs)

@@ -28,6 +28,40 @@ type AgentConfig struct {
 
 	// General holds global settings.
 	General GeneralConfig `yaml:"general" json:"general"`
+
+	// Memory configures the memory subsystem.
+	Memory MemoryConfig `yaml:"memory,omitempty" json:"memory,omitempty"`
+
+	// MCP configures external MCP server connections.
+	MCP MCPConfig `yaml:"mcp,omitempty" json:"mcp,omitempty"`
+}
+
+// MemoryConfig configures the memory subsystem.
+type MemoryConfig struct {
+	// Embedding configures the embedding provider for semantic search.
+	Embedding EmbeddingCfg `yaml:"embedding,omitempty" json:"embedding,omitempty"`
+}
+
+// EmbeddingCfg configures the embedding provider.
+type EmbeddingCfg struct {
+	Provider  string `yaml:"provider" json:"provider"`
+	Model     string `yaml:"model,omitempty" json:"model,omitempty"`
+	APIKeyEnv string `yaml:"api_key_env,omitempty" json:"api_key_env,omitempty"`
+	BaseURL   string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
+}
+
+// MCPConfig holds MCP server configurations.
+type MCPConfig struct {
+	Servers []MCPServerConfig `yaml:"servers,omitempty" json:"servers,omitempty"`
+}
+
+// MCPServerConfig defines a single MCP server connection.
+type MCPServerConfig struct {
+	Name        string            `yaml:"name" json:"name"`
+	Command     string            `yaml:"command" json:"command"`
+	Args        []string          `yaml:"args,omitempty" json:"args,omitempty"`
+	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
+	IdleTimeout int               `yaml:"idle_timeout,omitempty" json:"idle_timeout,omitempty"` // seconds, default 300
 }
 
 // LLMConfig configures the agent's LLM provider.

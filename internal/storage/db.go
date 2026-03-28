@@ -96,6 +96,41 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_index(timestamp)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_session ON audit_index(session_id)`,
+
+		// Chunk-based memory index for hybrid search.
+		`CREATE TABLE IF NOT EXISTS chunks (
+			id TEXT PRIMARY KEY,
+			path TEXT NOT NULL,
+			start_line INTEGER,
+			end_line INTEGER,
+			text TEXT NOT NULL,
+			hash TEXT NOT NULL,
+			embedding BLOB,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path)`,
+		`CREATE INDEX IF NOT EXISTS idx_chunks_hash ON chunks(hash)`,
+
+		`CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+			text,
+			content='chunks',
+			content_rowid='rowid'
+		)`,
+
+		// Embedding cache: avoid re-embedding unchanged content.
+		`CREATE TABLE IF NOT EXISTS embedding_cache (
+			content_hash TEXT PRIMARY KEY,
+			embedding BLOB NOT NULL,
+			model TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+
+		// File hash tracking for incremental indexing.
+		`CREATE TABLE IF NOT EXISTS file_hashes (
+			path TEXT PRIMARY KEY,
+			hash TEXT NOT NULL,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	// Enable foreign key enforcement.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openparallax/openparallax/internal/crypto"
@@ -79,12 +80,14 @@ type model struct {
 	program   *tea.Program
 
 	spinner  spinner.Model
+	viewport viewport.Model
 	lines    []styledLine
 	thoughts []string
 	input    textarea.Model
 	stream   string
 	thinking bool
 	quitting bool
+	ready    bool
 	width    int
 	height   int
 }
@@ -181,15 +184,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tokenMsg:
 		m.stream += string(msg)
+		m.syncViewport()
 		return m, nil
 
 	case thoughtMsg:
 		m.thoughts = append(m.thoughts, string(msg))
+		m.syncViewport()
 		return m, nil
 
 	case doneMsg:
 		m.thinking = false
-		// Persist thinking steps into the chat history so they remain visible.
 		if len(m.thoughts) > 0 {
 			for _, t := range m.thoughts {
 				m.addLine(m.dimStyle("  " + t))
@@ -202,11 +206,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.addLine(m.assistantStyle(m.agentName+": ") + content)
 		m.stream = ""
 		m.thoughts = nil
+		m.syncViewport()
 		return m, nil
 
 	case errMsg:
 		m.thinking = false
 		m.addLine(m.errStyle("Error: " + msg.err.Error()))
+		m.syncViewport()
 		return m, nil
 
 	case newSession:
@@ -232,12 +238,34 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.input.SetWidth(m.width - 4)
+
+		// Header (2 lines) + input area (3 lines) = 5 reserved.
+		vpHeight := m.height - 5
+		if vpHeight < 1 {
+			vpHeight = 1
+		}
+		if !m.ready {
+			m.viewport = viewport.New(m.width, vpHeight)
+			m.viewport.MouseWheelEnabled = true
+			m.ready = true
+		} else {
+			m.viewport.Width = m.width
+			m.viewport.Height = vpHeight
+		}
+		m.syncViewport()
 		return m, nil
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
+	}
+
+	// Forward to viewport for scrolling (arrow keys, page up/down, mouse wheel).
+	if m.ready {
+		var vpCmd tea.Cmd
+		m.viewport, vpCmd = m.viewport.Update(msg)
+		cmds = append(cmds, vpCmd)
 	}
 
 	if !m.thinking {
@@ -253,6 +281,9 @@ func (m *model) View() string {
 	if m.quitting {
 		return ""
 	}
+	if !m.ready {
+		return "Initializing..."
+	}
 
 	var sb strings.Builder
 
@@ -262,15 +293,40 @@ func (m *model) View() string {
 		sb.WriteString(m.otrStyle(" [OTR] "))
 	}
 	sb.WriteString(m.dimStyle("  /quit  /new  /otr  /sessions"))
-	sb.WriteString("\n\n")
+	sb.WriteString("\n")
 
-	// Chat history.
+	// Scrollable viewport with chat content.
+	sb.WriteString(m.viewport.View())
+	sb.WriteString("\n")
+
+	// Input line or spinner.
+	if m.thinking {
+		if m.stream == "" && len(m.thoughts) == 0 {
+			sb.WriteString(m.spinner.View())
+			sb.WriteString(" Thinking...")
+		} else {
+			sb.WriteString(m.dimStyle("  (streaming...)"))
+		}
+	} else {
+		sb.WriteString(m.input.View())
+	}
+
+	return sb.String()
+}
+
+// syncViewport rebuilds the viewport content from chat history + active stream.
+func (m *model) syncViewport() {
+	if !m.ready {
+		return
+	}
+
+	var sb strings.Builder
+
 	for _, l := range m.lines {
 		sb.WriteString(l.text)
 		sb.WriteString("\n\n")
 	}
 
-	// Active thinking steps.
 	if m.thinking && len(m.thoughts) > 0 {
 		for _, t := range m.thoughts {
 			sb.WriteString(m.dimStyle("  " + t))
@@ -279,23 +335,13 @@ func (m *model) View() string {
 		sb.WriteString("\n")
 	}
 
-	// Active stream.
 	if m.thinking && m.stream != "" {
 		sb.WriteString(m.assistantStyle(m.agentName+": ") + m.stream)
 		sb.WriteString("\n\n")
 	}
 
-	// Input line or spinner.
-	if m.thinking {
-		if m.stream == "" && len(m.thoughts) == 0 {
-			sb.WriteString(m.spinner.View())
-			sb.WriteString(" Thinking...")
-		}
-	} else {
-		sb.WriteString(m.input.View())
-	}
-
-	return sb.String()
+	m.viewport.SetContent(sb.String())
+	m.viewport.GotoBottom()
 }
 
 func (m *model) addLine(text string) {
