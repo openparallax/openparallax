@@ -56,15 +56,19 @@ func runInit(cmd *cobra.Command, args []string) error {
 	defaultWorkspace := filepath.Join(home, ".openparallax", "workspace")
 
 	var (
-		workspacePath   string
-		llmProvider     string
-		llmModel        string
-		llmAPIKeyEnv    string
-		llmBaseURL      string
-		shieldProvider  string
-		shieldModel     string
-		shieldAPIKeyEnv string
-		shieldBaseURL   string
+		workspacePath      string
+		llmProvider        string
+		llmModel           string
+		llmAPIKeyEnv       string
+		llmBaseURL         string
+		shieldProvider     string
+		shieldModel        string
+		shieldAPIKeyEnv    string
+		shieldBaseURL      string
+		embeddingProvider  string
+		embeddingModel     string
+		embeddingAPIKeyEnv string
+		embeddingBaseURL   string
 	)
 
 	// Workspace path
@@ -229,6 +233,89 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Embedding provider — prompt when Anthropic is the LLM provider (no native embeddings).
+	embeddingOptions := []huh.Option[string]{
+		huh.NewOption("OpenAI (text-embedding-3-small)", "openai"),
+		huh.NewOption("Google (text-embedding-004)", "google"),
+		huh.NewOption("Ollama (local)", "ollama"),
+		huh.NewOption("Skip (keyword search only)", ""),
+	}
+	embeddingDesc := "Which provider should handle text embeddings for semantic memory search?"
+	if llmProvider == "anthropic" {
+		embeddingDesc = "Anthropic does not offer embeddings. Choose a separate provider for semantic memory search, or skip for keyword-only."
+	}
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Embedding Provider").
+				Description(embeddingDesc).
+				Options(embeddingOptions...).
+				Value(&embeddingProvider),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	if embeddingProvider != "" {
+		defaultEmbeddingModels := map[string]string{
+			"openai": "text-embedding-3-small",
+			"google": "text-embedding-004",
+			"ollama": "nomic-embed-text",
+		}
+		embeddingModel = defaultEmbeddingModels[embeddingProvider]
+
+		err = huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Embedding model").
+					Value(&embeddingModel).
+					Placeholder(embeddingModel),
+			),
+		).Run()
+		if err != nil {
+			return err
+		}
+
+		// API key — use LLM key if same provider, otherwise prompt.
+		if embeddingProvider != "ollama" {
+			defaultEmbKeyEnv := defaultAPIKeyEnvs[embeddingProvider]
+			if embeddingProvider == llmProvider {
+				embeddingAPIKeyEnv = llmAPIKeyEnv
+			} else {
+				embeddingAPIKeyEnv = defaultEmbKeyEnv
+				err = huh.NewForm(
+					huh.NewGroup(
+						huh.NewInput().
+							Title("Embedding API key environment variable").
+							Description("Name of the environment variable containing the embedding API key.").
+							Value(&embeddingAPIKeyEnv).
+							Placeholder(defaultEmbKeyEnv),
+					),
+				).Run()
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		// Custom base URL for OpenAI-compatible embedding endpoints.
+		if embeddingProvider == "openai" {
+			err = huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("Embedding custom base URL").
+						Description("Leave empty for default OpenAI. Set for compatible endpoints (LM Studio, vLLM, routers).").
+						Value(&embeddingBaseURL).
+						Placeholder("https://api.openai.com/v1"),
+				),
+			).Run()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	// Generate canary token
 	canary, err := crypto.GenerateCanary()
 	if err != nil {
@@ -254,7 +341,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Write config.yaml
 	configPath := filepath.Join(workspacePath, "config.yaml")
 	if err := writeConfig(configPath, workspacePath, llmProvider, llmModel, llmAPIKeyEnv,
-		llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv, shieldBaseURL); err != nil {
+		llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv, shieldBaseURL,
+		embeddingProvider, embeddingModel, embeddingAPIKeyEnv, embeddingBaseURL); err != nil {
 		return fmt.Errorf("failed to write config.yaml: %w", err)
 	}
 
@@ -323,7 +411,8 @@ func copyTemplates(workspacePath string) error {
 
 // writeConfig generates the config.yaml file from wizard inputs.
 func writeConfig(path, workspace, llmProvider, llmModel, llmAPIKeyEnv,
-	llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv, shieldBaseURL string) error {
+	llmBaseURL, shieldProvider, shieldModel, shieldAPIKeyEnv, shieldBaseURL,
+	embeddingProvider, embeddingModel, embeddingAPIKeyEnv, embeddingBaseURL string) error {
 
 	// Do not overwrite existing config.
 	if _, err := os.Stat(path); err == nil {
@@ -363,6 +452,20 @@ func writeConfig(path, workspace, llmProvider, llmModel, llmAPIKeyEnv,
 	sb.WriteString("  policy_file: policies/default.yaml\n")
 	sb.WriteString("  onnx_threshold: 0.85\n")
 	sb.WriteString("  heuristic_enabled: true\n\n")
+
+	if embeddingProvider != "" {
+		sb.WriteString("memory:\n")
+		sb.WriteString("  embedding:\n")
+		fmt.Fprintf(&sb, "    provider: %s\n", embeddingProvider)
+		fmt.Fprintf(&sb, "    model: %s\n", embeddingModel)
+		if embeddingAPIKeyEnv != "" {
+			fmt.Fprintf(&sb, "    api_key_env: %s\n", embeddingAPIKeyEnv)
+		}
+		if embeddingBaseURL != "" {
+			fmt.Fprintf(&sb, "    base_url: %s\n", embeddingBaseURL)
+		}
+		sb.WriteString("\n")
+	}
 
 	sb.WriteString("chronicle:\n")
 	sb.WriteString("  max_snapshots: 100\n")
