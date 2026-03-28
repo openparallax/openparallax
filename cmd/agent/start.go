@@ -67,6 +67,13 @@ func runStart(cmd *cobra.Command, args []string) error {
 
 	grpcAddr := fmt.Sprintf("localhost:%d", port)
 	fmt.Printf("Engine started on %s (LLM: %s/%s)\n", grpcAddr, cfg.LLM.Provider, cfg.LLM.Model)
+	if cfg.Web.Enabled {
+		webPort := cfg.Web.Port
+		if webPort == 0 {
+			webPort = 3000
+		}
+		fmt.Printf("Web UI available at http://127.0.0.1:%d\n", webPort)
+	}
 	if startVerbose {
 		logPath := filepath.Join(cfg.Workspace, ".openparallax", "engine.log")
 		fmt.Printf("Verbose log: %s\n", logPath)
