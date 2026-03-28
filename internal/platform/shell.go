@@ -51,7 +51,7 @@ func crossPlatformRules() []HeuristicRule {
 		{ID: "XP-003", Name: "command_chaining_pipe", Pattern: `\|\s*(sh|bash|cmd|powershell)`, Category: "shell_injection", Severity: "critical", Description: "Command chaining via pipe to shell"},
 		{ID: "XP-004", Name: "backtick_injection", Pattern: "`[^`]+`", Category: "shell_injection", Severity: "high", Description: "Backtick command substitution"},
 		{ID: "XP-005", Name: "dollar_subshell", Pattern: `\$\([^)]+\)`, Category: "shell_injection", Severity: "high", Description: "Dollar-paren command substitution"},
-		{ID: "XP-006", Name: "redirect_overwrite", Pattern: `>\s*/`, Category: "shell_injection", Severity: "high", Description: "Redirect overwrite to absolute path"},
+		{ID: "XP-006", Name: "redirect_overwrite", Pattern: `>\s*/(etc|root|home|var|usr|tmp|opt|boot|sys|proc)`, Category: "shell_injection", Severity: "high", Description: "Redirect overwrite to sensitive absolute path"},
 		{ID: "XP-007", Name: "env_var_injection", Pattern: `(?i)(^|\s)(PATH|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_INSERT_LIBRARIES)\s*=`, Category: "shell_injection", Severity: "critical", Description: "Environment variable manipulation"},
 		{ID: "XP-008", Name: "process_substitution", Pattern: `<\([^)]+\)`, Category: "shell_injection", Severity: "high", Description: "Process substitution"},
 		{ID: "XP-009", Name: "heredoc_injection", Pattern: `<<\s*[-']?EOF`, Category: "shell_injection", Severity: "medium", Description: "Heredoc injection"},
