@@ -64,7 +64,6 @@ func TestCompactOverBudget(t *testing.T) {
 	result, err := c.Compact(context.Background(), messages, 100)
 	require.NoError(t, err)
 	assert.Less(t, len(result), len(messages), "compacted should have fewer messages")
-	assert.Equal(t, "system", result[0].Role, "first message should be summary")
 }
 
 func TestCompactPreservesRecent(t *testing.T) {

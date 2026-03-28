@@ -314,7 +314,9 @@ func (r *openaiToolStreamReader) Next() (StreamEvent, error) {
 			}
 		}
 
-		if choice.FinishReason == "stop" {
+		// Any finish reason other than "tool_calls" means the stream is complete.
+		// OpenAI uses "stop", Anthropic proxies may use "end_turn".
+		if choice.FinishReason != "" && choice.FinishReason != "tool_calls" {
 			r.done = true
 			return StreamEvent{Type: EventDone}, nil
 		}
