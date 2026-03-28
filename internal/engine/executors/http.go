@@ -54,6 +54,14 @@ func (h *HTTPExecutor) Execute(ctx context.Context, action *types.ActionRequest)
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "url is required", Summary: "http request failed"}
 	}
 
+	if strings.HasPrefix(strings.ToLower(url), "http://") {
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error:   "insecure HTTP request blocked — use HTTPS for secure data transfer",
+			Summary: "blocked: insecure HTTP",
+		}
+	}
+
 	method, _ := action.Payload["method"].(string)
 	if method == "" {
 		method = "GET"
