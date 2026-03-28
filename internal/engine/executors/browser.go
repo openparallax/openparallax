@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/types"
@@ -74,9 +75,9 @@ func (b *BrowserExecutor) navigate(action *types.ActionRequest) *types.ActionRes
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "url is required"}
 	}
 
-	// Simple fallback: use the browser to dump text content.
-	// Full chromedp integration with accessibility tree will be added when the dependency is wired.
-	cmd := exec.Command(b.browserPath, "--headless=new", "--dump-dom", "--disable-gpu", "--no-sandbox", url)
+	// Build the command — handle flatpak paths which contain spaces.
+	args := []string{"--headless=new", "--dump-dom", "--disable-gpu", "--no-sandbox", url}
+	cmd := buildBrowserCommand(b.browserPath, args)
 	output, err := cmd.Output()
 	if err != nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "browser navigation failed: " + err.Error(), Summary: "browser navigate failed"}
@@ -96,9 +97,10 @@ func (b *BrowserExecutor) navigate(action *types.ActionRequest) *types.ActionRes
 }
 
 // DetectBrowser finds an installed Chromium-based browser.
+// Checks system PATH, absolute paths, Flatpak, and Snap installations.
 func DetectBrowser() string {
-	candidates := browserCandidates()
-	for _, path := range candidates {
+	// System PATH and absolute paths.
+	for _, path := range browserCandidates() {
 		if _, err := exec.LookPath(path); err == nil {
 			return path
 		}
@@ -106,7 +108,46 @@ func DetectBrowser() string {
 			return path
 		}
 	}
+
+	// Flatpak browsers.
+	if _, err := exec.LookPath("flatpak"); err == nil {
+		flatpakBrowsers := []string{
+			"com.brave.Browser",
+			"com.google.Chrome",
+			"org.chromium.Chromium",
+			"com.microsoft.Edge",
+			"com.opera.Opera",
+			"com.vivaldi.Vivaldi",
+		}
+		for _, appID := range flatpakBrowsers {
+			if exec.Command("flatpak", "info", appID).Run() == nil {
+				return "flatpak run " + appID
+			}
+		}
+	}
+
+	// Snap browsers.
+	if _, err := exec.LookPath("snap"); err == nil {
+		snapBrowsers := []string{"chromium", "brave", "google-chrome"}
+		for _, name := range snapBrowsers {
+			snapBin := filepath.Join("/snap/bin", name)
+			if _, err := os.Stat(snapBin); err == nil {
+				return snapBin
+			}
+		}
+	}
+
 	return ""
+}
+
+// buildBrowserCommand creates an exec.Cmd for the browser path.
+// Handles flatpak paths like "flatpak run com.brave.Browser" by splitting.
+func buildBrowserCommand(browserPath string, args []string) *exec.Cmd {
+	parts := strings.Fields(browserPath)
+	if len(parts) > 1 {
+		return exec.Command(parts[0], append(parts[1:], args...)...)
+	}
+	return exec.Command(browserPath, args...)
 }
 
 func browserCandidates() []string {
