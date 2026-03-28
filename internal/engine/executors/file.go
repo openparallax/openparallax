@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/openparallax/openparallax/internal/crypto"
-	"github.com/openparallax/openparallax/internal/platform"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -379,14 +378,8 @@ func (f *FileExecutor) searchFiles(action *types.ActionRequest) *types.ActionRes
 	}
 }
 
-// resolvePath resolves a path relative to the workspace, with tilde expansion.
 func (f *FileExecutor) resolvePath(raw any) string {
-	path, _ := raw.(string)
-	path = platform.NormalizePath(path)
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(f.workspacePath, path)
-	}
-	return filepath.Clean(path)
+	return ResolvePath(raw, f.workspacePath)
 }
 
 // detectLanguage returns the programming language for syntax highlighting.

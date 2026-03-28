@@ -114,8 +114,5 @@ func (s *ShellExecutor) Execute(ctx context.Context, action *types.ActionRequest
 }
 
 func truncateCmd(cmd string) string {
-	if len(cmd) > 60 {
-		return cmd[:60] + "..."
-	}
-	return cmd
+	return Truncate(cmd, 60)
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/memory"
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // Agent coordinates context assembly, history compaction, and skill management.
@@ -18,7 +17,7 @@ type Agent struct {
 }
 
 // NewAgent creates an Agent.
-func NewAgent(provider llm.Provider, workspacePath string, _ []types.ActionType, mem *memory.Manager) *Agent {
+func NewAgent(provider llm.Provider, workspacePath string, mem *memory.Manager) *Agent {
 	return &Agent{
 		Context:   NewContextAssembler(workspacePath),
 		Compactor: NewCompactor(provider, mem),

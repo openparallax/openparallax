@@ -55,21 +55,19 @@ func (b *BrowserExecutor) ToolSchemas() []ToolSchema {
 }
 
 func (b *BrowserExecutor) Execute(_ context.Context, action *types.ActionRequest) *types.ActionResult {
-	// Browser operations require chromedp which is an optional dependency.
-	// For now, use a simple curl-based fallback for navigate.
 	switch action.Type {
 	case types.ActionBrowserNav:
-		return b.navigate(action)
+		return b.navigatePage(action)
+	case types.ActionBrowserExtract, types.ActionBrowserClick, types.ActionBrowserType, types.ActionBrowserShot:
+		return ErrorResult(action.RequestID,
+			"interactive browser actions (click, type, extract, screenshot) require the chromedp package which is not yet integrated. Use browser_navigate for page content or http_request for API calls.",
+			"browser action not available")
 	default:
-		return &types.ActionResult{
-			RequestID: action.RequestID, Success: false,
-			Error:   "browser interaction requires the chromedp dependency (coming soon). Use http_request for simple page fetching.",
-			Summary: "browser action not yet available",
-		}
+		return ErrorResult(action.RequestID, "unknown browser action", "unknown action")
 	}
 }
 
-func (b *BrowserExecutor) navigate(action *types.ActionRequest) *types.ActionResult {
+func (b *BrowserExecutor) navigatePage(action *types.ActionRequest) *types.ActionResult {
 	url, _ := action.Payload["url"].(string)
 	if url == "" {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "url is required"}

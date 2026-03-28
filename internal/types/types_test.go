@@ -10,7 +10,7 @@ import (
 )
 
 func TestAllActionTypesCount(t *testing.T) {
-	assert.Len(t, AllActionTypes, 39, "AllActionTypes should have 39 defined action types")
+	assert.Len(t, AllActionTypes, 42, "AllActionTypes should have 42 defined action types")
 }
 
 func TestAllActionTypesUnique(t *testing.T) {

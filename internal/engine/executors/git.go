@@ -5,11 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/platform"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -206,11 +204,7 @@ func (g *GitExecutor) runGit(requestID, repoPath string, args ...string) *types.
 
 func (g *GitExecutor) resolveRepoPath(payload map[string]any) string {
 	if path, ok := payload["path"].(string); ok && path != "" {
-		expanded := platform.NormalizePath(path)
-		if filepath.IsAbs(expanded) {
-			return expanded
-		}
-		return filepath.Join(g.workspacePath, expanded)
+		return ResolvePath(path, g.workspacePath)
 	}
 	return g.workspacePath
 }

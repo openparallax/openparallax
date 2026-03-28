@@ -85,6 +85,12 @@ const (
 	ActionCanvasCreate ActionType = "canvas_create"
 	// ActionCanvasUpdate updates an existing canvas file.
 	ActionCanvasUpdate ActionType = "canvas_update"
+	// ActionCanvasProject creates a multi-file project in a directory.
+	ActionCanvasProject ActionType = "canvas_project"
+	// ActionCanvasPreview starts a local preview server.
+	ActionCanvasPreview ActionType = "canvas_preview"
+	// ActionGitClone clones a git repository.
+	ActionGitClone ActionType = "git_clone"
 )
 
 // AllActionTypes contains every defined action type for enumeration and validation.
@@ -99,6 +105,7 @@ var AllActionTypes = []ActionType{
 	ActionGitStatus, ActionGitDiff, ActionGitCommit, ActionGitPush,
 	ActionGitPull, ActionGitLog, ActionGitBranch, ActionGitCheckout,
 	ActionMemoryWrite, ActionMemorySearch, ActionCanvasCreate, ActionCanvasUpdate,
+	ActionCanvasProject, ActionCanvasPreview, ActionGitClone,
 }
 
 // ActionRequest represents a proposed action from the agent.

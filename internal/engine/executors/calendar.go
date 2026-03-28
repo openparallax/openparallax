@@ -34,14 +34,26 @@ type CalendarExecutor struct {
 	provider CalendarProvider
 }
 
-// NewCalendarExecutor creates a calendar executor. Returns nil if not configured.
+// NewCalendarExecutor creates a calendar executor. Returns nil if the
+// provider is not configured or credentials are missing. Calendar tools
+// only appear in the LLM's tool set when a working provider is available.
 func NewCalendarExecutor(cfg types.CalendarConfig) *CalendarExecutor {
-	if cfg.Provider == "" {
+	switch cfg.Provider {
+	case "google":
+		if cfg.GoogleCredFile == "" {
+			return nil
+		}
+		// Google Calendar provider will be wired when OAuth2 infrastructure lands.
+		return nil
+	case "caldav":
+		if cfg.CalDAVURL == "" {
+			return nil
+		}
+		// CalDAV provider will be wired when go-webdav is integrated.
+		return nil
+	default:
 		return nil
 	}
-	// Provider implementations will be wired here.
-	// For now, return a stub that explains configuration is needed.
-	return &CalendarExecutor{provider: &stubCalendarProvider{}}
 }
 
 func (c *CalendarExecutor) SupportedActions() []types.ActionType {
@@ -175,23 +187,4 @@ func (c *CalendarExecutor) deleteEvent(ctx context.Context, action *types.Action
 	}
 
 	return &types.ActionResult{RequestID: action.RequestID, Success: true, Summary: "event deleted"}
-}
-
-// stubCalendarProvider returns helpful errors until a real provider is configured.
-type stubCalendarProvider struct{}
-
-func (s *stubCalendarProvider) ListEvents(_ context.Context, _, _ time.Time) ([]CalendarEvent, error) {
-	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
-}
-
-func (s *stubCalendarProvider) CreateEvent(_ context.Context, _ *CalendarEvent) (*CalendarEvent, error) {
-	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
-}
-
-func (s *stubCalendarProvider) UpdateEvent(_ context.Context, _ string, _ *CalendarEvent) (*CalendarEvent, error) {
-	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
-}
-
-func (s *stubCalendarProvider) DeleteEvent(_ context.Context, _ string) error {
-	return fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
 }

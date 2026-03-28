@@ -26,7 +26,10 @@ func NewCanvasExecutor(workspace string) *CanvasExecutor {
 }
 
 func (c *CanvasExecutor) SupportedActions() []types.ActionType {
-	return []types.ActionType{types.ActionCanvasCreate, types.ActionCanvasUpdate}
+	return []types.ActionType{
+		types.ActionCanvasCreate, types.ActionCanvasUpdate,
+		types.ActionCanvasProject, types.ActionCanvasPreview,
+	}
 }
 
 func (c *CanvasExecutor) ToolSchemas() []ToolSchema {
@@ -60,7 +63,7 @@ func (c *CanvasExecutor) ToolSchemas() []ToolSchema {
 			},
 		},
 		{
-			ActionType:  types.ActionCanvasCreate,
+			ActionType:  types.ActionCanvasProject,
 			Name:        "canvas_project",
 			Description: "Create a multi-file project in a directory. Each file has a name, content, and type. Subdirectories are created automatically.",
 			Parameters: map[string]any{
@@ -85,7 +88,7 @@ func (c *CanvasExecutor) ToolSchemas() []ToolSchema {
 			},
 		},
 		{
-			ActionType:  types.ActionCanvasCreate,
+			ActionType:  types.ActionCanvasPreview,
 			Name:        "canvas_preview",
 			Description: "Start a local preview server for HTML/CSS/JS files. Opens in the browser if available. Auto-closes after 30 minutes.",
 			Parameters: map[string]any{
@@ -99,36 +102,32 @@ func (c *CanvasExecutor) ToolSchemas() []ToolSchema {
 	}
 }
 
-func (c *CanvasExecutor) Execute(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
-	// Route by tool name since canvas_project and canvas_preview share ActionCanvasCreate.
-	toolName := string(action.Type)
-	if name, ok := action.Payload["_tool_name"].(string); ok {
-		toolName = name
-	}
-
-	switch toolName {
-	case "canvas_project":
+func (c *CanvasExecutor) Execute(_ context.Context, action *types.ActionRequest) *types.ActionResult {
+	switch action.Type {
+	case types.ActionCanvasCreate:
+		return c.createFile(action)
+	case types.ActionCanvasUpdate:
+		return c.updateFile(action)
+	case types.ActionCanvasProject:
 		return c.createProject(action)
-	case "canvas_preview":
+	case types.ActionCanvasPreview:
 		return c.startPreview(action)
-	case "canvas_update":
-		return c.update(action)
 	default:
-		return c.create(action)
+		return ErrorResult(action.RequestID, "unknown canvas action", "unknown action")
 	}
 }
 
-func (c *CanvasExecutor) create(action *types.ActionRequest) *types.ActionResult {
-	path := c.resolvePath(action.Payload["path"])
+func (c *CanvasExecutor) createFile(action *types.ActionRequest) *types.ActionResult {
+	path := ResolvePath(action.Payload["path"], c.workspacePath)
 	content, _ := action.Payload["content"].(string)
 	contentType, _ := action.Payload["type"].(string)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "canvas create failed"}
+		return ErrorResult(action.RequestID, err.Error(), "failed to create directory for "+filepath.Base(path))
 	}
 
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "canvas create failed"}
+		return ErrorResult(action.RequestID, err.Error(), "failed to write "+filepath.Base(path))
 	}
 
 	return &types.ActionResult{
@@ -144,12 +143,12 @@ func (c *CanvasExecutor) create(action *types.ActionRequest) *types.ActionResult
 	}
 }
 
-func (c *CanvasExecutor) update(action *types.ActionRequest) *types.ActionResult {
-	path := c.resolvePath(action.Payload["path"])
+func (c *CanvasExecutor) updateFile(action *types.ActionRequest) *types.ActionResult {
+	path := ResolvePath(action.Payload["path"], c.workspacePath)
 	content, _ := action.Payload["content"].(string)
 
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "canvas update failed"}
+		return ErrorResult(action.RequestID, err.Error(), "failed to update "+filepath.Base(path))
 	}
 
 	return &types.ActionResult{
@@ -161,14 +160,14 @@ func (c *CanvasExecutor) update(action *types.ActionRequest) *types.ActionResult
 }
 
 func (c *CanvasExecutor) createProject(action *types.ActionRequest) *types.ActionResult {
-	dir := c.resolvePath(action.Payload["path"])
+	dir := ResolvePath(action.Payload["path"], c.workspacePath)
 	filesRaw, ok := action.Payload["files"].([]any)
 	if !ok || len(filesRaw) == 0 {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "files array is required", Summary: "canvas project failed"}
+		return ErrorResult(action.RequestID, "files array is required", "project creation failed")
 	}
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "canvas project failed"}
+		return ErrorResult(action.RequestID, err.Error(), "failed to create project directory")
 	}
 
 	var created []string
@@ -193,19 +192,17 @@ func (c *CanvasExecutor) createProject(action *types.ActionRequest) *types.Actio
 		created = append(created, name)
 	}
 
-	return &types.ActionResult{
-		RequestID: action.RequestID, Success: true,
-		Output:  fmt.Sprintf("Created project with %d files:\n%s", len(created), strings.Join(created, "\n")),
-		Summary: fmt.Sprintf("created project %s (%d files)", filepath.Base(dir), len(created)),
-	}
+	return SuccessResult(action.RequestID,
+		fmt.Sprintf("Created project with %d files:\n%s", len(created), strings.Join(created, "\n")),
+		fmt.Sprintf("created project %s (%d files)", filepath.Base(dir), len(created)))
 }
 
 func (c *CanvasExecutor) startPreview(action *types.ActionRequest) *types.ActionResult {
-	servePath := c.resolvePath(action.Payload["path"])
+	servePath := ResolvePath(action.Payload["path"], c.workspacePath)
 
 	info, err := os.Stat(servePath)
 	if err != nil {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "path not found: " + err.Error(), Summary: "preview failed"}
+		return ErrorResult(action.RequestID, "path not found: "+err.Error(), "preview failed")
 	}
 
 	if !info.IsDir() {
@@ -214,11 +211,11 @@ func (c *CanvasExecutor) startPreview(action *types.ActionRequest) *types.Action
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "failed to find free port: " + err.Error(), Summary: "preview failed"}
+		return ErrorResult(action.RequestID, "failed to find free port: "+err.Error(), "preview failed")
 	}
 	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
 	if !ok {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "failed to get port", Summary: "preview failed"}
+		return ErrorResult(action.RequestID, "failed to get port", "preview failed")
 	}
 	port := tcpAddr.Port
 
@@ -231,20 +228,9 @@ func (c *CanvasExecutor) startPreview(action *types.ActionRequest) *types.Action
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
-
-	return &types.ActionResult{
-		RequestID: action.RequestID, Success: true,
-		Output:  fmt.Sprintf("Preview server running at %s (auto-closes in 30 minutes)", url),
-		Summary: fmt.Sprintf("preview at %s", url),
-	}
-}
-
-func (c *CanvasExecutor) resolvePath(raw any) string {
-	path, _ := raw.(string)
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(c.workspacePath, path)
-	}
-	return filepath.Clean(path)
+	return SuccessResult(action.RequestID,
+		fmt.Sprintf("Preview server running at %s (auto-closes in 30 minutes)", url),
+		fmt.Sprintf("preview at %s", url))
 }
 
 func detectCanvasPreview(contentType string) string {

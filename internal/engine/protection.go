@@ -288,6 +288,7 @@ func isWriteAction(t types.ActionType) bool {
 		types.ActionMoveFile, types.ActionCopyFile,
 		types.ActionCreateDir, types.ActionMemoryWrite,
 		types.ActionCanvasCreate, types.ActionCanvasUpdate,
+		types.ActionCanvasProject, types.ActionCanvasPreview,
 		types.ActionCopyDir, types.ActionMoveDir, types.ActionDeleteDir:
 		return true
 	default:

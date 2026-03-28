@@ -128,7 +128,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 
 	mem := memory.NewManager(cfg.Workspace, db, provider)
 	registry.RegisterMemory(mem)
-	ag := agent.NewAgent(provider, cfg.Workspace, registry.AvailableActions(), mem)
+	ag := agent.NewAgent(provider, cfg.Workspace, mem)
 
 	// MCP manager (optional — only if servers are configured).
 	var mcpMgr *mcp.Manager
@@ -327,7 +327,7 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 			// Track for daily action log.
 			executedActions = append(executedActions, &types.ActionRequest{Type: types.ActionType(tc.Name), Payload: tc.Arguments})
-			executedResults = append(executedResults, &types.ActionResult{Success: !result.IsError, Summary: truncateForLog(result.Content)})
+			executedResults = append(executedResults, &types.ActionResult{Success: !result.IsError, Summary: executors.Truncate(result.Content, 100)})
 
 			// Activate matching skills for this tool.
 			if e.agent.Skills != nil {
@@ -360,14 +360,6 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 	e.log.Info("message_complete", "session", sid, "response_length", len(fullResponse), "rounds", rounds)
 
 	return nil
-}
-
-// truncateForLog truncates a string for log entries.
-func truncateForLog(s string) string {
-	if len(s) > 100 {
-		return s[:100] + "..."
-	}
-	return s
 }
 
 // processToolCall handles a single tool call through the full security pipeline.
@@ -520,6 +512,8 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 			result.DurationMs = time.Since(start).Milliseconds()
 		}
 	}
+
+	// Built-in executor — only if MCP didn't handle it.
 	if result == nil {
 		result = e.executors.Execute(ctx, action)
 		result.DurationMs = time.Since(start).Milliseconds()
