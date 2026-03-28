@@ -456,7 +456,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 
 	if verdict.Decision == types.VerdictEscalate {
 		e.log.Info("shield_escalate", "session", sid, "tool", tc.Name)
-		return llm.ToolResult{CallID: tc.ID, Content: "Requires human approval (not yet implemented)", IsError: true}
+		return llm.ToolResult{CallID: tc.ID, Content: "Action requires human approval — escalation is not available in this session", IsError: true}
 	}
 
 	// Hash verification.

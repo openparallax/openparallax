@@ -63,7 +63,11 @@ func (b *BrowserExecutor) Execute(_ context.Context, action *types.ActionRequest
 			"interactive browser actions (click, type, extract, screenshot) require the chromedp package which is not yet integrated. Use browser_navigate for page content or http_request for API calls.",
 			"browser action not available")
 	default:
-		return ErrorResult(action.RequestID, "unknown browser action", "unknown action")
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error:   "interactive browser actions (click, type, extract, screenshot) require the chromedp package. Use browser_navigate for page content or http_request for API calls.",
+			Summary: "browser action not available",
+		}
 	}
 }
 
@@ -73,9 +77,8 @@ func (b *BrowserExecutor) navigatePage(action *types.ActionRequest) *types.Actio
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "url is required"}
 	}
 
-	// Build the command — handle flatpak paths which contain spaces.
-	args := []string{"--headless=new", "--dump-dom", "--disable-gpu", "--no-sandbox", url}
-	cmd := buildBrowserCommand(b.browserPath, args)
+	// Use headless browser to dump DOM content as text.
+	cmd := exec.Command(b.browserPath, "--headless=new", "--dump-dom", "--disable-gpu", "--no-sandbox", url)
 	output, err := cmd.Output()
 	if err != nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "browser navigation failed: " + err.Error(), Summary: "browser navigate failed"}

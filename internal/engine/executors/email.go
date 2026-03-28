@@ -11,7 +11,7 @@ import (
 )
 
 // MailProvider is the interface for sending emails. SMTP is the initial
-// implementation. Gmail and Outlook OAuth2 providers will plug in later.
+// implementation. Gmail and Outlook OAuth2 providers implement this interface.
 type MailProvider interface {
 	Send(ctx context.Context, msg *Email) error
 }

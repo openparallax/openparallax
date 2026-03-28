@@ -358,7 +358,7 @@ func (r *ollamaToolStreamReader) Next() (StreamEvent, error) {
 }
 
 func (r *ollamaToolStreamReader) SendToolResults(_ []ToolResult) error {
-	return fmt.Errorf("ollama tool result continuation not yet supported")
+	return fmt.Errorf("ollama provider does not support multi-turn tool result continuation")
 }
 
 func (r *ollamaToolStreamReader) Close() error { return r.body.Close() }

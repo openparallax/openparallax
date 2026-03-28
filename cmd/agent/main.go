@@ -2,7 +2,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -16,34 +15,8 @@ var rootCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func stubCommand(use, short string) *cobra.Command {
-	return &cobra.Command{
-		Use:          use,
-		Short:        short,
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Printf("The %s command is not yet available. It will be implemented in a future release.\n", use)
-			return nil
-		},
-	}
-}
-
 func init() {
-	rootCmd.AddCommand(stubCommand("chat", "Start an interactive CLI chat session"))
-	rootCmd.AddCommand(stubCommand("skills", "List loaded skills"))
-	rootCmd.AddCommand(stubCommand("config", "View and modify configuration"))
-	rootCmd.AddCommand(stubCommand("get-classifier", "Download the ONNX classifier model and sidecar binary"))
 	rootCmd.AddCommand(getVectorExtCmd())
-	rootCmd.AddCommand(&cobra.Command{
-		Use:          "internal-agent",
-		Short:        "Run the agent process (internal use only)",
-		Hidden:       true,
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Internal agent process is not yet available.")
-			return nil
-		},
-	})
 }
 
 func main() {

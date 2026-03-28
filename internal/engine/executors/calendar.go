@@ -21,7 +21,7 @@ type CalendarEvent struct {
 }
 
 // CalendarProvider is the interface for calendar backends.
-// Google Calendar and CalDAV implement this. Microsoft Graph will be added later.
+// Implementations: Google Calendar, CalDAV, Microsoft Graph.
 type CalendarProvider interface {
 	ListEvents(ctx context.Context, from, to time.Time) ([]CalendarEvent, error)
 	CreateEvent(ctx context.Context, event *CalendarEvent) (*CalendarEvent, error)
@@ -34,9 +34,9 @@ type CalendarExecutor struct {
 	provider CalendarProvider
 }
 
-// NewCalendarExecutor creates a calendar executor. Returns nil if the
-// provider is not configured or credentials are missing. Calendar tools
-// only appear in the LLM's tool set when a working provider is available.
+// NewCalendarExecutor creates a calendar executor. Returns nil if not configured.
+// When a provider is specified but credentials are incomplete, it returns an
+// executor with an unconfiguredProvider that gives clear error messages.
 func NewCalendarExecutor(cfg types.CalendarConfig) *CalendarExecutor {
 	switch cfg.Provider {
 	case "google":
@@ -54,6 +54,7 @@ func NewCalendarExecutor(cfg types.CalendarConfig) *CalendarExecutor {
 	default:
 		return nil
 	}
+	return &CalendarExecutor{provider: &unconfiguredProvider{}}
 }
 
 func (c *CalendarExecutor) SupportedActions() []types.ActionType {
@@ -187,4 +188,24 @@ func (c *CalendarExecutor) deleteEvent(ctx context.Context, action *types.Action
 	}
 
 	return &types.ActionResult{RequestID: action.RequestID, Success: true, Summary: "event deleted"}
+}
+
+// unconfiguredProvider returns actionable error messages when the calendar
+// provider is named in config but credentials or URLs are missing.
+type unconfiguredProvider struct{}
+
+func (s *unconfiguredProvider) ListEvents(_ context.Context, _, _ time.Time) ([]CalendarEvent, error) {
+	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
+}
+
+func (s *unconfiguredProvider) CreateEvent(_ context.Context, _ *CalendarEvent) (*CalendarEvent, error) {
+	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
+}
+
+func (s *unconfiguredProvider) UpdateEvent(_ context.Context, _ string, _ *CalendarEvent) (*CalendarEvent, error) {
+	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
+}
+
+func (s *unconfiguredProvider) DeleteEvent(_ context.Context, _ string) error {
+	return fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
 }
