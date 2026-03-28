@@ -89,7 +89,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		return nil, fmt.Errorf("database: %w", err)
 	}
 
-	registry := executors.NewRegistry(cfg.Workspace)
+	registry := executors.NewRegistry(cfg.Workspace, cfg, log)
 	canaryToken := readCanaryToken(cfg.Workspace)
 
 	configDir := filepath.Dir(configPath)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/types"
 )
@@ -13,18 +14,37 @@ type Registry struct {
 	executors map[types.ActionType]Executor
 }
 
-// NewRegistry creates a Registry with all available executors registered.
-func NewRegistry(workspacePath string) *Registry {
+// NewRegistry creates a Registry with all always-available executors registered.
+// Conditional executors (browser, email, calendar) are added separately.
+func NewRegistry(workspacePath string, cfg *types.AgentConfig, log *logging.Logger) *Registry {
 	r := &Registry{executors: make(map[types.ActionType]Executor)}
 
-	all := []Executor{
-		NewFileExecutor(workspacePath),
-		NewShellExecutor(),
+	// Always available.
+	r.register(NewFileExecutor(workspacePath))
+	r.register(NewShellExecutor())
+	r.register(NewGitExecutor(workspacePath))
+	r.register(NewHTTPExecutor())
+	r.register(NewScheduleExecutor(workspacePath))
+	r.register(NewCanvasExecutor(workspacePath))
+
+	// Conditionally available.
+	if browser := NewBrowserExecutor(log); browser != nil {
+		r.register(browser)
 	}
 
-	for _, exec := range all {
-		for _, at := range exec.SupportedActions() {
-			r.executors[at] = exec
+	if cfg != nil {
+		if email := NewEmailExecutor(cfg.Email); email != nil {
+			r.register(email)
+			if log != nil {
+				log.Info("executor_registered", "executor", "email")
+			}
+		}
+
+		if calendar := NewCalendarExecutor(cfg.Calendar); calendar != nil {
+			r.register(calendar)
+			if log != nil {
+				log.Info("executor_registered", "executor", "calendar")
+			}
 		}
 	}
 
@@ -35,6 +55,12 @@ func NewRegistry(workspacePath string) *Registry {
 // Called after the memory.Manager is initialized.
 func (r *Registry) RegisterMemory(manager *memory.Manager) {
 	exec := NewMemoryExecutor(manager)
+	for _, at := range exec.SupportedActions() {
+		r.executors[at] = exec
+	}
+}
+
+func (r *Registry) register(exec Executor) {
 	for _, at := range exec.SupportedActions() {
 		r.executors[at] = exec
 	}
@@ -51,12 +77,12 @@ func (r *Registry) AvailableActions() []types.ActionType {
 
 // AllToolSchemas collects tool schemas from all registered executors.
 func (r *Registry) AllToolSchemas() []ToolSchema {
-	seen := make(map[types.ActionType]bool)
+	seen := make(map[string]bool)
 	var schemas []ToolSchema
 	for _, exec := range r.executors {
 		for _, schema := range exec.ToolSchemas() {
-			if !seen[schema.ActionType] {
-				seen[schema.ActionType] = true
+			if !seen[schema.Name] {
+				seen[schema.Name] = true
 				schemas = append(schemas, schema)
 			}
 		}

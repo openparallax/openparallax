@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/types"
@@ -37,6 +38,11 @@ func (m *MemoryExecutor) ToolSchemas() []ToolSchema {
 					"content": map[string]any{
 						"type":        "string",
 						"description": "The content to append to memory. Should be concise and factual.",
+					},
+					"category": map[string]any{
+						"type":        "string",
+						"description": "Optional category tag.",
+						"enum":        []string{"fact", "preference", "decision", "task"},
 					},
 				},
 				"required": []string{"content"},
@@ -78,7 +84,16 @@ func (m *MemoryExecutor) write(action *types.ActionRequest) *types.ActionResult 
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "content is required", Summary: "memory write failed"}
 	}
 
-	entry := "\n- " + strings.TrimSpace(content) + "\n"
+	category, _ := action.Payload["category"].(string)
+	timestamp := time.Now().Format("2006-01-02 15:04")
+
+	var entry string
+	if category != "" {
+		entry = fmt.Sprintf("\n- **%s** [%s]: %s\n", timestamp, category, strings.TrimSpace(content))
+	} else {
+		entry = fmt.Sprintf("\n- **%s**: %s\n", timestamp, strings.TrimSpace(content))
+	}
+
 	if err := m.manager.Append(types.MemoryMain, entry); err != nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "memory write failed"}
 	}

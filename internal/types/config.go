@@ -34,6 +34,38 @@ type AgentConfig struct {
 
 	// MCP configures external MCP server connections.
 	MCP MCPConfig `yaml:"mcp,omitempty" json:"mcp,omitempty"`
+
+	// Email configures the email executor.
+	Email EmailConfig `yaml:"email,omitempty" json:"email,omitempty"`
+
+	// Calendar configures the calendar executor.
+	Calendar CalendarConfig `yaml:"calendar,omitempty" json:"calendar,omitempty"`
+}
+
+// EmailConfig configures email sending.
+type EmailConfig struct {
+	Provider string     `yaml:"provider,omitempty" json:"provider,omitempty"` // "smtp" for now; "gmail", "outlook" future
+	SMTP     SMTPConfig `yaml:"smtp,omitempty" json:"smtp,omitempty"`
+}
+
+// SMTPConfig holds SMTP connection settings.
+type SMTPConfig struct {
+	Host     string `yaml:"host" json:"host"`
+	Port     int    `yaml:"port" json:"port"`
+	Username string `yaml:"username" json:"username"`
+	Password string `yaml:"password" json:"password"`
+	From     string `yaml:"from" json:"from"`
+	TLS      bool   `yaml:"tls" json:"tls"`
+}
+
+// CalendarConfig configures calendar access.
+type CalendarConfig struct {
+	Provider       string `yaml:"provider,omitempty" json:"provider,omitempty"` // "google", "caldav"
+	GoogleCredFile string `yaml:"google_credentials_file,omitempty" json:"google_credentials_file,omitempty"`
+	CalendarID     string `yaml:"calendar_id,omitempty" json:"calendar_id,omitempty"`
+	CalDAVURL      string `yaml:"caldav_url,omitempty" json:"caldav_url,omitempty"`
+	CalDAVUsername string `yaml:"caldav_username,omitempty" json:"caldav_username,omitempty"`
+	CalDAVPassword string `yaml:"caldav_password,omitempty" json:"caldav_password,omitempty"`
 }
 
 // MemoryConfig configures the memory subsystem.
