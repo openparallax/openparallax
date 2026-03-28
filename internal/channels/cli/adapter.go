@@ -165,10 +165,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.handleOTRToggle()
 			case lower == "/sessions":
 				m.handleListSessions()
+				m.syncViewport()
 				return m, nil
 			case strings.HasPrefix(lower, "/switch "):
 				id := strings.TrimSpace(text[8:])
 				m.handleSwitchSession(id)
+				m.syncViewport()
 				return m, nil
 			}
 
@@ -177,6 +179,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				prompt = m.otrStyle("[OTR] You: ")
 			}
 			m.addLine(prompt + text)
+			m.syncViewport()
 			m.thinking = true
 			m.stream = ""
 			m.thoughts = nil
@@ -234,6 +237,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stream = ""
 		m.thoughts = nil
 		m.addLine(m.dimStyle(label))
+		m.syncViewport()
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -301,7 +305,7 @@ func (m *model) View() string {
 	sb.WriteString(m.viewport.View())
 	sb.WriteString("\n")
 
-	// Input line or spinner.
+	// Input line or spinner — fixed below viewport.
 	if m.thinking {
 		if m.stream == "" && len(m.thoughts) == 0 {
 			sb.WriteString(m.spinner.View())
@@ -316,7 +320,7 @@ func (m *model) View() string {
 	return sb.String()
 }
 
-// syncViewport rebuilds the viewport content from chat history + active stream.
+// syncViewport rebuilds the viewport content from chat history + active stream + input.
 func (m *model) syncViewport() {
 	if !m.ready {
 		return
@@ -342,8 +346,12 @@ func (m *model) syncViewport() {
 		sb.WriteString("\n\n")
 	}
 
-	m.viewport.SetContent(sb.String())
-	m.viewport.GotoBottom()
+	content := sb.String()
+	m.viewport.SetContent(content)
+	contentLines := strings.Count(content, "\n")
+	if contentLines >= m.viewport.Height {
+		m.viewport.GotoBottom()
+	}
 }
 
 func (m *model) addLine(text string) {

@@ -233,12 +233,23 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Embedding provider — prompt when Anthropic is the LLM provider (no native embeddings).
+	// Embedding provider — default to same provider as LLM when available.
+	// Anthropic has no embeddings, so default to OpenAI in that case.
+	defaultEmbProvider := llmProvider
+	if llmProvider == "anthropic" {
+		defaultEmbProvider = "openai"
+	}
+	embeddingProvider = defaultEmbProvider
 	embeddingOptions := []huh.Option[string]{
 		huh.NewOption("OpenAI (text-embedding-3-small)", "openai"),
 		huh.NewOption("Google (text-embedding-004)", "google"),
 		huh.NewOption("Ollama (local)", "ollama"),
 		huh.NewOption("Skip (keyword search only)", ""),
+	}
+	for i, opt := range embeddingOptions {
+		if opt.Value == defaultEmbProvider {
+			embeddingOptions[i] = opt.Selected(true)
+		}
 	}
 	embeddingDesc := "Which provider should handle text embeddings for semantic memory search?"
 	if llmProvider == "anthropic" {
