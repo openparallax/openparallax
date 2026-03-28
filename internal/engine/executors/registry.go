@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -28,6 +29,15 @@ func NewRegistry(workspacePath string) *Registry {
 	}
 
 	return r
+}
+
+// RegisterMemory adds the memory executor to the registry.
+// Called after the memory.Manager is initialized.
+func (r *Registry) RegisterMemory(manager *memory.Manager) {
+	exec := NewMemoryExecutor(manager)
+	for _, at := range exec.SupportedActions() {
+		r.executors[at] = exec
+	}
 }
 
 // AvailableActions returns the list of action types that have registered executors.

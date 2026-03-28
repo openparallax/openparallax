@@ -86,7 +86,9 @@ When you use tools and receive results:
 
 When no tools are needed:
 - Be conversational and helpful.
-- If the user references something from a previous message, use your conversation history.`
+- If the user references something from a previous message, use your conversation history.
+
+Before saying you don't know something, search your memory and workspace first.`
 }
 
 func otrNotice() string {

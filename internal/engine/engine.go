@@ -125,6 +125,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	mem := memory.NewManager(cfg.Workspace, db, provider)
+	registry.RegisterMemory(mem)
 	ag := agent.NewAgent(provider, cfg.Workspace, registry.AvailableActions())
 
 	return &Engine{
@@ -260,6 +261,8 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 
 	// Main orchestration loop.
 	var toolResults []llm.ToolResult
+	var executedActions []*types.ActionRequest
+	var executedResults []*types.ActionResult
 	rounds := 0
 
 	for rounds < maxToolRounds {
@@ -299,6 +302,10 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 			result := e.processToolCall(ctx, tc, mode, sid, mid, stream)
 			e.log.Debug("tool_result", "call_id", result.CallID, "is_error", result.IsError, "content_len", len(result.Content))
 			toolResults = append(toolResults, result)
+
+			// Track for daily action log.
+			executedActions = append(executedActions, &types.ActionRequest{Type: types.ActionType(tc.Name), Payload: tc.Arguments})
+			executedResults = append(executedResults, &types.ActionResult{Success: !result.IsError, Summary: truncateForLog(result.Content)})
 		}
 	}
 
@@ -318,9 +325,22 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 		ResponseComplete: &pb.ResponseComplete{Content: fullResponse},
 	})
 
+	// Daily action log (Normal mode only, if tools were used).
+	if !isOTR && len(executedActions) > 0 {
+		e.memory.LogAction(executedActions, executedResults)
+	}
+
 	e.log.Info("message_complete", "session", sid, "response_length", len(fullResponse), "rounds", rounds)
 
 	return nil
+}
+
+// truncateForLog truncates a string for log entries.
+func truncateForLog(s string) string {
+	if len(s) > 100 {
+		return s[:100] + "..."
+	}
+	return s
 }
 
 // processToolCall handles a single tool call through the full security pipeline.
@@ -503,12 +523,35 @@ func (e *Engine) GetStatus(_ context.Context, _ *pb.StatusRequest) (*pb.StatusRe
 }
 
 // Shutdown implements the PipelineService gRPC method.
-func (e *Engine) Shutdown(_ context.Context, _ *pb.ShutdownRequest) (*pb.ShutdownResponse, error) {
+func (e *Engine) Shutdown(ctx context.Context, _ *pb.ShutdownRequest) (*pb.ShutdownResponse, error) {
+	// Summarize active sessions before shutdown.
+	e.summarizeActiveSessions(ctx)
+
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		e.Stop()
 	}()
 	return &pb.ShutdownResponse{Clean: true}, nil
+}
+
+// summarizeActiveSessions generates summaries for sessions with sufficient history.
+func (e *Engine) summarizeActiveSessions(ctx context.Context) {
+	sessions, err := e.db.ListSessions()
+	if err != nil {
+		e.log.Warn("summarize_sessions_failed", "error", err)
+		return
+	}
+	for _, sess := range sessions {
+		history := e.getHistory(sess.ID)
+		if len(history) < 4 {
+			continue
+		}
+		if err := e.memory.SummarizeSession(ctx, "", history); err != nil {
+			e.log.Warn("session_summarize_failed", "session", sess.ID, "error", err)
+		} else {
+			e.log.Info("session_summarized", "session", sess.ID)
+		}
+	}
 }
 
 // ReadMemory implements the PipelineService gRPC method.
