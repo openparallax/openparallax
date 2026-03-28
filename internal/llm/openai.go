@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"sync"
 
@@ -289,6 +290,11 @@ func (r *openaiToolStreamReader) Next() (StreamEvent, error) {
 				existing.name = tc.Function.Name
 			}
 			existing.argsJSON += tc.Function.Arguments
+
+			// Generate an ID if the proxy doesn't provide one.
+			if existing.id == "" && existing.name != "" {
+				existing.id = fmt.Sprintf("call_%s_%d", existing.name, idx)
+			}
 		}
 
 		// Check finish reason.

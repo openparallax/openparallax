@@ -294,9 +294,10 @@ func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.Pipelin
 			redactor.Flush()
 			tc := event.ToolCall
 
-			e.log.Info("tool_call_received", "session", sid, "tool", tc.Name)
+			e.log.Info("tool_call_received", "session", sid, "tool", tc.Name, "call_id", tc.ID)
 
 			result := e.processToolCall(ctx, tc, mode, sid, mid, stream)
+			e.log.Debug("tool_result", "call_id", result.CallID, "is_error", result.IsError, "content_len", len(result.Content))
 			toolResults = append(toolResults, result)
 		}
 	}
