@@ -343,7 +343,8 @@
   }
 
   .alt-view {
-    align-items: flex-start;
-    justify-content: flex-start;
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 20px;
   }
 </style>

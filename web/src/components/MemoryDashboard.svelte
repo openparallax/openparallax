@@ -84,8 +84,9 @@
 <style>
   .dashboard {
     width: 100%;
-    max-width: 720px;
-    align-self: flex-start;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .dashboard-header {
@@ -126,6 +127,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    flex: 1;
+    overflow-y: auto;
   }
 
   .result-card {
@@ -153,6 +156,8 @@
     border-radius: var(--radius);
     background: var(--bg-inset);
     border: 1px solid var(--accent-border);
+    flex: 1;
+    overflow-y: auto;
   }
 
   .empty-state {

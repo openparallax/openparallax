@@ -87,8 +87,9 @@
 <style>
   .browser {
     width: 100%;
-    max-width: 800px;
-    align-self: flex-start;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .browser-header {
@@ -115,6 +116,9 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 10px;
+    flex: 1;
+    align-content: start;
+    overflow-y: auto;
   }
 
   .artifact-card {
