@@ -3,10 +3,9 @@
   import { MessageSquare, FileText, Brain, Eye, Plus, Settings } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { activeNavItem, settingsOpen, sidebarOpen } from '../stores/settings';
-  import { clearMessages } from '../stores/messages';
+  import { clearMessages, loadMessages } from '../stores/messages';
   import { clearArtifactTabs } from '../stores/artifacts';
   import { listSessions, createSession, getMessages } from '../lib/api';
-  import { messages } from '../stores/messages';
   import SessionList from './SessionList.svelte';
   import ShieldBadge from './ShieldBadge.svelte';
 
@@ -24,7 +23,7 @@
       if (list.length > 0) {
         currentSessionId.set(list[0].id);
         const msgs = await getMessages(list[0].id);
-        messages.set(msgs);
+        loadMessages(msgs);
       }
     } catch {
       // Server not available yet.

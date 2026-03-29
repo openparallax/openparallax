@@ -4,7 +4,7 @@
   import { activeNavItem } from '../stores/settings';
   import { artifactTabs, activeTabId, activeTab, closeArtifactTab, clearArtifactTabs } from '../stores/artifacts';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
-  import { addUserMessage, clearMessages, messages } from '../stores/messages';
+  import { addUserMessage, clearMessages, loadMessages } from '../stores/messages';
   import { sendMessage } from '../lib/websocket';
   import { connected } from '../stores/connection';
   import { createSession, listSessions, getMessages } from '../lib/api';
@@ -65,7 +65,7 @@
       try {
         const msgs = await getMessages(action.sessionId);
         if (msgs && msgs.length > 0) {
-          messages.set(msgs);
+          loadMessages(msgs);
         }
       } catch {
         // Session may have no messages.

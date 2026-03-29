@@ -99,6 +99,22 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
   pendingToolCalls.set([]);
 }
 
+export function loadMessages(msgs: Message[]) {
+  messages.set(msgs);
+  const restored: Artifact[] = [];
+  for (const msg of msgs) {
+    if (msg.artifacts && msg.artifacts.length > 0) {
+      for (const a of msg.artifacts) {
+        restored.push(a);
+        openArtifactTab(a);
+      }
+    }
+  }
+  if (restored.length > 0) {
+    artifacts.set(restored);
+  }
+}
+
 export function addUserMessage(content: string) {
   messages.update(msgs => [...msgs, {
     id: 'msg-' + Date.now(),

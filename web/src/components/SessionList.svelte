@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Trash2 } from 'lucide-svelte';
   import { sessions, currentSessionId } from '../stores/session';
-  import { messages, clearMessages } from '../stores/messages';
+  import { clearMessages, loadMessages } from '../stores/messages';
   import { clearArtifactTabs } from '../stores/artifacts';
   import { getMessages, deleteSession } from '../lib/api';
   import { formatRelativeTime } from '../lib/format';
@@ -15,7 +15,7 @@
     try {
       const msgs = await getMessages(id);
       if (msgs && msgs.length > 0) {
-        messages.set(msgs);
+        loadMessages(msgs);
       }
     } catch {
       // Session may have no messages.
