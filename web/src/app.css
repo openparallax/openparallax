@@ -1,8 +1,8 @@
-/* === OpenParallax Design System === */
+/* === OpenParallax Design System v2 === */
 
 @font-face {
-  font-family: 'Inter';
-  src: url('/fonts/inter-variable.woff2') format('woff2');
+  font-family: 'Exo 2';
+  src: url('/fonts/exo2-variable.woff2') format('woff2');
   font-weight: 100 900;
   font-display: swap;
 }
@@ -24,20 +24,21 @@
   /* Background layers */
   --bg-void: #06060c;
   --bg-base: #0a0a14;
-  --bg-surface: rgba(12, 16, 28, 0.85);
-  --bg-surface-hover: rgba(14, 20, 36, 0.90);
-  --bg-surface-active: rgba(16, 24, 42, 0.92);
-  --bg-elevated: rgba(18, 28, 48, 0.90);
+  --bg-surface: rgba(12, 16, 28, 0.82);
+  --bg-surface-hover: rgba(14, 20, 36, 0.86);
+  --bg-surface-active: rgba(16, 24, 42, 0.88);
+  --bg-elevated: rgba(18, 28, 48, 0.92);
+  --bg-inset: rgba(10, 14, 24, 0.50);
 
-  /* Accent — Cyan */
-  --cyan: #00dcff;
-  --cyan-dim: rgba(0, 220, 255, 0.6);
-  --cyan-subtle: rgba(0, 220, 255, 0.15);
-  --cyan-ghost: rgba(0, 220, 255, 0.05);
-  --cyan-glow: 0 0 20px rgba(0, 220, 255, 0.12);
-  --cyan-glow-strong: 0 0 30px rgba(0, 220, 255, 0.22);
-  --cyan-border: rgba(0, 220, 255, 0.10);
-  --cyan-border-active: rgba(0, 220, 255, 0.30);
+  /* Accent — Cyan (overridden by .otr) */
+  --accent: #00dcff;
+  --accent-dim: rgba(0, 220, 255, 0.6);
+  --accent-subtle: rgba(0, 220, 255, 0.15);
+  --accent-ghost: rgba(0, 220, 255, 0.05);
+  --accent-glow: 0 0 20px rgba(0, 220, 255, 0.12);
+  --accent-glow-strong: 0 0 30px rgba(0, 220, 255, 0.22);
+  --accent-border: rgba(0, 220, 255, 0.10);
+  --accent-border-active: rgba(0, 220, 255, 0.30);
 
   /* Semantic */
   --success: #00e676;
@@ -53,8 +54,10 @@
   --text-secondary: rgba(240, 240, 245, 0.55);
   --text-tertiary: rgba(240, 240, 245, 0.3);
 
-  /* Radius */
-  --radius: 6px;
+  /* Layout */
+  --panel-alpha: 0.82;
+  --gap: 12px;
+  --radius: 8px;
   --radius-lg: 10px;
 
   /* Type scale */
@@ -63,13 +66,33 @@
   --text-base: 15px;
   --text-lg: 18px;
   --text-xl: 24px;
+
+  /* Particles */
+  --particle-color: 0, 220, 255;
+  --particle-speed: 1;
+}
+
+/* === OTR Mode Override === */
+
+.otr {
+  --accent: #ffab00;
+  --accent-dim: rgba(255, 171, 0, 0.6);
+  --accent-subtle: rgba(255, 171, 0, 0.15);
+  --accent-ghost: rgba(255, 171, 0, 0.05);
+  --accent-glow: 0 0 20px rgba(255, 171, 0, 0.12);
+  --accent-glow-strong: 0 0 30px rgba(255, 171, 0, 0.22);
+  --accent-border: rgba(255, 171, 0, 0.10);
+  --accent-border-active: rgba(255, 171, 0, 0.30);
+  --panel-alpha: 0.94;
+  --particle-color: 255, 171, 0;
+  --particle-speed: 0.5;
 }
 
 html, body {
   height: 100%;
   background: var(--bg-void);
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Exo 2', system-ui, -apple-system, sans-serif;
   font-size: var(--text-base);
   line-height: 1.6;
   overflow: hidden;
@@ -81,56 +104,78 @@ html, body {
   height: 100%;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 220, 255, 0.15);
-  border-radius: 3px;
+/* === Global Scrollbar Kill === */
+
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
+
+/* Hover-only restore for scrollable panels */
+.messages:hover,
+.session-list:hover,
+.canvas-content:hover {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-subtle) transparent;
 }
-* { scrollbar-width: thin; scrollbar-color: rgba(0, 220, 255, 0.15) transparent; }
+.messages:hover::-webkit-scrollbar,
+.session-list:hover::-webkit-scrollbar,
+.canvas-content:hover::-webkit-scrollbar {
+  display: block;
+  width: 4px;
+  height: 4px;
+}
+.messages:hover::-webkit-scrollbar-track,
+.session-list:hover::-webkit-scrollbar-track,
+.canvas-content:hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+.messages:hover::-webkit-scrollbar-thumb,
+.session-list:hover::-webkit-scrollbar-thumb,
+.canvas-content:hover::-webkit-scrollbar-thumb {
+  background: var(--accent-subtle);
+  border-radius: 2px;
+}
 
 /* === Glass System === */
 
 .glass {
-  background: var(--bg-surface);
+  background: rgba(12, 16, 28, var(--panel-alpha));
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--cyan-border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
 }
 
 .glass-elevated {
   background: var(--bg-elevated);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--cyan-border-active);
+  border: 1px solid var(--accent-border-active);
   border-radius: var(--radius-lg);
 }
 
 .glass-inset {
-  background: rgba(12, 16, 28, 0.60);
+  background: var(--bg-inset);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 220, 255, 0.06);
+  border: 1px solid var(--accent-border);
   border-radius: var(--radius);
 }
 
 /* === Animations === */
 
 @keyframes breathe {
-  0%, 100% { border-color: var(--cyan-border); box-shadow: none; }
-  50% { border-color: var(--cyan-border-active); box-shadow: var(--cyan-glow); }
+  0%, 100% { border-color: var(--accent-border); box-shadow: none; }
+  50% { border-color: var(--accent-border-active); box-shadow: var(--accent-glow); }
 }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes block-flash {
   0% { border-color: var(--error); box-shadow: 0 0 12px rgba(255, 61, 90, 0.2); }
-  100% { border-left-color: var(--error); border-color: rgba(0, 220, 255, 0.05); box-shadow: none; }
+  100% { border-left-color: var(--error); border-color: var(--accent-border); box-shadow: none; }
 }
 
 @keyframes blink {
@@ -141,6 +186,11 @@ html, body {
 @keyframes stream-pulse {
   0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
   40% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* === Typography helpers === */
@@ -156,20 +206,20 @@ html, body {
 
 /* === Markdown content in messages === */
 
-.markdown-content strong { color: var(--cyan); font-weight: 600; }
+.markdown-content strong { color: var(--accent); font-weight: 600; }
 
 .markdown-content code {
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
-  background: rgba(0, 220, 255, 0.08);
+  background: var(--accent-ghost);
   padding: 2px 6px;
   border-radius: 3px;
-  color: var(--cyan-dim);
+  color: var(--accent-dim);
 }
 
 .markdown-content pre {
-  background: rgba(0, 220, 255, 0.04);
-  border: 1px solid rgba(0, 220, 255, 0.08);
+  background: var(--accent-ghost);
+  border: 1px solid var(--accent-border);
   border-radius: 4px;
   padding: 12px 16px;
   overflow-x: auto;
@@ -191,7 +241,7 @@ html, body {
 .markdown-content li { margin: 2px 0; }
 
 .markdown-content a {
-  color: var(--cyan);
+  color: var(--accent);
   text-decoration: none;
 }
 .markdown-content a:hover {

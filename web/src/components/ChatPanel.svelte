@@ -81,7 +81,7 @@
 
   .chat-header {
     padding: 14px 20px;
-    border-bottom: 1px solid var(--cyan-border);
+    border-bottom: 1px solid var(--accent-border);
     display: flex; align-items: center;
     justify-content: space-between;
   }
@@ -119,7 +119,7 @@
   .chat-action-btn {
     width: 32px; height: 32px;
     border-radius: var(--radius);
-    border: 1px solid var(--cyan-border);
+    border: 1px solid var(--accent-border);
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
@@ -128,7 +128,7 @@
   }
 
   .chat-action-btn:hover {
-    border-color: var(--cyan-border-active);
+    border-color: var(--accent-border-active);
     color: var(--text-primary);
     background: var(--bg-surface-hover);
   }
@@ -149,7 +149,7 @@
   .streaming-dot {
     width: 5px; height: 5px;
     border-radius: 50%;
-    background: var(--cyan-dim);
+    background: var(--accent-dim);
     animation: stream-pulse 1.4s ease-in-out infinite;
   }
   .streaming-dot:nth-child(2) { animation-delay: 0.2s; }

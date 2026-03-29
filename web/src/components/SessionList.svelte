@@ -96,8 +96,8 @@
 
   .session-item:hover { background: var(--bg-surface-hover); }
   .session-item.active {
-    background: var(--cyan-ghost);
-    border-color: var(--cyan-border);
+    background: var(--accent-ghost);
+    border-color: var(--accent-border);
   }
 
   .session-info { min-width: 0; flex: 1; }

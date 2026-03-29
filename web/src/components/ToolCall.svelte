@@ -67,8 +67,8 @@
     padding: 8px 14px;
     margin: 2px 0;
     border-radius: var(--radius);
-    background: rgba(0, 220, 255, 0.02);
-    border: 1px solid rgba(0, 220, 255, 0.05);
+    background: var(--accent-ghost);
+    border: 1px solid var(--accent-border);
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px; line-height: 1.5;
     color: var(--text-secondary);
@@ -80,7 +80,7 @@
   }
 
   .tool-call:hover {
-    border-color: rgba(0, 220, 255, 0.12);
+    border-color: var(--accent-subtle);
   }
 
   .tool-call.blocked {
@@ -96,7 +96,7 @@
     text-overflow: ellipsis;
   }
 
-  .tool-name { color: var(--cyan-dim); font-weight: 500; }
+  .tool-name { color: var(--accent-dim); font-weight: 500; }
   .tool-divider { color: var(--text-tertiary); }
   .tool-summary { color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; }
 
@@ -108,7 +108,7 @@
   }
 
   .shield-allow {
-    color: var(--cyan-dim);
+    color: var(--accent-dim);
     font-size: 11px;
     display: flex; align-items: center; gap: 4px;
   }
@@ -129,7 +129,7 @@
   .tool-call-expanded {
     margin-top: 6px;
     padding-top: 6px;
-    border-top: 1px solid rgba(0, 220, 255, 0.04);
+    border-top: 1px solid var(--accent-border);
   }
 
   .tool-call-reasoning {

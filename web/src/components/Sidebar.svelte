@@ -94,7 +94,7 @@
 
   .sidebar-header {
     padding: 18px 20px;
-    border-bottom: 1px solid var(--cyan-border);
+    border-bottom: 1px solid var(--accent-border);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -103,13 +103,13 @@
   .sidebar-logo {
     width: 28px; height: 28px;
     border-radius: 6px;
-    background: linear-gradient(135deg, rgba(0, 220, 255, 0.2), rgba(0, 220, 255, 0.05));
-    border: 1px solid var(--cyan-border-active);
+    background: linear-gradient(135deg, var(--accent-subtle), var(--accent-ghost));
+    border: 1px solid var(--accent-border-active);
     display: flex; align-items: center; justify-content: center;
     font-family: 'JetBrains Mono', monospace;
     font-weight: 700; font-size: 13px;
-    color: var(--cyan);
-    box-shadow: var(--cyan-glow);
+    color: var(--accent);
+    box-shadow: var(--accent-glow);
   }
 
   .sidebar-title {
@@ -144,10 +144,10 @@
 
   .nav-item:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
   .nav-item.active {
-    background: var(--cyan-subtle);
-    color: var(--cyan);
-    border-color: var(--cyan-border);
-    box-shadow: var(--cyan-glow);
+    background: var(--accent-subtle);
+    color: var(--accent);
+    border-color: var(--accent-border);
+    box-shadow: var(--accent-glow);
   }
 
   .sidebar-section-title {
@@ -167,9 +167,9 @@
     width: 100%;
     padding: 8px 12px;
     border-radius: var(--radius);
-    border: 1px dashed var(--cyan-border);
+    border: 1px dashed var(--accent-border);
     background: transparent;
-    color: var(--cyan-dim);
+    color: var(--accent-dim);
     font-size: 13px; font-weight: 500;
     cursor: pointer;
     transition: all 150ms ease;
@@ -177,15 +177,15 @@
   }
 
   .new-session-btn:hover {
-    border-color: var(--cyan-border-active);
-    color: var(--cyan);
-    background: var(--cyan-ghost);
+    border-color: var(--accent-border-active);
+    color: var(--accent);
+    background: var(--accent-ghost);
   }
 
   .sidebar-footer {
     margin-top: auto;
     padding: 14px 16px;
-    border-top: 1px solid var(--cyan-border);
+    border-top: 1px solid var(--accent-border);
   }
 
   .settings-link {

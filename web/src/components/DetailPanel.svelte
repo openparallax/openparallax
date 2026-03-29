@@ -59,7 +59,7 @@
 
   .detail-header {
     padding: 14px 18px;
-    border-bottom: 1px solid var(--cyan-border);
+    border-bottom: 1px solid var(--accent-border);
     display: flex; align-items: center;
     justify-content: space-between;
   }
@@ -75,7 +75,7 @@
   .collapse-btn {
     width: 28px; height: 28px;
     border-radius: var(--radius);
-    border: 1px solid var(--cyan-border);
+    border: 1px solid var(--accent-border);
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
@@ -84,14 +84,14 @@
   }
 
   .collapse-btn:hover {
-    border-color: var(--cyan-border-active);
+    border-color: var(--accent-border-active);
     color: var(--text-primary);
   }
 
   .detail-tabs {
     display: flex;
     padding: 0 14px;
-    border-bottom: 1px solid var(--cyan-border);
+    border-bottom: 1px solid var(--accent-border);
   }
 
   .detail-tab {
@@ -106,7 +106,7 @@
   }
 
   .detail-tab:hover { color: var(--text-secondary); }
-  .detail-tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+  .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
   .detail-content {
     flex: 1;

@@ -85,14 +85,14 @@
   .tool-group {
     max-width: 85%;
     border-radius: var(--radius);
-    background: rgba(0, 220, 255, 0.02);
-    border: 1px solid rgba(0, 220, 255, 0.05);
+    background: var(--accent-ghost);
+    border: 1px solid var(--accent-border);
     margin: 2px 0;
     transition: border-color 200ms ease;
   }
 
   .tool-group:hover {
-    border-color: rgba(0, 220, 255, 0.12);
+    border-color: var(--accent-subtle);
   }
 
   .tool-group.blocked {
@@ -100,7 +100,7 @@
   }
 
   .tool-group.live {
-    border-color: rgba(0, 220, 255, 0.15);
+    border-color: var(--accent-subtle);
   }
 
   .tool-group-header {
@@ -118,13 +118,13 @@
 
   .tool-group-header:hover { color: var(--text-primary); }
 
-  .tool-group-chevron { color: var(--cyan-dim); display: flex; }
+  .tool-group-chevron { color: var(--accent-dim); display: flex; }
 
-  .tool-group-summary { color: var(--cyan-dim); font-weight: 500; }
+  .tool-group-summary { color: var(--accent-dim); font-weight: 500; }
 
   .tool-group-result { color: var(--text-tertiary); font-weight: 400; }
 
-  .tool-group-live { color: var(--cyan-dim); font-weight: 400; }
+  .tool-group-live { color: var(--accent-dim); font-weight: 400; }
 
   .tool-group-body {
     padding: 0 8px 8px;
@@ -138,7 +138,7 @@
     line-height: 1.5;
     color: var(--text-tertiary);
     font-style: italic;
-    border-left: 2px solid rgba(0, 220, 255, 0.08);
+    border-left: 2px solid var(--accent-border);
     margin: 2px 0;
   }
 
@@ -147,10 +147,10 @@
     margin: 0;
     border: none;
     border-radius: 4px;
-    background: rgba(0, 220, 255, 0.01);
+    background: var(--accent-ghost);
   }
 
   .tool-group-body :global(.tool-call:hover) {
-    background: rgba(0, 220, 255, 0.03);
+    background: var(--accent-ghost);
   }
 </style>

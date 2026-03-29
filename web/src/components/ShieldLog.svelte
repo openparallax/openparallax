@@ -32,7 +32,7 @@
     display: flex; align-items: flex-start;
     gap: 10px;
     padding: 10px 0;
-    border-bottom: 1px solid rgba(0, 220, 255, 0.04);
+    border-bottom: 1px solid var(--accent-border);
     font-size: 12px;
   }
 
@@ -45,7 +45,7 @@
     flex-shrink: 0;
   }
 
-  .shield-log-badge.allow { background: rgba(0, 220, 255, 0.1); color: var(--cyan); }
+  .shield-log-badge.allow { background: var(--accent-subtle); color: var(--accent); }
   .shield-log-badge.block { background: rgba(255, 61, 90, 0.1); color: var(--error); }
 
   .shield-log-text { color: var(--text-secondary); line-height: 1.5; }

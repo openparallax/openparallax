@@ -40,7 +40,7 @@
 
   .shield-bar {
     height: 3px;
-    background: rgba(0, 220, 255, 0.1);
+    background: var(--accent-subtle);
     border-radius: 2px;
     overflow: hidden;
     margin-bottom: 6px;
@@ -48,7 +48,7 @@
 
   .shield-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--cyan), var(--cyan-dim));
+    background: linear-gradient(90deg, var(--accent), var(--accent-dim));
     border-radius: 2px;
     transition: width 500ms ease;
   }

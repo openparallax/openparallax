@@ -30,16 +30,16 @@
   .artifact-card {
     padding: 14px;
     border-radius: var(--radius);
-    background: rgba(0, 220, 255, 0.03);
-    border: 1px solid rgba(0, 220, 255, 0.06);
+    background: var(--accent-ghost);
+    border: 1px solid var(--accent-border);
     margin-bottom: 10px;
     cursor: pointer;
     transition: all 150ms ease;
   }
 
   .artifact-card:hover {
-    border-color: var(--cyan-border-active);
-    box-shadow: var(--cyan-glow);
+    border-color: var(--accent-border-active);
+    box-shadow: var(--accent-glow);
   }
 
   .artifact-icon { font-size: 20px; margin-bottom: 8px; }

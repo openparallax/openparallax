@@ -20,7 +20,6 @@
     const content = text.trim();
     if (!content || !$connected) return;
 
-    // Auto-create session if none exists.
     let sid = $currentSessionId;
     if (!sid) {
       try {
@@ -60,7 +59,7 @@
       on:input={autoResize}
       class="input-field"
       class:otr={isOTR}
-      placeholder={isOTR ? '[OTR] Type a message...' : 'Type a message...'}
+      placeholder={isOTR ? 'Off the record...' : 'Type a message...'}
       rows="1"
       disabled={!$connected}
     ></textarea>
@@ -80,35 +79,35 @@
 
 <style>
   .input-area {
-    padding: 14px 18px;
-    border-top: 1px solid var(--cyan-border);
+    padding: 12px 14px;
+    border-top: 1px solid var(--accent-border);
   }
 
   .input-container {
-    display: flex; gap: 10px;
+    display: flex; gap: 8px;
     align-items: flex-end;
   }
 
   .input-field {
     flex: 1;
-    background: rgba(12, 16, 28, 0.6);
+    background: rgba(12, 16, 28, 0.5);
     backdrop-filter: blur(12px);
-    border: 1px solid var(--cyan-border);
-    border-radius: var(--radius);
-    padding: 12px 16px;
+    border: 1px solid var(--accent-border);
+    border-radius: 6px;
+    padding: 10px 14px;
     color: var(--text-primary);
-    font-family: 'Inter', sans-serif;
+    font-family: 'Exo 2', sans-serif;
     font-size: 14px; line-height: 1.5;
     resize: none; outline: none;
-    min-height: 44px; max-height: 120px;
-    transition: border-color 200ms ease;
+    min-height: 40px; max-height: 100px;
+    transition: border-color 200ms ease, box-shadow 200ms ease;
   }
 
   .input-field::placeholder { color: var(--text-tertiary); }
 
   .input-field:focus {
-    border-color: var(--cyan-border-active);
-    box-shadow: var(--cyan-glow);
+    border-color: var(--accent-border-active);
+    box-shadow: var(--accent-glow);
   }
 
   .input-field.otr {
@@ -120,10 +119,10 @@
   }
 
   .send-btn {
-    width: 44px; height: 44px;
-    border-radius: var(--radius);
+    width: 40px; height: 40px;
+    border-radius: 6px;
     border: none;
-    background: linear-gradient(135deg, var(--cyan), rgba(0, 180, 220, 1));
+    background: linear-gradient(135deg, var(--accent), rgba(0, 180, 220, 1));
     color: #06060c;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
@@ -133,7 +132,7 @@
   }
 
   .send-btn:hover:not(:disabled) {
-    box-shadow: 0 0 25px rgba(0, 220, 255, 0.35);
+    box-shadow: var(--accent-glow-strong);
     transform: translateY(-1px);
   }
 
@@ -145,8 +144,8 @@
   .input-footer {
     display: flex; justify-content: space-between;
     align-items: center;
-    padding: 8px 4px 0;
-    font-size: 11px;
+    padding: 6px 4px 0;
+    font-size: 10px;
     color: var(--text-tertiary);
     font-family: 'JetBrains Mono', monospace;
   }

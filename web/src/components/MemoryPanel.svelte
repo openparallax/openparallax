@@ -58,7 +58,7 @@
     padding: 8px 12px;
     border-radius: var(--radius);
     background: rgba(12, 16, 28, 0.6);
-    border: 1px solid var(--cyan-border);
+    border: 1px solid var(--accent-border);
   }
 
   .memory-search-input {
@@ -74,13 +74,13 @@
   .memory-result {
     padding: 10px;
     border-radius: var(--radius);
-    background: rgba(0, 220, 255, 0.03);
-    border: 1px solid rgba(0, 220, 255, 0.06);
+    background: var(--accent-ghost);
+    border: 1px solid var(--accent-border);
   }
 
   .memory-result-path {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; color: var(--cyan-dim);
+    font-size: 11px; color: var(--accent-dim);
     margin-bottom: 4px;
   }
 

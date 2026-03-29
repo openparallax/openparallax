@@ -30,7 +30,7 @@
   .message {
     display: flex;
     flex-direction: column;
-    animation: slide-in 300ms ease-out;
+    animation: msg-in 300ms ease-out;
   }
 
   .message.atlas { align-items: flex-start; }
@@ -39,7 +39,7 @@
   .message-header {
     display: flex; align-items: center;
     gap: 8px;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     font-size: 12px;
   }
 
@@ -47,17 +47,17 @@
   .message.user .message-header { padding-right: 2px; flex-direction: row-reverse; }
 
   .message-avatar {
-    width: 22px; height: 22px;
+    width: 20px; height: 20px;
     border-radius: 5px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700;
+    font-size: 10px; font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
   }
 
   .atlas-avatar {
-    background: rgba(0, 220, 255, 0.15);
-    color: var(--cyan);
-    border: 1px solid rgba(0, 220, 255, 0.2);
+    background: var(--accent-subtle);
+    color: var(--accent);
+    border: 1px solid var(--accent-border-active);
   }
 
   .user-avatar {
@@ -67,36 +67,37 @@
   }
 
   .message-name { font-weight: 600; }
-  .message.atlas .message-name { color: var(--cyan); }
+  .message.atlas .message-name { color: var(--accent); }
   .message.user .message-name { color: var(--text-secondary); }
 
   .message-time { color: var(--text-tertiary); font-size: 11px; }
 
   .message-bubble {
-    max-width: 78%;
-    padding: 14px 18px;
-    border-radius: var(--radius);
-    font-size: 14.5px;
+    max-width: 92%;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 14px;
     line-height: 1.65;
   }
 
   .message.atlas .message-bubble {
-    background: var(--cyan-ghost);
-    border: 1px solid rgba(0, 220, 255, 0.06);
-    border-left: 2px solid rgba(0, 220, 255, 0.35);
+    background: var(--accent-ghost);
+    border: 1px solid var(--accent-border);
+    border-left: 2px solid var(--accent-border-active);
   }
 
   .message.user .message-bubble {
     background: rgba(240, 240, 245, 0.04);
     border: 1px solid rgba(240, 240, 245, 0.06);
     border-right: 2px solid rgba(240, 240, 245, 0.2);
+    max-width: 85%;
   }
 
   .cursor {
     display: inline-block;
-    width: 2px; height: 16px;
-    background: var(--cyan);
-    margin-left: 2px;
+    width: 2px; height: 14px;
+    background: var(--accent);
+    margin-left: 1px;
     animation: blink 1s infinite;
     vertical-align: text-bottom;
   }
