@@ -2,7 +2,7 @@ import { writable, get } from 'svelte/store';
 import type { Message, ToolCall, ShieldVerdict, Artifact } from '../lib/types';
 
 export const messages = writable<Message[]>([]);
-export const toolCalls = writable<ToolCall[]>([]);
+export const pendingToolCalls = writable<ToolCall[]>([]);
 export const artifacts = writable<Artifact[]>([]);
 export const shieldLog = writable<ShieldVerdict[]>([]);
 export const streaming = writable(false);
@@ -18,14 +18,13 @@ export function appendToken(text: string) {
 }
 
 export function addToolCall(tc: ToolCall) {
-  toolCalls.update(calls => [...calls, tc]);
+  pendingToolCalls.update(calls => [...calls, tc]);
 }
 
 export function updateToolCallVerdict(verdict: ShieldVerdict) {
   shieldLog.update(log => [verdict, ...log]);
-  toolCalls.update(calls => {
+  pendingToolCalls.update(calls => {
     const updated = [...calls];
-    // Update the most recent tool call that matches.
     for (let i = updated.length - 1; i >= 0; i--) {
       if (updated[i].toolName === verdict.toolName && !updated[i].shieldVerdict) {
         updated[i] = { ...updated[i], shieldVerdict: verdict };
@@ -37,7 +36,7 @@ export function updateToolCallVerdict(verdict: ShieldVerdict) {
 }
 
 export function completeToolCall(result: { tool_name: string; success: boolean; summary: string }) {
-  toolCalls.update(calls => {
+  pendingToolCalls.update(calls => {
     const updated = [...calls];
     for (let i = updated.length - 1; i >= 0; i--) {
       if (updated[i].toolName === result.tool_name && !updated[i].result) {
@@ -56,6 +55,7 @@ export function addArtifact(artifact: Artifact) {
 export function finalizeResponse(content: string) {
   const currentText = get(streamingText);
   const finalContent = content || currentText;
+  const currentToolCalls = get(pendingToolCalls);
 
   messages.update(msgs => [...msgs, {
     id: 'msg-' + Date.now(),
@@ -63,9 +63,11 @@ export function finalizeResponse(content: string) {
     role: 'assistant' as const,
     content: finalContent,
     timestamp: new Date().toISOString(),
+    toolCalls: currentToolCalls.length > 0 ? [...currentToolCalls] : undefined,
   }]);
 
   streamingText.set('');
+  pendingToolCalls.set([]);
 }
 
 export function addUserMessage(content: string) {
@@ -76,13 +78,12 @@ export function addUserMessage(content: string) {
     content,
     timestamp: new Date().toISOString(),
   }]);
-  // Clear tool calls for the new turn.
-  toolCalls.set([]);
+  pendingToolCalls.set([]);
 }
 
 export function clearMessages() {
   messages.set([]);
-  toolCalls.set([]);
+  pendingToolCalls.set([]);
   artifacts.set([]);
   shieldLog.set([]);
   streamingText.set('');

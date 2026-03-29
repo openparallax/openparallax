@@ -13,6 +13,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  toolCalls?: ToolCall[];
 }
 
 export interface ToolCall {

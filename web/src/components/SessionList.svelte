@@ -5,14 +5,23 @@
   import { formatRelativeTime } from '../lib/format';
 
   async function switchSession(id: string) {
+    if (id === $currentSessionId) return;
     currentSessionId.set(id);
     clearMessages();
     try {
       const msgs = await getMessages(id);
-      messages.set(msgs);
+      if (msgs && msgs.length > 0) {
+        messages.set(msgs);
+      }
     } catch {
-      // Session may not have messages yet.
+      // Session may have no messages.
     }
+  }
+
+  function sessionLabel(session: any): string {
+    if (session.title) return session.title;
+    if (session.message_count > 0) return 'Session';
+    return 'New Session';
   }
 </script>
 
@@ -25,7 +34,7 @@
     >
       <div class="session-info">
         <div class="session-name" class:otr={session.mode === 'otr'}>
-          {#if session.mode === 'otr'}OTR: {/if}{session.title || 'New Session'}
+          {#if session.mode === 'otr'}OTR: {/if}{sessionLabel(session)}
         </div>
         <div class="session-meta">
           {#if session.last_msg_at}
@@ -34,7 +43,7 @@
             {formatRelativeTime(session.created_at)}
           {/if}
           {#if session.message_count > 0}
-            &middot; {session.message_count} messages
+            &middot; {session.message_count} msgs
           {/if}
         </div>
       </div>

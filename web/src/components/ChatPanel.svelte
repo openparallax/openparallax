@@ -1,9 +1,8 @@
 <script lang="ts">
   import { afterUpdate } from 'svelte';
   import { Search, Plus } from 'lucide-svelte';
-  import { messages, toolCalls, streaming, streamingText } from '../stores/messages';
+  import { messages, pendingToolCalls, streaming, streamingText } from '../stores/messages';
   import { connected } from '../stores/connection';
-  import { currentMode } from '../stores/session';
   import Message from './Message.svelte';
   import ToolCall from './ToolCall.svelte';
   import InputArea from './InputArea.svelte';
@@ -39,18 +38,25 @@
 
   <div class="messages" bind:this={messagesEl}>
     {#each $messages as msg (msg.id)}
+      {#if msg.role === 'assistant' && msg.toolCalls}
+        {#each msg.toolCalls as tc (tc.id)}
+          <ToolCall toolCall={tc} />
+        {/each}
+      {/if}
       <Message message={msg} />
     {/each}
 
-    {#each $toolCalls as tc (tc.id)}
-      <ToolCall toolCall={tc} />
-    {/each}
+    {#if $pendingToolCalls.length > 0}
+      {#each $pendingToolCalls as tc (tc.id)}
+        <ToolCall toolCall={tc} />
+      {/each}
+    {/if}
 
     {#if $streaming && $streamingText}
       <Message message={{ id: 'streaming', session_id: '', role: 'assistant', content: $streamingText, timestamp: new Date().toISOString() }} isStreaming={true} />
     {/if}
 
-    {#if $streaming && !$streamingText && $toolCalls.length === 0}
+    {#if $streaming && !$streamingText && $pendingToolCalls.length === 0}
       <div class="streaming-indicator">
         <div class="streaming-dot"></div>
         <div class="streaming-dot"></div>

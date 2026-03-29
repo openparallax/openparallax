@@ -1,5 +1,5 @@
 import { connected, reconnecting } from '../stores/connection';
-import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming } from '../stores/messages';
+import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, pendingToolCalls } from '../stores/messages';
 import type { WSEvent } from './types';
 
 let socket: WebSocket | null = null;
