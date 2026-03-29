@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Trash2 } from 'lucide-svelte';
-  import { sessions, currentSessionId } from '../stores/session';
+  import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { clearMessages, loadMessages } from '../stores/messages';
   import { clearArtifactTabs } from '../stores/artifacts';
   import { getMessages, deleteSession } from '../lib/api';
@@ -9,9 +9,21 @@
 
   async function switchSession(id: string) {
     if (id === $currentSessionId) return;
+
+    const prevOTR = $currentMode === 'otr' ? $currentSessionId : null;
+
+    const target = $sessions.find(s => s.id === id);
+    const targetMode = target?.mode === 'otr' ? 'otr' : 'normal';
+
     currentSessionId.set(id);
+    currentMode.set(targetMode);
     clearMessages();
     clearArtifactTabs();
+
+    if (prevOTR && prevOTR !== id) {
+      sessions.update(s => s.filter(sess => sess.id !== prevOTR));
+    }
+
     try {
       const msgs = await getMessages(id);
       if (msgs && msgs.length > 0) {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { MessageSquare, FileText, Brain, Eye, Plus, Settings } from 'lucide-svelte';
+  import { MessageSquare, FileText, Brain, Eye, Plus, Settings, ChevronDown } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { activeNavItem, settingsOpen, sidebarOpen } from '../stores/settings';
   import { clearMessages, loadMessages } from '../stores/messages';
@@ -16,6 +16,8 @@
     { id: 'console' as const, label: 'Console', icon: Eye },
   ];
 
+  let showNewSessionDropdown = false;
+
   onMount(async () => {
     try {
       const list = await listSessions();
@@ -30,12 +32,14 @@
     }
   });
 
-  async function handleNewSession() {
+  async function handleNewSession(mode: 'normal' | 'otr' = 'normal') {
+    showNewSessionDropdown = false;
     try {
-      const mode = $currentMode;
+      destroyCurrentOTR();
       const sess = await createSession(mode);
       sessions.update(s => [sess, ...s]);
       currentSessionId.set(sess.id);
+      currentMode.set(mode);
       clearMessages();
       clearArtifactTabs();
       activeNavItem.set('chat');
@@ -44,11 +48,25 @@
     }
   }
 
+  function destroyCurrentOTR() {
+    if ($currentMode === 'otr' && $currentSessionId) {
+      const otrId = $currentSessionId;
+      sessions.update(s => s.filter(sess => sess.id !== otrId));
+    }
+    currentMode.set('normal');
+  }
+
   function handleNavClick(id: typeof navItems[number]['id']) {
     activeNavItem.set(id);
     sidebarOpen.set(false);
   }
+
+  function handleClickOutsideDropdown() {
+    showNewSessionDropdown = false;
+  }
 </script>
+
+<svelte:window on:click={handleClickOutsideDropdown} />
 
 <div class="sidebar glass" class:mobile-open={$sidebarOpen}>
   <div class="sidebar-header">
@@ -73,10 +91,21 @@
   <div class="sidebar-section-title">Sessions</div>
 
   <div class="session-controls">
-    <button class="new-session-btn" on:click={handleNewSession} title="New Session">
-      <Plus size={14} />
-      <span class="nav-label">New Session</span>
-    </button>
+    <div class="new-session-group">
+      <button class="new-session-btn" on:click|stopPropagation={() => handleNewSession('normal')} title="New Session">
+        <Plus size={14} />
+        <span class="nav-label">New Session</span>
+      </button>
+      <button class="new-session-dropdown" on:click|stopPropagation={() => showNewSessionDropdown = !showNewSessionDropdown} title="Session type">
+        <ChevronDown size={12} />
+      </button>
+    </div>
+    {#if showNewSessionDropdown}
+      <div class="dropdown-menu">
+        <button class="dropdown-item" on:click|stopPropagation={() => handleNewSession('normal')}>Normal Session</button>
+        <button class="dropdown-item otr" on:click|stopPropagation={() => handleNewSession('otr')}>OTR Session</button>
+      </div>
+    {/if}
   </div>
 
   <SessionList />
@@ -186,14 +215,21 @@
   .session-controls {
     padding: 4px 10px;
     flex-shrink: 0;
+    position: relative;
+  }
+
+  .new-session-group {
+    display: flex;
+    gap: 0;
   }
 
   .new-session-btn {
     display: flex; align-items: center; gap: 8px;
-    width: 100%;
+    flex: 1;
     padding: 8px 12px;
-    border-radius: var(--radius);
+    border-radius: var(--radius) 0 0 var(--radius);
     border: 1px dashed var(--accent-border);
+    border-right: none;
     background: transparent;
     color: var(--accent-dim);
     font-size: 13px; font-weight: 500;
@@ -208,6 +244,54 @@
     border-color: var(--accent-border-active);
     color: var(--accent);
     background: var(--accent-ghost);
+  }
+
+  .new-session-dropdown {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    border: 1px dashed var(--accent-border);
+    background: transparent;
+    color: var(--accent-dim);
+    cursor: pointer;
+    transition: all 150ms ease;
+  }
+
+  .new-session-dropdown:hover {
+    border-color: var(--accent-border-active);
+    color: var(--accent);
+    background: var(--accent-ghost);
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    left: 10px; right: 10px;
+    top: 44px;
+    background: rgba(12, 16, 28, 0.95);
+    border: 1px solid var(--accent-border-active);
+    border-radius: var(--radius);
+    overflow: hidden;
+    z-index: 20;
+    backdrop-filter: blur(16px);
+  }
+
+  .dropdown-item {
+    width: 100%;
+    padding: 8px 14px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background 150ms ease;
+  }
+
+  .dropdown-item:hover { background: var(--accent-ghost); }
+
+  .dropdown-item.otr {
+    color: var(--warning);
   }
 
   .sidebar-footer {
@@ -240,7 +324,6 @@
     display: none;
   }
 
-  /* Medium: icon-only strip */
   @media (max-width: 1200px) {
     .sidebar {
       width: 56px;
@@ -258,7 +341,6 @@
     .settings-link .nav-label { display: none; }
   }
 
-  /* Small: fully hidden, slide-over when open */
   @media (max-width: 800px) {
     .sidebar {
       position: fixed;
