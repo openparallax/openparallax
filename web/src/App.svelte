@@ -5,9 +5,11 @@
   import ChatPanel from './components/ChatPanel.svelte';
   import Particles from './components/Particles.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
+  import { Menu } from 'lucide-svelte';
   import { connect } from './lib/websocket';
   import { connected } from './stores/connection';
   import { currentMode } from './stores/session';
+  import { sidebarOpen } from './stores/settings';
   import { getStatus } from './lib/api';
 
   let agentName = 'ATLAS';
@@ -31,6 +33,9 @@
 <div class="app" class:otr={$currentMode === 'otr'}>
   <header class="app-header">
     <div class="header-left">
+      <button class="hamburger" on:click={() => sidebarOpen.update(v => !v)} aria-label="Toggle sidebar">
+        <Menu size={20} />
+      </button>
       <span class="agent-name">{agentName}</span>
       <span class="agent-subtitle">{workspace}</span>
     </div>
@@ -88,6 +93,27 @@
   .header-left {
     display: flex;
     align-items: baseline;
+    gap: 12px;
+  }
+
+  .hamburger {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 36px;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 150ms ease;
+    flex-shrink: 0;
+    align-self: center;
+  }
+  .hamburger:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-border-active);
+    background: var(--accent-ghost);
   }
 
   .agent-name {
@@ -152,8 +178,10 @@
   }
 
   @media (max-width: 800px) {
-    .app { padding: 0; }
-    .app-header { padding: 12px 16px; }
+    .app { padding: 8px; }
+    .app-header { padding: 8px 12px; }
     .agent-name { font-size: 24px; }
+    .agent-subtitle { display: none; }
+    .hamburger { display: flex; }
   }
 </style>
