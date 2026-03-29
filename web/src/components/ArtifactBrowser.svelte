@@ -1,21 +1,43 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listArtifacts } from '../lib/api';
+  import { artifacts as liveArtifacts } from '../stores/messages';
   import { openArtifactTab } from '../stores/artifacts';
   import { activeNavItem } from '../stores/settings';
   import type { Artifact } from '../lib/types';
 
-  let artifacts: Artifact[] = [];
+  let dbArtifacts: Artifact[] = [];
   let loading = true;
 
   onMount(async () => {
     try {
-      artifacts = await listArtifacts();
+      const fetched = await listArtifacts();
+      dbArtifacts = Array.isArray(fetched) ? fetched : [];
     } catch {
-      artifacts = [];
+      dbArtifacts = [];
     }
     loading = false;
   });
+
+  $: allArtifacts = mergeArtifacts(dbArtifacts, $liveArtifacts);
+
+  function mergeArtifacts(db: Artifact[], live: Artifact[]): Artifact[] {
+    const seen = new Set<string>();
+    const merged: Artifact[] = [];
+    for (const a of live) {
+      if (!seen.has(a.id)) {
+        seen.add(a.id);
+        merged.push(a);
+      }
+    }
+    for (const a of db) {
+      if (!seen.has(a.id)) {
+        seen.add(a.id);
+        merged.push(a);
+      }
+    }
+    return merged;
+  }
 
   function handleClick(artifact: Artifact) {
     openArtifactTab(artifact);
@@ -40,16 +62,16 @@
 <div class="browser">
   <div class="browser-header">
     <h2 class="browser-title">Artifacts</h2>
-    <span class="browser-count">{artifacts.length} files</span>
+    <span class="browser-count">{allArtifacts.length} files</span>
   </div>
 
-  {#if loading}
+  {#if loading && allArtifacts.length === 0}
     <div class="empty-state">Loading artifacts...</div>
-  {:else if artifacts.length === 0}
+  {:else if allArtifacts.length === 0}
     <div class="empty-state">No artifacts generated yet</div>
   {:else}
     <div class="artifact-grid">
-      {#each artifacts as artifact (artifact.id)}
+      {#each allArtifacts as artifact (artifact.id)}
         <button class="artifact-card" on:click={() => handleClick(artifact)}>
           <div class="artifact-icon">{iconForType(artifact.type)}</div>
           <div class="artifact-name">{artifact.title}</div>

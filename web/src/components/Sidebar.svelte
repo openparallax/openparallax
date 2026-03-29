@@ -4,6 +4,7 @@
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { activeNavItem, settingsOpen } from '../stores/settings';
   import { clearMessages } from '../stores/messages';
+  import { clearArtifactTabs } from '../stores/artifacts';
   import { listSessions, createSession, getMessages } from '../lib/api';
   import { messages } from '../stores/messages';
   import SessionList from './SessionList.svelte';
@@ -37,6 +38,8 @@
       sessions.update(s => [sess, ...s]);
       currentSessionId.set(sess.id);
       clearMessages();
+      clearArtifactTabs();
+      activeNavItem.set('chat');
     } catch {
       // Handle error silently.
     }

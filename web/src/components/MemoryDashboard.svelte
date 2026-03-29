@@ -27,15 +27,18 @@
   async function handleSearch() {
     if (!query.trim()) {
       results = [];
+      searching = false;
       return;
     }
     searching = true;
     try {
-      results = await searchMemory(query) as any[];
+      const res = await searchMemory(query);
+      results = Array.isArray(res) ? res : [];
     } catch {
       results = [];
+    } finally {
+      searching = false;
     }
-    searching = false;
   }
 
   $: renderedMemory = memoryContent ? renderMarkdown(memoryContent) : '';

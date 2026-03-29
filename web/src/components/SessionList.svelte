@@ -2,6 +2,7 @@
   import { Trash2 } from 'lucide-svelte';
   import { sessions, currentSessionId } from '../stores/session';
   import { messages, clearMessages } from '../stores/messages';
+  import { clearArtifactTabs } from '../stores/artifacts';
   import { getMessages, deleteSession } from '../lib/api';
   import { formatRelativeTime } from '../lib/format';
   import type { Session } from '../lib/types';
@@ -10,6 +11,7 @@
     if (id === $currentSessionId) return;
     currentSessionId.set(id);
     clearMessages();
+    clearArtifactTabs();
     try {
       const msgs = await getMessages(id);
       if (msgs && msgs.length > 0) {
