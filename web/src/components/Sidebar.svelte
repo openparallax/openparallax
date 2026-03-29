@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { MessageSquare, FileText, Brain, Eye, Plus, Settings } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
-  import { activeNavItem } from '../stores/settings';
+  import { activeNavItem, settingsOpen } from '../stores/settings';
   import { clearMessages } from '../stores/messages';
   import { listSessions, createSession, getMessages } from '../lib/api';
   import { messages } from '../stores/messages';
@@ -75,7 +75,7 @@
 
   <div class="sidebar-footer">
     <ShieldBadge />
-    <button class="settings-link">
+    <button class="settings-link" on:click={() => settingsOpen.set(true)}>
       <Settings size={15} />
       Settings
     </button>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Send, Square } from 'lucide-svelte';
   import { currentSessionId, currentMode, sessions } from '../stores/session';
-  import { streaming, addUserMessage } from '../stores/messages';
+  import { streaming, addUserMessage, clearMessages } from '../stores/messages';
   import { connected } from '../stores/connection';
   import { sendMessage } from '../lib/websocket';
   import { createSession } from '../lib/api';
@@ -19,6 +19,20 @@
   async function handleSend() {
     const content = text.trim();
     if (!content || !$connected) return;
+
+    if (content === '/otr') {
+      text = '';
+      try {
+        const sess = await createSession('otr');
+        sessions.update(s => [sess, ...s]);
+        currentSessionId.set(sess.id);
+        currentMode.set('otr');
+        clearMessages();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
 
     let sid = $currentSessionId;
     if (!sid) {

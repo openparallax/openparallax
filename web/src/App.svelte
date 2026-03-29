@@ -4,6 +4,7 @@
   import ArtifactCanvas from './components/ArtifactCanvas.svelte';
   import ChatPanel from './components/ChatPanel.svelte';
   import Particles from './components/Particles.svelte';
+  import SettingsPanel from './components/SettingsPanel.svelte';
   import { connect } from './lib/websocket';
   import { connected } from './stores/connection';
   import { currentMode } from './stores/session';
@@ -25,6 +26,7 @@
 
 <div class="bg"></div>
 <Particles />
+<SettingsPanel />
 
 <div class="app" class:otr={$currentMode === 'otr'}>
   <header class="app-header">
