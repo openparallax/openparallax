@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -637,17 +638,37 @@ func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
 	}
 	// Auto-create session if it doesn't exist. This allows clients (CLI, web)
 	// to generate session IDs locally without needing a separate create RPC.
-	if _, err := e.db.GetSession(sessionID); err != nil {
+	sess, err := e.db.GetSession(sessionID)
+	if err != nil {
+		title := ""
+		if role == "user" {
+			title = sessionTitle(content)
+		}
 		_ = e.db.InsertSession(&types.Session{
 			ID:        sessionID,
 			Mode:      types.SessionNormal,
+			Title:     title,
 			CreatedAt: time.Now(),
 		})
+	} else if sess.Title == "" && role == "user" {
+		_ = e.db.UpdateSessionTitle(sessionID, sessionTitle(content))
 	}
 	_ = e.db.InsertMessage(&types.Message{
 		ID: messageID, SessionID: sessionID,
 		Role: role, Content: content, Timestamp: time.Now(),
 	})
+}
+
+// sessionTitle derives a session title from the first user message.
+func sessionTitle(content string) string {
+	title := content
+	if len(title) > 50 {
+		title = title[:50]
+	}
+	if i := strings.IndexByte(title, '\n'); i > 0 {
+		title = title[:i]
+	}
+	return strings.TrimSpace(title)
 }
 
 func (e *Engine) getHistory(sessionID string) []llm.ChatMessage {

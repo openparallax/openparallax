@@ -1,10 +1,11 @@
 export interface Session {
   id: string;
   mode: 'normal' | 'otr';
-  title: string;
+  title?: string;
   created_at: string;
-  last_msg_at: string | null;
-  message_count: number;
+  last_message_at?: string;
+  preview?: string;
+  message_count?: number;
 }
 
 export interface Message {
