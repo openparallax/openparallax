@@ -10,9 +10,15 @@
 
   $: items = thoughts.length > 0 ? thoughts : buildFromToolCalls(toolCalls);
   $: toolCount = items.filter(t => t.stage === 'tool_call').length;
-  $: hasBlock = toolCalls.some(tc => tc.shieldVerdict?.decision === 'BLOCK');
-  $: allComplete = !live && toolCalls.every(tc => tc.result);
-  $: successCount = toolCalls.filter(tc => tc.result?.success).length;
+  $: hasBlock = toolCalls.length > 0
+    ? toolCalls.some(tc => tc.shieldVerdict?.decision === 'BLOCK')
+    : items.some(t => t.detail?.shield === 'BLOCK');
+  $: allComplete = !live && (toolCalls.length > 0
+    ? toolCalls.every(tc => tc.result)
+    : items.filter(t => t.stage === 'tool_call').every(t => t.detail?.success !== undefined));
+  $: successCount = toolCalls.length > 0
+    ? toolCalls.filter(tc => tc.result?.success).length
+    : items.filter(t => t.stage === 'tool_call' && t.detail?.success === true).length;
 
   let expandedCalls: Record<string, boolean> = {};
 
@@ -32,11 +38,22 @@
   function getToolCall(thought: Thought): ToolCall | undefined {
     if (thought.stage !== 'tool_call') return undefined;
     const name = thought.detail?.tool_name as string;
-    return toolCalls.find(tc => tc.toolName === name) || {
+    const matched = toolCalls.find(tc => tc.toolName === name);
+    if (matched) return matched;
+
+    const shieldDecision = thought.detail?.shield as string | undefined;
+    return {
       id: Math.random().toString(),
       toolName: name || '',
       summary: thought.summary,
       expanded: false,
+      shieldVerdict: shieldDecision ? {
+        toolName: name || '',
+        decision: shieldDecision as 'ALLOW' | 'BLOCK' | 'ESCALATE',
+        tier: (thought.detail?.shield_tier as number) || 0,
+        confidence: 1,
+        reasoning: (thought.detail?.shield_reasoning as string) || '',
+      } : undefined,
       result: thought.detail?.success !== undefined
         ? { success: thought.detail.success as boolean, summary: (thought.detail.result_summary as string) || thought.summary }
         : undefined,

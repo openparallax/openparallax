@@ -66,13 +66,33 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
   const currentText = get(streamingText);
   const finalContent = content || currentText;
 
+  let finalThoughts = thoughts && thoughts.length > 0 ? thoughts : undefined;
+
+  if (!finalThoughts) {
+    const pending = get(pendingToolCalls);
+    if (pending.length > 0) {
+      finalThoughts = pending.map(tc => ({
+        stage: 'tool_call' as const,
+        summary: `${tc.toolName} — ${tc.summary}`,
+        detail: {
+          tool_name: tc.toolName,
+          success: tc.result?.success,
+          shield: tc.shieldVerdict?.decision,
+          shield_tier: tc.shieldVerdict?.tier,
+          shield_reasoning: tc.shieldVerdict?.reasoning,
+          result_summary: tc.result?.summary,
+        },
+      }));
+    }
+  }
+
   messages.update(msgs => [...msgs, {
     id: 'msg-' + Date.now(),
     session_id: '',
     role: 'assistant' as const,
     content: finalContent,
     timestamp: new Date().toISOString(),
-    thoughts: thoughts && thoughts.length > 0 ? thoughts : undefined,
+    thoughts: finalThoughts,
   }]);
 
   streamingText.set('');
