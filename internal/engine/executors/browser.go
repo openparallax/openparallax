@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/types"
@@ -139,16 +138,6 @@ func DetectBrowser() string {
 	}
 
 	return ""
-}
-
-// buildBrowserCommand creates an exec.Cmd for the browser path.
-// Handles flatpak paths like "flatpak run com.brave.Browser" by splitting.
-func buildBrowserCommand(browserPath string, args []string) *exec.Cmd {
-	parts := strings.Fields(browserPath)
-	if len(parts) > 1 {
-		return exec.Command(parts[0], append(parts[1:], args...)...)
-	}
-	return exec.Command(browserPath, args...)
 }
 
 func browserCandidates() []string {

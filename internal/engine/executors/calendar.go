@@ -54,7 +54,6 @@ func NewCalendarExecutor(cfg types.CalendarConfig) *CalendarExecutor {
 	default:
 		return nil
 	}
-	return &CalendarExecutor{provider: &unconfiguredProvider{}}
 }
 
 func (c *CalendarExecutor) SupportedActions() []types.ActionType {
@@ -188,24 +187,4 @@ func (c *CalendarExecutor) deleteEvent(ctx context.Context, action *types.Action
 	}
 
 	return &types.ActionResult{RequestID: action.RequestID, Success: true, Summary: "event deleted"}
-}
-
-// unconfiguredProvider returns actionable error messages when the calendar
-// provider is named in config but credentials or URLs are missing.
-type unconfiguredProvider struct{}
-
-func (s *unconfiguredProvider) ListEvents(_ context.Context, _, _ time.Time) ([]CalendarEvent, error) {
-	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
-}
-
-func (s *unconfiguredProvider) CreateEvent(_ context.Context, _ *CalendarEvent) (*CalendarEvent, error) {
-	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
-}
-
-func (s *unconfiguredProvider) UpdateEvent(_ context.Context, _ string, _ *CalendarEvent) (*CalendarEvent, error) {
-	return nil, fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
-}
-
-func (s *unconfiguredProvider) DeleteEvent(_ context.Context, _ string) error {
-	return fmt.Errorf("calendar provider not fully configured — check config.yaml calendar section")
 }
