@@ -16,6 +16,7 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.handleDeleteSession)
 	mux.HandleFunc("PATCH /api/sessions/{id}", s.handleUpdateSession)
 	mux.HandleFunc("GET /api/sessions/{id}/messages", s.handleGetMessages)
+	mux.HandleFunc("GET /api/artifacts", s.handleListArtifacts)
 	mux.HandleFunc("GET /api/memory/search", s.handleMemorySearch)
 	mux.HandleFunc("GET /api/memory/{type}", s.handleReadMemory)
 }
@@ -31,7 +32,20 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		"agent_name":    agentName,
 		"model":         s.engine.LLMModel(),
 		"session_count": sessionCount,
+		"workspace":     s.engine.Config().Workspace,
 	})
+}
+
+func (s *Server) handleListArtifacts(w http.ResponseWriter, _ *http.Request) {
+	artifacts, err := s.engine.DB().ListArtifacts()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if artifacts == nil {
+		artifacts = []types.Artifact{}
+	}
+	writeJSON(w, http.StatusOK, artifacts)
 }
 
 func (s *Server) handleListSessions(w http.ResponseWriter, _ *http.Request) {

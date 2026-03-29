@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { Message, ToolCall, ShieldVerdict, Artifact, Thought } from '../lib/types';
+import { openArtifactTab } from './artifacts';
 
 export const messages = writable<Message[]>([]);
 export const pendingToolCalls = writable<ToolCall[]>([]);
@@ -58,6 +59,7 @@ export function completeToolCall(result: { tool_name: string; success: boolean; 
 
 export function addArtifact(artifact: Artifact) {
   artifacts.update(a => [...a, artifact]);
+  openArtifactTab(artifact);
 }
 
 export function finalizeResponse(content: string, thoughts?: Thought[]) {

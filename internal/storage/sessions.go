@@ -138,6 +138,31 @@ func (db *DB) UpdateSessionTitle(id, title string) error {
 	return err
 }
 
+// ListArtifacts returns all artifacts across all sessions.
+func (db *DB) ListArtifacts() ([]types.Artifact, error) {
+	rows, err := db.conn.Query(
+		`SELECT artifacts_json FROM messages WHERE artifacts_json IS NOT NULL AND artifacts_json != '' AND artifacts_json != 'null' ORDER BY timestamp DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var all []types.Artifact
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			continue
+		}
+		var artifacts []types.Artifact
+		if err := json.Unmarshal([]byte(raw), &artifacts); err != nil {
+			continue
+		}
+		all = append(all, artifacts...)
+	}
+	return all, rows.Err()
+}
+
 // SessionCount returns the total number of sessions.
 func (db *DB) SessionCount() (int, error) {
 	var count int

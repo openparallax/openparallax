@@ -1,38 +1,8 @@
 <script lang="ts">
   import { X } from 'lucide-svelte';
   import { activeNavItem } from '../stores/settings';
-  import { artifacts } from '../stores/messages';
-  import type { Artifact } from '../lib/types';
+  import { artifactTabs, activeTabId, activeTab, closeArtifactTab } from '../stores/artifacts';
   import { renderMarkdown } from '../lib/format';
-
-  let tabs: { id: string; artifact: Artifact }[] = [];
-  let activeTabId: string | null = null;
-  const MAX_TABS = 6;
-
-  $: activeTab = tabs.find(t => t.id === activeTabId) || null;
-
-  artifacts.subscribe(all => {
-    for (const artifact of all) {
-      if (!tabs.some(t => t.id === artifact.id)) {
-        if (tabs.length >= MAX_TABS) {
-          tabs = tabs.slice(1);
-        }
-        tabs = [...tabs, { id: artifact.id, artifact }];
-        activeTabId = artifact.id;
-      }
-    }
-  });
-
-  function closeTab(id: string) {
-    tabs = tabs.filter(t => t.id !== id);
-    if (activeTabId === id) {
-      activeTabId = tabs.length > 0 ? tabs[tabs.length - 1].id : null;
-    }
-  }
-
-  function selectTab(id: string) {
-    activeTabId = id;
-  }
 
   function iconForType(type: string): string {
     switch (type) {
@@ -42,11 +12,8 @@
     }
   }
 
-  function renderArtifactHTML(artifact: Artifact): string {
-    if (artifact.preview_type === 'markdown') {
-      return renderMarkdown(artifact.content);
-    }
-    return '';
+  function renderArtifactContent(content: string): string {
+    return renderMarkdown(content);
   }
 
   $: showCanvas = $activeNavItem === 'chat';
@@ -54,17 +21,17 @@
 
 <div class="canvas glass">
   {#if showCanvas}
-    {#if tabs.length > 0}
+    {#if $artifactTabs.length > 0}
       <div class="canvas-tabs">
-        {#each tabs as tab (tab.id)}
+        {#each $artifactTabs as tab (tab.id)}
           <button
             class="canvas-tab"
-            class:active={activeTabId === tab.id}
-            on:click={() => selectTab(tab.id)}
+            class:active={$activeTabId === tab.id}
+            on:click={() => activeTabId.set(tab.id)}
           >
             <span class="tab-icon">{iconForType(tab.artifact.type)}</span>
             <span class="tab-name">{tab.artifact.title}</span>
-            <button class="tab-close" on:click|stopPropagation={() => closeTab(tab.id)}>
+            <button class="tab-close" on:click|stopPropagation={() => closeArtifactTab(tab.id)}>
               <X size={11} />
             </button>
           </button>
@@ -72,27 +39,27 @@
       </div>
 
       <div class="canvas-content">
-        {#if activeTab}
-          {#if activeTab.artifact.preview_type === 'html'}
+        {#if $activeTab}
+          {#if $activeTab.artifact.preview_type === 'html'}
             <iframe
               class="artifact-iframe"
               sandbox="allow-scripts"
               scrolling="no"
-              srcdoc={activeTab.artifact.content}
-              title={activeTab.artifact.title}
+              srcdoc={$activeTab.artifact.content}
+              title={$activeTab.artifact.title}
             ></iframe>
-          {:else if activeTab.artifact.preview_type === 'markdown'}
+          {:else if $activeTab.artifact.preview_type === 'markdown'}
             <div class="artifact-markdown markdown-content">
-              {@html renderArtifactHTML(activeTab.artifact)}
+              {@html renderArtifactContent($activeTab.artifact.content)}
             </div>
-          {:else if activeTab.artifact.preview_type === 'image'}
+          {:else if $activeTab.artifact.preview_type === 'image'}
             <img
               class="artifact-image"
-              src={activeTab.artifact.path}
-              alt={activeTab.artifact.title}
+              src={$activeTab.artifact.path}
+              alt={$activeTab.artifact.title}
             />
           {:else}
-            <pre class="artifact-code"><code>{activeTab.artifact.content}</code></pre>
+            <pre class="artifact-code"><code>{$activeTab.artifact.content}</code></pre>
           {/if}
         {/if}
       </div>

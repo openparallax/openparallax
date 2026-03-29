@@ -70,4 +70,10 @@ export interface StatusResponse {
   agent_name: string;
   model: string;
   session_count: number;
+  workspace?: string;
+}
+
+export interface ArtifactTab {
+  id: string;
+  artifact: Artifact;
 }
