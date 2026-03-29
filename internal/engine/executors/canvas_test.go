@@ -66,10 +66,9 @@ func TestCanvasProject(t *testing.T) {
 	c := NewCanvasExecutor(dir)
 
 	result := c.Execute(context.Background(), &types.ActionRequest{
-		RequestID: "r1", Type: types.ActionCanvasCreate,
+		RequestID: "r1", Type: types.ActionCanvasProject,
 		Payload: map[string]any{
-			"_tool_name": "canvas_project",
-			"path":       "mysite",
+			"path": "mysite",
 			"files": []any{
 				map[string]any{"name": "index.html", "content": "<h1>Home</h1>", "type": "html"},
 				map[string]any{"name": "style.css", "content": "body{margin:0}", "type": "css"},
@@ -90,8 +89,8 @@ func TestCanvasProjectEmptyFiles(t *testing.T) {
 	c := NewCanvasExecutor(dir)
 
 	result := c.Execute(context.Background(), &types.ActionRequest{
-		RequestID: "r1", Type: types.ActionCanvasCreate,
-		Payload: map[string]any{"_tool_name": "canvas_project", "path": "empty", "files": []any{}},
+		RequestID: "r1", Type: types.ActionCanvasProject,
+		Payload: map[string]any{"path": "empty", "files": []any{}},
 	})
 
 	assert.False(t, result.Success)
@@ -104,8 +103,8 @@ func TestCanvasPreview(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>Preview</h1>"), 0o644))
 
 	result := c.Execute(context.Background(), &types.ActionRequest{
-		RequestID: "r1", Type: types.ActionCanvasCreate,
-		Payload: map[string]any{"_tool_name": "canvas_preview", "path": "index.html"},
+		RequestID: "r1", Type: types.ActionCanvasPreview,
+		Payload: map[string]any{"path": "index.html"},
 	})
 
 	assert.True(t, result.Success)
@@ -117,8 +116,8 @@ func TestCanvasPreviewNonexistent(t *testing.T) {
 	c := NewCanvasExecutor(dir)
 
 	result := c.Execute(context.Background(), &types.ActionRequest{
-		RequestID: "r1", Type: types.ActionCanvasCreate,
-		Payload: map[string]any{"_tool_name": "canvas_preview", "path": "nonexistent"},
+		RequestID: "r1", Type: types.ActionCanvasPreview,
+		Payload: map[string]any{"path": "nonexistent"},
 	})
 
 	assert.False(t, result.Success)

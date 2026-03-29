@@ -280,15 +280,14 @@ func TestNewCalendarExecutorNilWhenUnconfigured(t *testing.T) {
 	assert.Nil(t, NewCalendarExecutor(types.CalendarConfig{}))
 }
 
-func TestNewCalendarExecutorWithProvider(t *testing.T) {
-	// Pre-wired providers return a stub executor, not nil.
+func TestNewCalendarExecutorWithProviderButNoCreds(t *testing.T) {
 	exec := NewCalendarExecutor(types.CalendarConfig{Provider: "google"})
-	assert.NotNil(t, exec)
+	assert.Nil(t, exec, "google provider without credentials returns nil")
 }
 
-func TestNewCalendarExecutorWithCalDAV(t *testing.T) {
+func TestNewCalendarExecutorWithCalDAVButNoURL(t *testing.T) {
 	exec := NewCalendarExecutor(types.CalendarConfig{Provider: "caldav"})
-	assert.NotNil(t, exec)
+	assert.Nil(t, exec, "caldav provider without URL returns nil")
 }
 
 func TestCalendarSupportedActions(t *testing.T) {
