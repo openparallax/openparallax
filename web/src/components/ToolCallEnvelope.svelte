@@ -143,8 +143,8 @@
   .tool-envelope {
     max-width: 92%;
     border-radius: 6px;
-    background: var(--accent-ghost);
-    border: 1px solid var(--accent-border);
+    background: rgba(0, 220, 255, 0.03);
+    border: 1px solid rgba(0, 220, 255, 0.08);
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
     color: var(--text-secondary);
@@ -155,6 +155,7 @@
 
   .tool-envelope:hover {
     border-color: var(--accent-subtle);
+    background: rgba(0, 220, 255, 0.05);
   }
 
   .tool-envelope.blocked {

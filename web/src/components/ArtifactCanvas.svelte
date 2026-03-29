@@ -1,11 +1,76 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { X } from 'lucide-svelte';
   import { activeNavItem } from '../stores/settings';
   import { artifactTabs, activeTabId, activeTab, closeArtifactTab } from '../stores/artifacts';
+  import { sessions, currentSessionId, currentMode } from '../stores/session';
+  import { addUserMessage } from '../stores/messages';
+  import { sendMessage } from '../lib/websocket';
+  import { connected } from '../stores/connection';
+  import { createSession, listSessions } from '../lib/api';
   import { renderMarkdown } from '../lib/format';
   import ArtifactBrowser from './ArtifactBrowser.svelte';
   import MemoryDashboard from './MemoryDashboard.svelte';
   import ConsoleViewer from './ConsoleViewer.svelte';
+  import type { Session } from '../lib/types';
+
+  interface QuickAction {
+    icon: string;
+    title: string;
+    desc: string;
+    prompt: string;
+  }
+
+  const defaultActions: QuickAction[] = [
+    { icon: '\uD83C\uDF10', title: 'Create a website', desc: 'Build a stunning static site', prompt: 'Create a website for me' },
+    { icon: '\uD83D\uDD0D', title: 'Analyze code', desc: 'Review and improve your project', prompt: 'Analyze the code in my workspace' },
+    { icon: '\uD83D\uDCDA', title: 'Research a topic', desc: 'Deep dive into any subject', prompt: 'Research a topic for me' },
+    { icon: '\uD83D\uDCDD', title: 'Write a document', desc: 'Reports, articles, documentation', prompt: 'Write a document for me' },
+  ];
+
+  let quickActions: QuickAction[] = defaultActions;
+
+  onMount(async () => {
+    try {
+      const sessionList = await listSessions();
+      if (sessionList && sessionList.length > 0) {
+        const recent = sessionList.slice(0, 4);
+        const personalized: QuickAction[] = recent.map((s: Session) => {
+          const title = s.title || 'Untitled session';
+          return {
+            icon: '\uD83D\uDD04',
+            title: `Continue: ${title.slice(0, 30)}`,
+            desc: 'Pick up where you left off',
+            prompt: `Continue working on "${title}"`,
+          };
+        });
+        if (personalized.length >= 2) {
+          quickActions = personalized;
+        }
+      }
+    } catch {
+      quickActions = defaultActions;
+    }
+  });
+
+  async function handleQuickAction(action: QuickAction) {
+    if (!$connected) return;
+
+    let sid = $currentSessionId;
+    if (!sid) {
+      try {
+        const sess = await createSession($currentMode);
+        sessions.update(s => [sess, ...s]);
+        currentSessionId.set(sess.id);
+        sid = sess.id;
+      } catch {
+        return;
+      }
+    }
+
+    addUserMessage(action.prompt);
+    sendMessage(sid, action.prompt, $currentMode);
+  }
 
   function iconForType(type: string): string {
     switch (type) {
@@ -75,26 +140,13 @@
           <div class="empty-agent-name">Atlas</div>
           <div class="empty-tagline">What would you like to create?</div>
           <div class="quick-actions">
-            <div class="quick-action">
-              <span class="quick-action-icon">&#x1F310;</span>
-              <div class="quick-action-title">Create a website</div>
-              <div class="quick-action-desc">Build a stunning static site</div>
-            </div>
-            <div class="quick-action">
-              <span class="quick-action-icon">&#x1F50D;</span>
-              <div class="quick-action-title">Analyze code</div>
-              <div class="quick-action-desc">Review and improve your project</div>
-            </div>
-            <div class="quick-action">
-              <span class="quick-action-icon">&#x1F4DA;</span>
-              <div class="quick-action-title">Research a topic</div>
-              <div class="quick-action-desc">Deep dive into any subject</div>
-            </div>
-            <div class="quick-action">
-              <span class="quick-action-icon">&#x1F4DD;</span>
-              <div class="quick-action-title">Write a document</div>
-              <div class="quick-action-desc">Reports, articles, documentation</div>
-            </div>
+            {#each quickActions as action (action.title)}
+              <button class="quick-action" on:click={() => handleQuickAction(action)}>
+                <span class="quick-action-icon">{action.icon}</span>
+                <div class="quick-action-title">{action.title}</div>
+                <div class="quick-action-desc">{action.desc}</div>
+              </button>
+            {/each}
           </div>
         </div>
       </div>
@@ -134,7 +186,6 @@
     font-size: 13px; font-weight: 500;
     color: var(--text-tertiary);
     cursor: pointer;
-    border: none; background: none;
     border-bottom: 2px solid transparent;
     transition: all 150ms ease;
     white-space: nowrap;
@@ -225,6 +276,8 @@
     cursor: pointer;
     transition: all 200ms ease;
     text-align: left;
+    font-family: inherit;
+    color: inherit;
   }
 
   .quick-action:hover {
