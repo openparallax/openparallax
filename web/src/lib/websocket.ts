@@ -1,5 +1,5 @@
 import { connected, reconnecting } from '../stores/connection';
-import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, pendingToolCalls } from '../stores/messages';
+import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream } from '../stores/messages';
 import type { WSEvent } from './types';
 
 let socket: WebSocket | null = null;
@@ -52,13 +52,13 @@ function handleEvent(event: WSEvent) {
   switch (event.type) {
     case 'llm_token':
       if (event.text) {
-        setStreaming(true);
         appendToken(event.text.text);
       }
       break;
 
     case 'action_started':
       if (event.action_started) {
+        setStreaming(true);
         addToolCall({
           id: event.message_id + '-' + Date.now(),
           toolName: event.action_started.tool_name,
@@ -114,7 +114,7 @@ export function sendMessage(sessionId: string, content: string, mode: string = '
     content,
     mode,
   }));
-  setStreaming(true);
+  startNewStream();
 }
 
 export function sendPing() {

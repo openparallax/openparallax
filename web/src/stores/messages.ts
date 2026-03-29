@@ -10,7 +10,11 @@ export const streamingText = writable('');
 
 export function setStreaming(value: boolean) {
   streaming.set(value);
-  if (value) streamingText.set('');
+}
+
+export function startNewStream() {
+  streaming.set(true);
+  streamingText.set('');
 }
 
 export function appendToken(text: string) {
