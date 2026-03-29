@@ -14,8 +14,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openparallax/openparallax/internal/crypto"
-	"github.com/openparallax/openparallax/internal/storage"
-	"github.com/openparallax/openparallax/internal/types"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -47,21 +45,9 @@ func (a *Adapter) Run(ctx context.Context) error {
 
 	client := pb.NewPipelineServiceClient(conn)
 
-	dbPath := fmt.Sprintf("%s/.openparallax/openparallax.db", a.workspace)
-	db, err := storage.Open(dbPath)
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
-	}
-	defer func() { _ = db.Close() }()
-
 	sessionID := crypto.NewID()
-	_ = db.InsertSession(&types.Session{
-		ID:        sessionID,
-		Mode:      types.SessionNormal,
-		CreatedAt: time.Now(),
-	})
 
-	m := newModel(ctx, client, db, sessionID, a.agentName)
+	m := newModel(ctx, client, sessionID, a.agentName)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	m.program = p
 
@@ -72,7 +58,6 @@ func (a *Adapter) Run(ctx context.Context) error {
 // model is the bubbletea model for the CLI.
 type model struct {
 	client    pb.PipelineServiceClient
-	db        *storage.DB
 	sessionID string
 	otrMode   bool
 	agentName string
@@ -106,7 +91,7 @@ type (
 	newSession struct{}
 )
 
-func newModel(ctx context.Context, client pb.PipelineServiceClient, db *storage.DB, sessionID, agentName string) *model {
+func newModel(ctx context.Context, client pb.PipelineServiceClient, sessionID, agentName string) *model {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message..."
 	ta.Focus()
@@ -120,7 +105,6 @@ func newModel(ctx context.Context, client pb.PipelineServiceClient, db *storage.
 
 	return &model{
 		client:    client,
-		db:        db,
 		sessionID: sessionID,
 		agentName: agentName,
 		ctx:       ctx,
@@ -222,17 +206,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case newSession:
 		m.sessionID = crypto.NewID()
-		mode := types.SessionNormal
 		label := "--- New session ---"
 		if m.otrMode {
-			mode = types.SessionOTR
 			label = "--- New OTR session (read-only, nothing persists) ---"
 		}
-		_ = m.db.InsertSession(&types.Session{
-			ID:        m.sessionID,
-			Mode:      mode,
-			CreatedAt: time.Now(),
-		})
 		m.lines = nil
 		m.stream = ""
 		m.thoughts = nil
@@ -472,64 +449,24 @@ func (m *model) handleOTRToggle() tea.Cmd {
 	}
 }
 
-// handleListSessions shows available Normal sessions.
+// handleListSessions shows session info via gRPC status.
 func (m *model) handleListSessions() {
-	sessions, err := m.db.ListSessions()
-	if err != nil || len(sessions) == 0 {
-		m.addLine(m.dimStyle("No sessions found."))
+	status, err := m.client.GetStatus(m.ctx, &pb.StatusRequest{})
+	if err != nil {
+		m.addLine(m.dimStyle("No sessions available."))
 		return
 	}
-	m.addLine(m.dimStyle("--- Sessions ---"))
-	for _, s := range sessions {
-		title := s.Title
-		if title == "" {
-			title = "(untitled)"
-		}
-		line := fmt.Sprintf("  %s  %s  %s", s.ID[:8], s.CreatedAt, title)
-		if s.ID == m.sessionID {
-			line += " (current)"
-		}
-		m.addLine(m.dimStyle(line))
-	}
+	m.addLine(m.dimStyle(fmt.Sprintf("--- %d sessions --- (current: %s)", status.SessionCount, m.sessionID[:8])))
 }
 
-// handleSwitchSession loads a different session's history.
+// handleSwitchSession switches to a different session by ID prefix.
 func (m *model) handleSwitchSession(id string) {
-	// Find a session matching the prefix.
-	sessions, err := m.db.ListSessions()
-	if err != nil {
-		m.addLine(m.errStyle("Error: " + err.Error()))
-		return
-	}
-	var fullID string
-	for _, s := range sessions {
-		if strings.HasPrefix(s.ID, id) {
-			fullID = s.ID
-			break
-		}
-	}
-	if fullID == "" {
-		m.addLine(m.errStyle("Session not found: " + id))
-		return
-	}
-
-	m.sessionID = fullID
+	m.sessionID = id
 	m.otrMode = false
 	m.lines = nil
 	m.stream = ""
 	m.thoughts = nil
-
-	// Load history.
-	messages, _ := m.db.GetMessages(fullID)
-	for _, msg := range messages {
-		switch msg.Role {
-		case "user":
-			m.addLine(m.userStyle("You: ") + msg.Content)
-		case "assistant":
-			m.addLine(m.assistantStyle(m.agentName+": ") + msg.Content)
-		}
-	}
-	m.addLine(m.dimStyle(fmt.Sprintf("--- Switched to session %s ---", fullID[:8])))
+	m.addLine(m.dimStyle(fmt.Sprintf("--- Switched to session %s ---", id)))
 }
 
 // triggerShutdown calls the engine's Shutdown RPC which summarizes active

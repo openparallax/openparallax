@@ -1,9 +1,10 @@
 <script lang="ts">
   import { Send, Square } from 'lucide-svelte';
-  import { currentSessionId, currentMode } from '../stores/session';
+  import { currentSessionId, currentMode, sessions } from '../stores/session';
   import { streaming, addUserMessage } from '../stores/messages';
   import { connected } from '../stores/connection';
   import { sendMessage } from '../lib/websocket';
+  import { createSession } from '../lib/api';
 
   let text = '';
   let textarea: HTMLTextAreaElement;
@@ -15,12 +16,25 @@
     }
   }
 
-  function handleSend() {
+  async function handleSend() {
     const content = text.trim();
-    if (!content || !$currentSessionId || !$connected) return;
+    if (!content || !$connected) return;
+
+    // Auto-create session if none exists.
+    let sid = $currentSessionId;
+    if (!sid) {
+      try {
+        const sess = await createSession($currentMode);
+        sessions.update(s => [sess, ...s]);
+        currentSessionId.set(sess.id);
+        sid = sess.id;
+      } catch {
+        return;
+      }
+    }
 
     addUserMessage(content);
-    sendMessage($currentSessionId, content, $currentMode);
+    sendMessage(sid, content, $currentMode);
     text = '';
 
     if (textarea) {

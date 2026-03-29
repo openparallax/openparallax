@@ -635,6 +635,15 @@ func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
 	if messageID == "" {
 		messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	}
+	// Auto-create session if it doesn't exist. This allows clients (CLI, web)
+	// to generate session IDs locally without needing a separate create RPC.
+	if _, err := e.db.GetSession(sessionID); err != nil {
+		_ = e.db.InsertSession(&types.Session{
+			ID:        sessionID,
+			Mode:      types.SessionNormal,
+			CreatedAt: time.Now(),
+		})
+	}
 	_ = e.db.InsertMessage(&types.Message{
 		ID: messageID, SessionID: sessionID,
 		Role: role, Content: content, Timestamp: time.Now(),
