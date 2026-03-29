@@ -16,6 +16,7 @@ export interface Message {
   timestamp: string;
   toolCalls?: ToolCall[];
   thoughts?: Thought[];
+  artifacts?: Artifact[];
 }
 
 export interface Thought {

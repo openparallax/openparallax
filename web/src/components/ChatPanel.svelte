@@ -1,9 +1,8 @@
 <script lang="ts">
   import { afterUpdate } from 'svelte';
   import { messages, pendingToolCalls, streaming, streamingText } from '../stores/messages';
-  import { connected } from '../stores/connection';
   import Message from './Message.svelte';
-  import ToolCallGroup from './ToolCallGroup.svelte';
+  import ToolCallEnvelope from './ToolCallEnvelope.svelte';
   import InputArea from './InputArea.svelte';
 
   let messagesEl: HTMLDivElement;
@@ -26,13 +25,13 @@
   <div class="messages" bind:this={messagesEl}>
     {#each $messages as msg (msg.id)}
       {#if msg.role === 'assistant' && msg.thoughts && msg.thoughts.length > 0}
-        <ToolCallGroup thoughts={msg.thoughts} />
+        <ToolCallEnvelope thoughts={msg.thoughts} />
       {/if}
       <Message message={msg} />
     {/each}
 
     {#if $pendingToolCalls.length > 0}
-      <ToolCallGroup toolCalls={$pendingToolCalls} live={true} />
+      <ToolCallEnvelope toolCalls={$pendingToolCalls} live={true} />
     {/if}
 
     {#if $streaming && $streamingText}
