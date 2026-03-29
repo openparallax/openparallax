@@ -1,6 +1,5 @@
 <script lang="ts">
   import { afterUpdate } from 'svelte';
-  import { Search, Plus } from 'lucide-svelte';
   import { messages, pendingToolCalls, streaming, streamingText } from '../stores/messages';
   import { connected } from '../stores/connection';
   import Message from './Message.svelte';
@@ -14,26 +13,14 @@
       messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
     }
   });
+
+  $: messageCount = $messages.length;
 </script>
 
-<div class="chat-panel glass" class:streaming={$streaming}>
+<div class="chat glass" class:streaming={$streaming}>
   <div class="chat-header">
-    <div class="chat-header-left">
-      <div class="chat-breadcrumb">
-        ATLAS <span>&rsaquo;</span> WORKSPACE
-      </div>
-    </div>
-    <div class="chat-header-right">
-      {#if $connected}
-        <div class="sync-badge">SYNC_LIVE</div>
-      {:else}
-        <div class="sync-badge disconnected">OFFLINE</div>
-      {/if}
-      <div class="chat-actions">
-        <button class="chat-action-btn"><Search size={14} /></button>
-        <button class="chat-action-btn"><Plus size={14} /></button>
-      </div>
-    </div>
+    <span>CHAT</span>
+    <span class="msg-count">{messageCount} messages</span>
   </div>
 
   <div class="messages" bind:this={messagesEl}>
@@ -53,10 +40,10 @@
     {/if}
 
     {#if $streaming && !$streamingText && $pendingToolCalls.length === 0}
-      <div class="streaming-indicator">
-        <div class="streaming-dot"></div>
-        <div class="streaming-dot"></div>
-        <div class="streaming-dot"></div>
+      <div class="thinking">
+        <div class="thinking-dot"></div>
+        <div class="thinking-dot"></div>
+        <div class="thinking-dot"></div>
       </div>
     {/if}
   </div>
@@ -65,93 +52,63 @@
 </div>
 
 <style>
-  .chat-panel {
-    flex: 1;
+  .chat {
+    width: 380px;
+    min-width: 380px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    margin: 0 1px;
-    min-width: 400px;
     transition: border-color 300ms ease, box-shadow 300ms ease;
   }
 
-  .chat-panel.streaming {
+  .chat.streaming {
     animation: breathe 2.5s ease-in-out infinite;
   }
 
   .chat-header {
-    padding: 14px 20px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--accent-border);
-    display: flex; align-items: center;
-    justify-content: space-between;
-  }
-
-  .chat-header-left { display: flex; align-items: center; gap: 12px; }
-  .chat-header-right { display: flex; align-items: center; gap: 12px; }
-
-  .chat-breadcrumb {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-tertiary);
-    letter-spacing: 0.03em;
-  }
-  .chat-breadcrumb span { color: var(--text-secondary); }
-
-  .sync-badge {
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; font-weight: 600;
-    letter-spacing: 0.05em;
-    background: rgba(0, 230, 118, 0.1);
-    color: var(--success);
-    border: 1px solid rgba(0, 230, 118, 0.2);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 
-  .sync-badge.disconnected {
-    background: rgba(255, 61, 90, 0.1);
-    color: var(--error);
-    border-color: rgba(255, 61, 90, 0.2);
-  }
-
-  .chat-actions { display: flex; gap: 8px; }
-
-  .chat-action-btn {
-    width: 32px; height: 32px;
-    border-radius: var(--radius);
-    border: 1px solid var(--accent-border);
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 150ms ease;
-  }
-
-  .chat-action-btn:hover {
-    border-color: var(--accent-border-active);
-    color: var(--text-primary);
-    background: var(--bg-surface-hover);
+  .msg-count {
+    color: var(--accent-dim);
   }
 
   .messages {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: 16px;
     display: flex; flex-direction: column;
-    gap: 16px;
+    gap: 14px;
   }
 
-  .streaming-indicator {
+  .thinking {
     display: flex; gap: 4px;
-    padding: 8px 0;
+    padding: 6px 0;
   }
 
-  .streaming-dot {
+  .thinking-dot {
     width: 5px; height: 5px;
     border-radius: 50%;
     background: var(--accent-dim);
     animation: stream-pulse 1.4s ease-in-out infinite;
   }
-  .streaming-dot:nth-child(2) { animation-delay: 0.2s; }
-  .streaming-dot:nth-child(3) { animation-delay: 0.4s; }
+  .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @media (max-width: 1200px) {
+    .chat { width: 340px; min-width: 340px; }
+  }
+
+  @media (max-width: 800px) {
+    .chat { width: 100%; min-width: 0; }
+  }
 </style>

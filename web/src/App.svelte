@@ -1,33 +1,65 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Sidebar from './components/Sidebar.svelte';
+  import ArtifactCanvas from './components/ArtifactCanvas.svelte';
   import ChatPanel from './components/ChatPanel.svelte';
-  import DetailPanel from './components/DetailPanel.svelte';
   import Particles from './components/Particles.svelte';
   import { connect } from './lib/websocket';
+  import { connected } from './stores/connection';
+  import { currentMode } from './stores/session';
+  import { getStatus } from './lib/api';
 
-  onMount(() => {
+  let agentName = 'ATLAS';
+  let workspace = '~/workspace';
+
+  onMount(async () => {
     connect();
+    try {
+      const status = await getStatus();
+      if (status.agent_name) agentName = status.agent_name.toUpperCase();
+    } catch {
+      /* engine not ready */
+    }
   });
 </script>
 
-<div class="bg-gradient"></div>
+<div class="bg"></div>
 <Particles />
 
-<div class="app">
-  <Sidebar />
-  <ChatPanel />
-  <DetailPanel />
+<div class="app" class:otr={$currentMode === 'otr'}>
+  <header class="app-header">
+    <div class="header-left">
+      <span class="agent-name">{agentName}</span>
+      <span class="agent-subtitle">{workspace}</span>
+    </div>
+    <div class="header-status">
+      {#if $currentMode === 'otr'}
+        <span class="status-badge otr-badge">&#x1F512; Private</span>
+      {:else if $connected}
+        <span class="status-badge live">SYNC_LIVE</span>
+      {:else}
+        <span class="status-badge offline">OFFLINE</span>
+      {/if}
+    </div>
+  </header>
+
+  <div class="panels">
+    <Sidebar />
+    <ArtifactCanvas />
+    <ChatPanel />
+  </div>
 </div>
 
 <style>
-  .bg-gradient {
+  .bg {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    inset: 0;
     z-index: 0;
     background:
-      radial-gradient(ellipse at 50% 40%, rgba(0, 220, 255, 0.03) 0%, transparent 60%),
-      radial-gradient(ellipse at 20% 80%, rgba(0, 220, 255, 0.02) 0%, transparent 40%),
+      radial-gradient(ellipse at 50% 30%, rgba(0, 220, 255, 0.07) 0%, transparent 50%),
+      radial-gradient(ellipse at 10% 85%, rgba(100, 40, 160, 0.06) 0%, transparent 40%),
+      radial-gradient(ellipse at 90% 50%, rgba(0, 200, 160, 0.05) 0%, transparent 35%),
+      radial-gradient(ellipse at 60% 80%, rgba(0, 120, 255, 0.04) 0%, transparent 30%),
       var(--bg-void);
     pointer-events: none;
   }
@@ -36,12 +68,90 @@
     position: relative;
     z-index: 1;
     display: flex;
+    flex-direction: column;
     height: 100vh;
-    gap: 1px;
-    padding: 8px;
+    padding: 100px 140px;
+    gap: var(--gap);
+    transition: all 500ms ease;
+  }
+
+  .app-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 4px;
+    min-height: 36px;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: baseline;
+  }
+
+  .agent-name {
+    font-family: 'Exo 2', sans-serif;
+    font-weight: 800;
+    font-size: 36px;
+    letter-spacing: 0.04em;
+    color: var(--text-primary);
+    text-transform: uppercase;
+  }
+
+  .agent-subtitle {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-left: 14px;
+    font-weight: 400;
+  }
+
+  .header-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .status-badge {
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .status-badge.live {
+    background: rgba(0, 230, 118, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(0, 230, 118, 0.2);
+  }
+
+  .status-badge.offline {
+    background: rgba(255, 61, 90, 0.1);
+    color: var(--error);
+    border: 1px solid rgba(255, 61, 90, 0.2);
+  }
+
+  .status-badge.otr-badge {
+    background: rgba(255, 171, 0, 0.1);
+    color: var(--warning);
+    border: 1px solid rgba(255, 171, 0, 0.2);
+  }
+
+  .panels {
+    flex: 1;
+    display: flex;
+    gap: var(--gap);
+    min-height: 0;
+    overflow: hidden;
   }
 
   @media (max-width: 1200px) {
-    .app { padding: 4px; }
+    .app { padding: 30px 40px; }
+  }
+
+  @media (max-width: 800px) {
+    .app { padding: 0; }
+    .app-header { padding: 12px 16px; }
+    .agent-name { font-size: 24px; }
   }
 </style>

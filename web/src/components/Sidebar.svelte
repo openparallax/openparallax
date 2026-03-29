@@ -3,7 +3,6 @@
   import { MessageSquare, FileText, Brain, Eye, Plus, Settings } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { activeNavItem } from '../stores/settings';
-  import { connected } from '../stores/connection';
   import { clearMessages } from '../stores/messages';
   import { listSessions, createSession, getMessages } from '../lib/api';
   import { messages } from '../stores/messages';
@@ -85,8 +84,8 @@
 
 <style>
   .sidebar {
-    width: 250px;
-    min-width: 250px;
+    width: 240px;
+    min-width: 240px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -207,6 +206,6 @@
 
   @media (max-width: 1200px) {
     .sidebar { width: 60px; min-width: 60px; }
-    .sidebar-title, .sidebar-section-title, .session-controls, .settings-link span { display: none; }
+    .sidebar-title, .sidebar-section-title, .session-controls { display: none; }
   }
 </style>
