@@ -66,24 +66,24 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
   const currentText = get(streamingText);
   const finalContent = content || currentText;
 
-  let finalThoughts = thoughts && thoughts.length > 0 ? thoughts : undefined;
+  const pending = get(pendingToolCalls);
+  let finalThoughts: Thought[] | undefined;
 
-  if (!finalThoughts) {
-    const pending = get(pendingToolCalls);
-    if (pending.length > 0) {
-      finalThoughts = pending.map(tc => ({
-        stage: 'tool_call' as const,
-        summary: `${tc.toolName} — ${tc.summary}`,
-        detail: {
-          tool_name: tc.toolName,
-          success: tc.result?.success,
-          shield: tc.shieldVerdict?.decision,
-          shield_tier: tc.shieldVerdict?.tier,
-          shield_reasoning: tc.shieldVerdict?.reasoning,
-          result_summary: tc.result?.summary,
-        },
-      }));
-    }
+  if (pending.length > 0) {
+    finalThoughts = pending.map(tc => ({
+      stage: 'tool_call' as const,
+      summary: `${tc.toolName} — ${tc.summary}`,
+      detail: {
+        tool_name: tc.toolName,
+        success: tc.result?.success,
+        shield: tc.shieldVerdict?.decision,
+        shield_tier: tc.shieldVerdict?.tier,
+        shield_reasoning: tc.shieldVerdict?.reasoning,
+        result_summary: tc.result?.summary,
+      },
+    }));
+  } else if (thoughts && thoughts.length > 0) {
+    finalThoughts = thoughts;
   }
 
   messages.update(msgs => [...msgs, {
