@@ -59,9 +59,19 @@
     if (!$connected) return;
 
     if (action.sessionId) {
+      const prevOTR = $currentMode === 'otr' ? $currentSessionId : null;
+      const target = $sessions.find(s => s.id === action.sessionId);
+      const targetMode = target?.mode === 'otr' ? 'otr' : 'normal';
+
       currentSessionId.set(action.sessionId);
+      currentMode.set(targetMode);
       clearMessages();
       clearArtifactTabs();
+
+      if (prevOTR && prevOTR !== action.sessionId) {
+        sessions.update(s => s.filter(sess => sess.id !== prevOTR));
+      }
+
       try {
         const msgs = await getMessages(action.sessionId);
         if (msgs && msgs.length > 0) {
