@@ -20,6 +20,7 @@
     try {
       const status = await getStatus();
       if (status.agent_name) agentName = status.agent_name.toUpperCase();
+      if (status.workspace) workspace = status.workspace;
     } catch {
       /* engine not ready */
     }
