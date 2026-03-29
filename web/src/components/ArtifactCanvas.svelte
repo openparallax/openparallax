@@ -3,6 +3,9 @@
   import { activeNavItem } from '../stores/settings';
   import { artifactTabs, activeTabId, activeTab, closeArtifactTab } from '../stores/artifacts';
   import { renderMarkdown } from '../lib/format';
+  import ArtifactBrowser from './ArtifactBrowser.svelte';
+  import MemoryDashboard from './MemoryDashboard.svelte';
+  import ConsoleViewer from './ConsoleViewer.svelte';
 
   function iconForType(type: string): string {
     switch (type) {
@@ -94,18 +97,14 @@
       </div>
     {/if}
   {:else}
-    <div class="canvas-content">
-      <div class="alt-view-placeholder">
-        <div class="empty-tagline">
-          {#if $activeNavItem === 'artifacts'}
-            Artifact browser
-          {:else if $activeNavItem === 'memory'}
-            Memory dashboard
-          {:else if $activeNavItem === 'console'}
-            Console viewer
-          {/if}
-        </div>
-      </div>
+    <div class="canvas-content alt-view">
+      {#if $activeNavItem === 'artifacts'}
+        <ArtifactBrowser />
+      {:else if $activeNavItem === 'memory'}
+        <MemoryDashboard />
+      {:else if $activeNavItem === 'console'}
+        <ConsoleViewer />
+      {/if}
     </div>
   {/if}
 </div>
@@ -253,7 +252,8 @@
     white-space: pre;
   }
 
-  .alt-view-placeholder {
-    text-align: center;
+  .alt-view {
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 </style>
