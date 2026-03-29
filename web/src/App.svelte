@@ -80,7 +80,7 @@
     height: 100vh;
     padding: 100px 140px;
     gap: var(--gap);
-    transition: all 500ms ease;
+    transition: padding 300ms ease;
   }
 
   .app-header {

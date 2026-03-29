@@ -27,17 +27,20 @@
     {#if $artifactTabs.length > 0}
       <div class="canvas-tabs">
         {#each $artifactTabs as tab (tab.id)}
-          <button
+          <div
             class="canvas-tab"
             class:active={$activeTabId === tab.id}
+            role="tab"
+            tabindex="0"
             on:click={() => activeTabId.set(tab.id)}
+            on:keydown={(e) => e.key === 'Enter' && activeTabId.set(tab.id)}
           >
             <span class="tab-icon">{iconForType(tab.artifact.type)}</span>
             <span class="tab-name">{tab.artifact.title}</span>
             <button class="tab-close" on:click|stopPropagation={() => closeArtifactTab(tab.id)}>
               <X size={11} />
             </button>
-          </button>
+          </div>
         {/each}
       </div>
 

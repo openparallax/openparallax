@@ -74,21 +74,21 @@
               <div class="section-content">
                 {#if section.id === 'identity'}
                   <div class="field">
-                    <label class="field-label">Agent Name</label>
+                    <span class="field-label">Agent Name</span>
                     <div class="field-value">{agentName || 'Atlas'}</div>
                   </div>
                 {:else if section.id === 'llm'}
                   <div class="field">
-                    <label class="field-label">Model</label>
+                    <span class="field-label">Model</span>
                     <div class="field-value">{model || 'Not configured'}</div>
                   </div>
                 {:else if section.id === 'about'}
                   <div class="field">
-                    <label class="field-label">Sessions</label>
+                    <span class="field-label">Sessions</span>
                     <div class="field-value">{sessionCount}</div>
                   </div>
                   <div class="field">
-                    <label class="field-label">License</label>
+                    <span class="field-label">License</span>
                     <div class="field-value">Apache 2.0</div>
                   </div>
                 {:else}
