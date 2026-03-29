@@ -223,22 +223,6 @@
     padding: 24px;
   }
 
-  .canvas-content:hover {
-    scrollbar-width: thin;
-    scrollbar-color: var(--accent-subtle) transparent;
-  }
-  .canvas-content:hover::-webkit-scrollbar {
-    display: block;
-    width: 4px;
-  }
-  .canvas-content:hover::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .canvas-content:hover::-webkit-scrollbar-thumb {
-    background: var(--accent-subtle);
-    border-radius: 2px;
-  }
-
   .empty-state {
     text-align: center;
     max-width: 480px;

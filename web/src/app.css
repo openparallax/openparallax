@@ -104,35 +104,30 @@ html, body {
   height: 100%;
 }
 
-/* === Global Scrollbar Kill === */
+/* === Scrollbar: overlay, always thin, never shifts layout === */
 
-* { scrollbar-width: none; }
-*::-webkit-scrollbar { display: none; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+  background: transparent;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: transparent; border-radius: 2px; }
 
-/* Hover-only restore for scrollable panels */
+/* Show thumb on hover — overlay so no layout shift */
 .messages:hover,
 .session-list:hover,
 .canvas-content:hover {
-  scrollbar-width: thin;
   scrollbar-color: var(--accent-subtle) transparent;
-}
-.messages:hover::-webkit-scrollbar,
-.session-list:hover::-webkit-scrollbar,
-.canvas-content:hover::-webkit-scrollbar {
-  display: block;
-  width: 4px;
-  height: 4px;
-}
-.messages:hover::-webkit-scrollbar-track,
-.session-list:hover::-webkit-scrollbar-track,
-.canvas-content:hover::-webkit-scrollbar-track {
-  background: transparent;
 }
 .messages:hover::-webkit-scrollbar-thumb,
 .session-list:hover::-webkit-scrollbar-thumb,
 .canvas-content:hover::-webkit-scrollbar-thumb {
   background: var(--accent-subtle);
-  border-radius: 2px;
 }
 
 /* === Glass System === */
