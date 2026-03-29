@@ -38,14 +38,14 @@
 
   <div class="messages" bind:this={messagesEl}>
     {#each $messages as msg (msg.id)}
-      {#if msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0}
-        <ToolCallGroup toolCalls={msg.toolCalls} />
+      {#if msg.role === 'assistant' && msg.thoughts && msg.thoughts.length > 0}
+        <ToolCallGroup thoughts={msg.thoughts} />
       {/if}
       <Message message={msg} />
     {/each}
 
     {#if $pendingToolCalls.length > 0}
-      <ToolCallGroup toolCalls={$pendingToolCalls} />
+      <ToolCallGroup toolCalls={$pendingToolCalls} live={true} />
     {/if}
 
     {#if $streaming && $streamingText}

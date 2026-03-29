@@ -66,9 +66,10 @@ type ActionArtifactEvent struct {
 	Artifact *types.Artifact `json:"artifact"`
 }
 
-// ResponseCompleteEvent carries the full assistant response text.
+// ResponseCompleteEvent carries the full assistant response text and thoughts.
 type ResponseCompleteEvent struct {
-	Content string `json:"content"`
+	Content  string          `json:"content"`
+	Thoughts []types.Thought `json:"thoughts,omitempty"`
 }
 
 // OTRBlockedEvent signals an action blocked by OTR mode.

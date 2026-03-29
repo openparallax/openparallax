@@ -15,6 +15,13 @@ export interface Message {
   content: string;
   timestamp: string;
   toolCalls?: ToolCall[];
+  thoughts?: Thought[];
+}
+
+export interface Thought {
+  stage: 'reasoning' | 'tool_call';
+  summary: string;
+  detail?: Record<string, any>;
 }
 
 export interface ToolCall {
@@ -54,7 +61,7 @@ export interface WSEvent {
   shield_verdict?: ShieldVerdict;
   action_completed?: { tool_name: string; success: boolean; summary: string };
   action_artifact?: { artifact: Artifact };
-  response_complete?: { content: string };
+  response_complete?: { content: string; thoughts?: Thought[] };
   otr_blocked?: { reason: string };
   error?: { code: string; message: string };
 }

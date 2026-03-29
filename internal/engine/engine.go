@@ -295,12 +295,22 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 	var toolResults []llm.ToolResult
 	var executedActions []*types.ActionRequest
 	var executedResults []*types.ActionResult
+	var thoughts []types.Thought
+	var reasoningBuf strings.Builder
 	rounds := 0
 
 	for rounds < maxToolRounds {
 		event, eventErr := toolStream.Next()
 		if eventErr == io.EOF || event.Type == llm.EventDone {
 			if len(toolResults) > 0 {
+				// Capture any reasoning text that preceded this batch of tool calls.
+				if reasoningBuf.Len() > 0 {
+					thoughts = append(thoughts, types.Thought{
+						Stage:   "reasoning",
+						Summary: strings.TrimSpace(reasoningBuf.String()),
+					})
+					reasoningBuf.Reset()
+				}
 				redactor.Flush()
 				e.log.Info("sending_tool_results", "session", sid, "count", len(toolResults))
 
@@ -322,8 +332,17 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 		switch event.Type {
 		case llm.EventTextDelta:
 			redactor.Write(event.Text)
+			reasoningBuf.WriteString(event.Text)
 
 		case llm.EventToolCallComplete:
+			// Capture reasoning that preceded this tool call.
+			if reasoningBuf.Len() > 0 {
+				thoughts = append(thoughts, types.Thought{
+					Stage:   "reasoning",
+					Summary: strings.TrimSpace(reasoningBuf.String()),
+				})
+				reasoningBuf.Reset()
+			}
 			redactor.Flush()
 			tc := event.ToolCall
 
@@ -332,6 +351,17 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 			result := e.processToolCall(ctx, tc, mode, sid, mid, sender)
 			e.log.Debug("tool_result", "call_id", result.CallID, "is_error", result.IsError, "content_len", len(result.Content))
 			toolResults = append(toolResults, result)
+
+			// Record tool call as a thought for persistence.
+			tcDetail := map[string]any{
+				"tool_name": tc.Name,
+				"success":   !result.IsError,
+			}
+			thoughts = append(thoughts, types.Thought{
+				Stage:   "tool_call",
+				Summary: formatToolCallSummary(tc),
+				Detail:  tcDetail,
+			})
 
 			executedActions = append(executedActions, &types.ActionRequest{Type: types.ActionType(tc.Name), Payload: tc.Arguments})
 			executedResults = append(executedResults, &types.ActionResult{Success: !result.IsError, Summary: executors.Truncate(result.Content, 100)})
@@ -344,12 +374,21 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 
 	redactor.Flush()
 	fullResponse := toolStream.FullText()
-	e.storeMessage(sid, "", "assistant", fullResponse)
+
+	// Store assistant message with thoughts (reasoning + tool calls).
+	assistantMsg := &types.Message{
+		SessionID: sid,
+		Role:      "assistant",
+		Content:   fullResponse,
+		Timestamp: time.Now(),
+		Thoughts:  thoughts,
+	}
+	e.storeAssistantMessage(sid, assistantMsg)
 
 	_ = sender.SendEvent(&PipelineEvent{
 		SessionID: sid, MessageID: mid,
 		Type:             EventResponseComplete,
-		ResponseComplete: &ResponseCompleteEvent{Content: fullResponse},
+		ResponseComplete: &ResponseCompleteEvent{Content: fullResponse, Thoughts: thoughts},
 	})
 
 	if !isOTR && len(executedActions) > 0 {
@@ -648,8 +687,25 @@ func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
 	if messageID == "" {
 		messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	}
-	// Auto-create session if it doesn't exist. This allows clients (CLI, web)
-	// to generate session IDs locally without needing a separate create RPC.
+	e.ensureSession(sessionID)
+	_ = e.db.InsertMessage(&types.Message{
+		ID: messageID, SessionID: sessionID,
+		Role: role, Content: content, Timestamp: time.Now(),
+	})
+}
+
+// storeAssistantMessage saves an assistant message with thoughts (reasoning + tool calls).
+func (e *Engine) storeAssistantMessage(sessionID string, msg *types.Message) {
+	if msg.ID == "" {
+		msg.ID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
+	}
+	msg.SessionID = sessionID
+	e.ensureSession(sessionID)
+	_ = e.db.InsertMessage(msg)
+}
+
+// ensureSession creates the session if it doesn't exist.
+func (e *Engine) ensureSession(sessionID string) {
 	if _, err := e.db.GetSession(sessionID); err != nil {
 		_ = e.db.InsertSession(&types.Session{
 			ID:        sessionID,
@@ -657,10 +713,6 @@ func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
 			CreatedAt: time.Now(),
 		})
 	}
-	_ = e.db.InsertMessage(&types.Message{
-		ID: messageID, SessionID: sessionID,
-		Role: role, Content: content, Timestamp: time.Now(),
-	})
 }
 
 // generateSessionTitle asks the LLM for a short headline summarizing the conversation.

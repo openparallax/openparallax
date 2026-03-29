@@ -89,7 +89,7 @@ function handleEvent(event: WSEvent) {
 
     case 'response_complete':
       if (event.response_complete) {
-        finalizeResponse(event.response_complete.content);
+        finalizeResponse(event.response_complete.content, event.response_complete.thoughts);
         setStreaming(false);
       }
       break;

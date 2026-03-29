@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { Message, ToolCall, ShieldVerdict, Artifact } from '../lib/types';
+import type { Message, ToolCall, ShieldVerdict, Artifact, Thought } from '../lib/types';
 
 export const messages = writable<Message[]>([]);
 export const pendingToolCalls = writable<ToolCall[]>([]);
@@ -60,10 +60,9 @@ export function addArtifact(artifact: Artifact) {
   artifacts.update(a => [...a, artifact]);
 }
 
-export function finalizeResponse(content: string) {
+export function finalizeResponse(content: string, thoughts?: Thought[]) {
   const currentText = get(streamingText);
   const finalContent = content || currentText;
-  const currentToolCalls = get(pendingToolCalls);
 
   messages.update(msgs => [...msgs, {
     id: 'msg-' + Date.now(),
@@ -71,7 +70,7 @@ export function finalizeResponse(content: string) {
     role: 'assistant' as const,
     content: finalContent,
     timestamp: new Date().toISOString(),
-    toolCalls: currentToolCalls.length > 0 ? [...currentToolCalls] : undefined,
+    thoughts: thoughts && thoughts.length > 0 ? thoughts : undefined,
   }]);
 
   streamingText.set('');
