@@ -1,17 +1,37 @@
 <script lang="ts">
   import { afterUpdate } from 'svelte';
+  import { ChevronDown } from 'lucide-svelte';
   import { messages, pendingToolCalls, streaming, streamingText } from '../stores/messages';
   import Message from './Message.svelte';
   import ToolCallEnvelope from './ToolCallEnvelope.svelte';
   import InputArea from './InputArea.svelte';
 
   let messagesEl: HTMLDivElement;
+  let prevMessageCount = 0;
+  let showScrollBtn = false;
 
   afterUpdate(() => {
-    if (messagesEl) {
+    if (!messagesEl) return;
+    const count = $messages.length;
+    const delta = count - prevMessageCount;
+    if (delta > 2) {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    } else if (delta > 0 || $streaming) {
       messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
     }
+    prevMessageCount = count;
   });
+
+  function handleScroll() {
+    if (!messagesEl) return;
+    const distFromBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+    showScrollBtn = distFromBottom > 200;
+  }
+
+  function scrollToBottom() {
+    if (!messagesEl) return;
+    messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+  }
 
   $: messageCount = $messages.length;
 </script>
@@ -22,28 +42,36 @@
     <span class="msg-count">{messageCount} messages</span>
   </div>
 
-  <div class="messages" bind:this={messagesEl}>
-    {#each $messages as msg (msg.id)}
-      {#if msg.role === 'assistant' && msg.thoughts && msg.thoughts.length > 0}
-        <ToolCallEnvelope thoughts={msg.thoughts} />
+  <div class="messages-container">
+    <div class="messages" bind:this={messagesEl} on:scroll={handleScroll}>
+      {#each $messages as msg (msg.id)}
+        {#if msg.role === 'assistant' && msg.thoughts && msg.thoughts.length > 0}
+          <ToolCallEnvelope thoughts={msg.thoughts} />
+        {/if}
+        <Message message={msg} />
+      {/each}
+
+      {#if $pendingToolCalls.length > 0}
+        <ToolCallEnvelope toolCalls={$pendingToolCalls} live={true} />
       {/if}
-      <Message message={msg} />
-    {/each}
 
-    {#if $pendingToolCalls.length > 0}
-      <ToolCallEnvelope toolCalls={$pendingToolCalls} live={true} />
-    {/if}
+      {#if $streaming && $streamingText}
+        <Message message={{ id: 'streaming', session_id: '', role: 'assistant', content: $streamingText, timestamp: new Date().toISOString() }} isStreaming={true} />
+      {/if}
 
-    {#if $streaming && $streamingText}
-      <Message message={{ id: 'streaming', session_id: '', role: 'assistant', content: $streamingText, timestamp: new Date().toISOString() }} isStreaming={true} />
-    {/if}
+      {#if $streaming && !$streamingText && $pendingToolCalls.length === 0}
+        <div class="thinking">
+          <div class="thinking-dot"></div>
+          <div class="thinking-dot"></div>
+          <div class="thinking-dot"></div>
+        </div>
+      {/if}
+    </div>
 
-    {#if $streaming && !$streamingText && $pendingToolCalls.length === 0}
-      <div class="thinking">
-        <div class="thinking-dot"></div>
-        <div class="thinking-dot"></div>
-        <div class="thinking-dot"></div>
-      </div>
+    {#if showScrollBtn}
+      <button class="scroll-to-bottom" on:click={scrollToBottom} aria-label="Scroll to bottom">
+        <ChevronDown size={16} />
+      </button>
     {/if}
   </div>
 
@@ -75,18 +103,52 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
   }
 
   .msg-count {
     color: var(--accent-dim);
   }
 
-  .messages {
+  .messages-container {
     flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .messages {
+    position: absolute;
+    inset: 0;
     overflow-y: auto;
     padding: 16px;
     display: flex; flex-direction: column;
     gap: 14px;
+  }
+
+  .scroll-to-bottom {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--accent-border-active);
+    background: rgba(12, 16, 28, 0.92);
+    backdrop-filter: blur(12px);
+    color: var(--accent);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--accent-glow);
+    transition: all 150ms ease;
+    z-index: 5;
+  }
+
+  .scroll-to-bottom:hover {
+    background: var(--accent-subtle);
+    transform: translateX(-50%) translateY(-1px);
+    box-shadow: var(--accent-glow-strong);
   }
 
   .thinking {
