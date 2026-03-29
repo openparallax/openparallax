@@ -2,12 +2,12 @@
   import { onMount } from 'svelte';
   import { X } from 'lucide-svelte';
   import { activeNavItem } from '../stores/settings';
-  import { artifactTabs, activeTabId, activeTab, closeArtifactTab } from '../stores/artifacts';
+  import { artifactTabs, activeTabId, activeTab, closeArtifactTab, clearArtifactTabs } from '../stores/artifacts';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
-  import { addUserMessage } from '../stores/messages';
+  import { addUserMessage, clearMessages, messages } from '../stores/messages';
   import { sendMessage } from '../lib/websocket';
   import { connected } from '../stores/connection';
-  import { createSession, listSessions } from '../lib/api';
+  import { createSession, listSessions, getMessages } from '../lib/api';
   import { renderMarkdown } from '../lib/format';
   import ArtifactBrowser from './ArtifactBrowser.svelte';
   import MemoryDashboard from './MemoryDashboard.svelte';
@@ -19,6 +19,7 @@
     title: string;
     desc: string;
     prompt: string;
+    sessionId?: string;
   }
 
   const defaultActions: QuickAction[] = [
@@ -41,7 +42,8 @@
             icon: '\uD83D\uDD04',
             title: `Continue: ${title.slice(0, 30)}`,
             desc: 'Pick up where you left off',
-            prompt: `Continue working on "${title}"`,
+            prompt: '',
+            sessionId: s.id,
           };
         });
         if (personalized.length >= 2) {
@@ -55,6 +57,21 @@
 
   async function handleQuickAction(action: QuickAction) {
     if (!$connected) return;
+
+    if (action.sessionId) {
+      currentSessionId.set(action.sessionId);
+      clearMessages();
+      clearArtifactTabs();
+      try {
+        const msgs = await getMessages(action.sessionId);
+        if (msgs && msgs.length > 0) {
+          messages.set(msgs);
+        }
+      } catch {
+        // Session may have no messages.
+      }
+      return;
+    }
 
     let sid = $currentSessionId;
     if (!sid) {
