@@ -21,6 +21,10 @@ export function appendToken(text: string) {
   streamingText.update(t => t + text);
 }
 
+export function clearStreamingText() {
+  streamingText.set('');
+}
+
 export function addToolCall(tc: ToolCall) {
   pendingToolCalls.update(calls => [...calls, tc]);
 }

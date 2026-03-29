@@ -1,5 +1,5 @@
 import { connected, reconnecting } from '../stores/connection';
-import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream } from '../stores/messages';
+import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream, clearStreamingText } from '../stores/messages';
 import type { WSEvent } from './types';
 
 let socket: WebSocket | null = null;
@@ -59,6 +59,7 @@ function handleEvent(event: WSEvent) {
     case 'action_started':
       if (event.action_started) {
         setStreaming(true);
+        clearStreamingText();
         addToolCall({
           id: event.message_id + '-' + Date.now(),
           toolName: event.action_started.tool_name,
