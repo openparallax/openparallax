@@ -356,6 +356,17 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 		e.memory.LogAction(executedActions, executedResults)
 	}
 
+	// Generate a session title once there's enough context (3+ exchanges).
+	// Runs once — after that the title sticks.
+	if !isOTR {
+		if sess, err := e.db.GetSession(sid); err == nil && sess.Title == "" {
+			history := e.getHistory(sid)
+			if len(history) >= 6 {
+				go e.generateSessionTitle(sid, history)
+			}
+		}
+	}
+
 	e.log.Info("message_complete", "session", sid, "response_length", len(fullResponse), "rounds", rounds)
 	return nil
 }
@@ -639,20 +650,12 @@ func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
 	}
 	// Auto-create session if it doesn't exist. This allows clients (CLI, web)
 	// to generate session IDs locally without needing a separate create RPC.
-	sess, err := e.db.GetSession(sessionID)
-	if err != nil {
-		title := ""
-		if role == "user" {
-			title = sessionTitle(content)
-		}
+	if _, err := e.db.GetSession(sessionID); err != nil {
 		_ = e.db.InsertSession(&types.Session{
 			ID:        sessionID,
 			Mode:      types.SessionNormal,
-			Title:     title,
 			CreatedAt: time.Now(),
 		})
-	} else if sess.Title == "" && role == "user" {
-		_ = e.db.UpdateSessionTitle(sessionID, sessionTitle(content))
 	}
 	_ = e.db.InsertMessage(&types.Message{
 		ID: messageID, SessionID: sessionID,
@@ -660,16 +663,41 @@ func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
 	})
 }
 
-// sessionTitle derives a session title from the first user message.
-func sessionTitle(content string) string {
-	title := content
-	if len(title) > 50 {
-		title = title[:50]
+// generateSessionTitle asks the LLM for a short headline summarizing the conversation.
+func (e *Engine) generateSessionTitle(sessionID string, history []llm.ChatMessage) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var summary strings.Builder
+	for _, m := range history {
+		if len(summary.String()) > 400 {
+			break
+		}
+		fmt.Fprintf(&summary, "%s: %s\n", m.Role, truncateForLog(m.Content))
 	}
-	if i := strings.IndexByte(title, '\n'); i > 0 {
-		title = title[:i]
+
+	prompt := fmt.Sprintf(
+		"Generate a short title (max 6 words) summarizing this conversation's topic:\n\n%s\nRespond with ONLY the title, no quotes, no punctuation at the end.",
+		summary.String(),
+	)
+
+	title, err := e.llm.Complete(ctx, prompt)
+	if err != nil {
+		e.log.Debug("session_title_generation_failed", "session", sessionID, "error", err)
+		return
 	}
-	return strings.TrimSpace(title)
+
+	title = strings.TrimSpace(title)
+	title = strings.Trim(title, "\"'")
+	if len(title) > 60 {
+		title = title[:60]
+	}
+	if title == "" {
+		return
+	}
+
+	_ = e.db.UpdateSessionTitle(sessionID, title)
+	e.log.Debug("session_titled", "session", sessionID, "title", title)
 }
 
 func (e *Engine) getHistory(sessionID string) []llm.ChatMessage {
