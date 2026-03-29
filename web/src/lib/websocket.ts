@@ -1,9 +1,12 @@
+import { get } from 'svelte/store';
 import { connected, reconnecting } from '../stores/connection';
+import { currentSessionId } from '../stores/session';
 import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream, clearStreamingText } from '../stores/messages';
 import type { WSEvent } from './types';
 
 let socket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let activeStreamSessionId: string | null = null;
 
 export function connect() {
   if (socket?.readyState === WebSocket.OPEN) return;
@@ -49,6 +52,14 @@ function scheduleReconnect() {
 }
 
 function handleEvent(event: WSEvent) {
+  const currentSid = get(currentSessionId);
+  if (event.session_id && currentSid && event.session_id !== currentSid) {
+    if (event.type === 'response_complete') {
+      activeStreamSessionId = null;
+    }
+    return;
+  }
+
   switch (event.type) {
     case 'llm_token':
       if (event.text) {
@@ -91,17 +102,17 @@ function handleEvent(event: WSEvent) {
       if (event.response_complete) {
         finalizeResponse(event.response_complete.content, event.response_complete.thoughts);
         setStreaming(false);
+        activeStreamSessionId = null;
       }
       break;
 
     case 'otr_blocked':
     case 'error':
       setStreaming(false);
+      activeStreamSessionId = null;
       break;
 
     case 'session_created':
-      break;
-
     case 'pong':
       break;
   }
@@ -109,6 +120,7 @@ function handleEvent(event: WSEvent) {
 
 export function sendMessage(sessionId: string, content: string, mode: string = 'normal') {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  activeStreamSessionId = sessionId;
   socket.send(JSON.stringify({
     type: 'message',
     session_id: sessionId,

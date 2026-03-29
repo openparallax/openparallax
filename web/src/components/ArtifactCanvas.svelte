@@ -140,10 +140,14 @@
             <div class="artifact-markdown markdown-content">
               {@html renderArtifactContent($activeTab.artifact.content)}
             </div>
+          {:else if $activeTab.artifact.preview_type === 'image' && $activeTab.artifact.language === 'svg'}
+            <div class="artifact-svg">
+              {@html $activeTab.artifact.content}
+            </div>
           {:else if $activeTab.artifact.preview_type === 'image'}
             <img
               class="artifact-image"
-              src={$activeTab.artifact.path}
+              src={`/api/artifacts/${encodeURIComponent($activeTab.artifact.path)}`}
               alt={$activeTab.artifact.title}
             />
           {:else}
@@ -305,6 +309,18 @@
     max-width: 720px;
     width: 100%;
     padding: 24px;
+  }
+
+  .artifact-svg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+  .artifact-svg :global(svg) {
+    max-width: 100%;
+    max-height: 100%;
   }
 
   .artifact-image {
