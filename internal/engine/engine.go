@@ -90,6 +90,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		return nil, fmt.Errorf("database: %w", err)
 	}
 
+	db.RepairSessions()
 	registry := executors.NewRegistry(cfg.Workspace, cfg, log)
 	canaryToken := readCanaryToken(cfg.Workspace)
 

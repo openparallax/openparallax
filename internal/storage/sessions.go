@@ -9,9 +9,13 @@ import (
 
 // InsertSession creates a new session record.
 func (db *DB) InsertSession(s *types.Session) error {
+	createdAt := s.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
 	_, err := db.conn.Exec(
 		`INSERT INTO sessions (id, mode, title, created_at) VALUES (?, ?, ?, ?)`,
-		s.ID, s.Mode, s.Title, s.CreatedAt.Format(time.RFC3339),
+		s.ID, s.Mode, s.Title, createdAt.Format(time.RFC3339),
 	)
 	return err
 }
@@ -139,4 +143,23 @@ func (db *DB) SessionCount() (int, error) {
 	var count int
 	err := db.conn.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&count)
 	return count, err
+}
+
+// RepairSessions fixes sessions with zero-value timestamps and missing titles.
+func (db *DB) RepairSessions() {
+	// Fix zero timestamps by using the earliest message timestamp or now.
+	_, _ = db.conn.Exec(`
+		UPDATE sessions SET created_at = COALESCE(
+			(SELECT MIN(timestamp) FROM messages WHERE session_id = sessions.id),
+			datetime('now')
+		) WHERE created_at < '2000-01-01'`)
+
+	// Backfill titles from the first user message.
+	_, _ = db.conn.Exec(`
+		UPDATE sessions SET title = SUBSTR(
+			(SELECT content FROM messages WHERE session_id = sessions.id AND role = 'user' ORDER BY timestamp ASC LIMIT 1),
+			1, 50
+		) WHERE (title IS NULL OR title = '') AND EXISTS (
+			SELECT 1 FROM messages WHERE session_id = sessions.id AND role = 'user'
+		)`)
 }

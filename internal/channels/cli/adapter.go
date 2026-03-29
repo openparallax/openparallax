@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/internal/storage"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -45,9 +46,14 @@ func (a *Adapter) Run(ctx context.Context) error {
 
 	client := pb.NewPipelineServiceClient(conn)
 
+	// Read-only DB connection for session listing and history loading.
+	// The engine handles all writes. This avoids SQLite write lock conflicts.
+	dbPath := fmt.Sprintf("%s/.openparallax/openparallax.db", a.workspace)
+	db, _ := storage.Open(dbPath)
+
 	sessionID := crypto.NewID()
 
-	m := newModel(ctx, client, sessionID, a.agentName)
+	m := newModel(ctx, client, db, sessionID, a.agentName)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	m.program = p
 
@@ -58,6 +64,7 @@ func (a *Adapter) Run(ctx context.Context) error {
 // model is the bubbletea model for the CLI.
 type model struct {
 	client    pb.PipelineServiceClient
+	db        *storage.DB
 	sessionID string
 	otrMode   bool
 	agentName string
@@ -91,7 +98,7 @@ type (
 	newSession struct{}
 )
 
-func newModel(ctx context.Context, client pb.PipelineServiceClient, sessionID, agentName string) *model {
+func newModel(ctx context.Context, client pb.PipelineServiceClient, db *storage.DB, sessionID, agentName string) *model {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message..."
 	ta.Focus()
@@ -105,6 +112,7 @@ func newModel(ctx context.Context, client pb.PipelineServiceClient, sessionID, a
 
 	return &model{
 		client:    client,
+		db:        db,
 		sessionID: sessionID,
 		agentName: agentName,
 		ctx:       ctx,
@@ -449,24 +457,73 @@ func (m *model) handleOTRToggle() tea.Cmd {
 	}
 }
 
-// handleListSessions shows session info via gRPC status.
+// handleListSessions shows available Normal sessions.
 func (m *model) handleListSessions() {
-	status, err := m.client.GetStatus(m.ctx, &pb.StatusRequest{})
-	if err != nil {
-		m.addLine(m.dimStyle("No sessions available."))
+	if m.db == nil {
+		m.addLine(m.dimStyle("Session listing unavailable."))
 		return
 	}
-	m.addLine(m.dimStyle(fmt.Sprintf("--- %d sessions --- (current: %s)", status.SessionCount, m.sessionID[:8])))
+	sessions, err := m.db.ListSessions()
+	if err != nil || len(sessions) == 0 {
+		m.addLine(m.dimStyle("No sessions found."))
+		return
+	}
+	m.addLine(m.dimStyle("--- Sessions ---"))
+	for _, s := range sessions {
+		title := s.Title
+		if title == "" {
+			title = "(untitled)"
+		}
+		if len(title) > 40 {
+			title = title[:40] + "..."
+		}
+		line := fmt.Sprintf("  %s  %s", s.ID[:8], title)
+		if s.ID == m.sessionID {
+			line += " (current)"
+		}
+		m.addLine(m.dimStyle(line))
+	}
 }
 
 // handleSwitchSession switches to a different session by ID prefix.
 func (m *model) handleSwitchSession(id string) {
-	m.sessionID = id
+	if m.db == nil {
+		m.addLine(m.errStyle("Session switching unavailable."))
+		return
+	}
+	sessions, err := m.db.ListSessions()
+	if err != nil {
+		m.addLine(m.errStyle("Error: " + err.Error()))
+		return
+	}
+	var fullID string
+	for _, s := range sessions {
+		if strings.HasPrefix(s.ID, id) {
+			fullID = s.ID
+			break
+		}
+	}
+	if fullID == "" {
+		m.addLine(m.errStyle("Session not found: " + id))
+		return
+	}
+
+	m.sessionID = fullID
 	m.otrMode = false
 	m.lines = nil
 	m.stream = ""
 	m.thoughts = nil
-	m.addLine(m.dimStyle(fmt.Sprintf("--- Switched to session %s ---", id)))
+
+	messages, _ := m.db.GetMessages(fullID)
+	for _, msg := range messages {
+		switch msg.Role {
+		case "user":
+			m.addLine(m.userStyle("You: ") + msg.Content)
+		case "assistant":
+			m.addLine(m.assistantStyle(m.agentName+": ") + msg.Content)
+		}
+	}
+	m.addLine(m.dimStyle(fmt.Sprintf("--- Switched to session %s ---", fullID[:8])))
 }
 
 // triggerShutdown calls the engine's Shutdown RPC which summarizes active
