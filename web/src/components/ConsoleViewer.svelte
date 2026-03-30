@@ -362,8 +362,8 @@
                       <span class="entry-hash" title={entry.previous_hash}><span class="hash-label">prev:</span> {entry.previous_hash.slice(0, 12)}</span>
                     {/if}
                   </div>
-                  {#if expandedEntries.has(20000 + i * 10 + j) && entry.details_json}
-                    <pre class="entry-detail">{(() => { try { return JSON.stringify(JSON.parse(entry.details_json), null, 2); } catch { return entry.details_json; } })()}</pre>
+                  {#if expandedEntries.has(20000 + i * 10 + j)}
+                    <pre class="entry-detail">{(() => { try { const e = {...entry}; if (e.details_json) { try { e.details = JSON.parse(e.details_json); delete e.details_json; } catch {} } return JSON.stringify(e, null, 2); } catch { return JSON.stringify(entry, null, 2); } })()}</pre>
                   {/if}
                 </button>
               {/each}
