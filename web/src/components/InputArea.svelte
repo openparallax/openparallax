@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { get } from 'svelte/store';
   import { Send, Square } from 'lucide-svelte';
   import { currentSessionId, currentMode, sessions } from '../stores/session';
   import { streaming, addUserMessage, addSystemMessage, clearMessages, messages } from '../stores/messages';
@@ -18,6 +19,7 @@
 - \`/restart\` — Restart the engine
 - \`/clear\` — Clear the chat view (history preserved)
 - \`/status\` — Show system health and session stats
+- \`/export\` — Export session as markdown file
 - \`/delete\` — Delete the current session
 - \`/sessions\` — Focus session list
 - \`/help\` — Show this help message`;
@@ -112,6 +114,10 @@
         sidebarOpen.set(true);
         break;
 
+      case '/export':
+        exportSession();
+        break;
+
       default:
         addSystemMessage(`Unknown command: \`${command}\`\nType \`/help\` for available commands.`);
         break;
@@ -167,6 +173,50 @@
         addSystemMessage('Failed to delete session.');
       }
     })();
+  }
+
+  function exportSession() {
+    const msgs = get(messages);
+    if (msgs.length === 0) {
+      addSystemMessage('No messages to export.');
+      return;
+    }
+
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    let md = `# Session Export\n*Exported on ${date} at ${time}*\n\n---\n\n`;
+
+    for (const msg of msgs) {
+      if (msg.role === 'system') continue;
+      const who = msg.role === 'user' ? '**You**' : '**Atlas**';
+      const ts = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      md += `${who} (${ts}):\n${msg.content}\n`;
+
+      if (msg.thoughts && msg.thoughts.length > 0) {
+        const toolCalls = msg.thoughts.filter(t => t.stage === 'tool_call');
+        if (toolCalls.length > 0) {
+          md += `\n> ${toolCalls.length} tool calls\n`;
+          for (const tc of toolCalls) {
+            const d = tc.detail || {};
+            const status = d.success ? '\u2713' : '\u2717';
+            md += `> - ${d.tool_name || tc.summary} ${status}\n`;
+          }
+        }
+      }
+      md += '\n---\n\n';
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session-export-${date}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    addSystemMessage(`Session exported as \`session-export-${date}.md\``);
   }
 
   async function createNewSession(mode: 'normal' | 'otr') {

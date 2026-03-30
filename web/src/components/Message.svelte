@@ -18,6 +18,27 @@
   $: timestamp = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   $: messageArtifacts = message.artifacts || [];
 
+  let showContextMenu = false;
+  let menuX = 0;
+  let menuY = 0;
+
+  function handleContextMenu(e: MouseEvent) {
+    if (isSystem) return;
+    e.preventDefault();
+    showContextMenu = true;
+    menuX = e.clientX;
+    menuY = e.clientY;
+  }
+
+  function closeMenu() {
+    showContextMenu = false;
+  }
+
+  function copyText() {
+    navigator.clipboard.writeText(message.content);
+    closeMenu();
+  }
+
   afterUpdate(() => {
     if (!bubbleEl) return;
     bubbleEl.querySelectorAll('pre').forEach(pre => {
@@ -51,7 +72,7 @@
     </div>
   </div>
 {:else}
-  <div class="message" class:atlas={isAtlas} class:user={!isAtlas}>
+  <div class="message" class:atlas={isAtlas} class:user={!isAtlas} on:contextmenu={handleContextMenu} role="article">
     <div class="msg-header">
       <div class="msg-avatar" class:atlas-avatar={isAtlas} class:user-avatar={!isAtlas}>
         {isAtlas ? agentAvatar : 'Y'}
@@ -71,6 +92,13 @@
       {/each}
     </div>
   </div>
+
+  {#if showContextMenu}
+    <button class="context-backdrop" on:click={closeMenu} aria-label="Close menu"></button>
+    <div class="context-menu" style="left: {menuX}px; top: {menuY}px;">
+      <button class="context-item" on:click={copyText}>Copy text</button>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -187,4 +215,40 @@
     border-color: var(--accent-border-active);
     box-shadow: var(--accent-glow);
   }
+
+  .context-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: transparent;
+    border: none;
+    cursor: default;
+  }
+
+  .context-menu {
+    position: fixed;
+    z-index: 100;
+    min-width: 140px;
+    background: rgba(12, 16, 28, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--accent-border-active);
+    border-radius: var(--radius);
+    padding: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .context-item {
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 4px;
+    transition: background 100ms ease;
+  }
+  .context-item:hover { background: var(--accent-ghost); }
 </style>
