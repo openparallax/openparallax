@@ -186,8 +186,81 @@
       case 4: return 'BLOCKED';
       case 5: return 'EXECUTED';
       case 6: return 'FAILED';
-      default: return `TYPE_${eventType}`;
+      case 7: return 'SHIELD_ERROR';
+      case 12: return 'SELF_PROTECT';
+      case 17: return 'SESSION_START';
+      case 18: return 'SESSION_END';
+      default: return `EVENT_${eventType}`;
     }
+  }
+
+  interface AuditTriplet {
+    action: string;
+    session: string;
+    timestamp: number;
+    entries: any[];
+    outcome: 'executed' | 'blocked' | 'failed' | 'pending';
+  }
+
+  $: auditTriplets = groupAuditEntries(auditEntries);
+
+  function groupAuditEntries(entries: any[]): AuditTriplet[] {
+    const groups: AuditTriplet[] = [];
+    let current: AuditTriplet | null = null;
+
+    for (const entry of entries) {
+      const et = entry.event_type as number;
+      if (et === 1) {
+        if (current) groups.push(current);
+        current = {
+          action: entry.action_type || '',
+          session: entry.session_id || '',
+          timestamp: entry.timestamp,
+          entries: [entry],
+          outcome: 'pending',
+        };
+      } else if (current && (et === 2 || et === 3)) {
+        current.entries.push(entry);
+      } else if (current && et === 5) {
+        current.entries.push(entry);
+        current.outcome = 'executed';
+        groups.push(current);
+        current = null;
+      } else if (current && et === 4) {
+        current.entries.push(entry);
+        current.outcome = 'blocked';
+        groups.push(current);
+        current = null;
+      } else if (current && et === 6) {
+        current.entries.push(entry);
+        current.outcome = 'failed';
+        groups.push(current);
+        current = null;
+      } else {
+        if (current) groups.push(current);
+        current = null;
+        groups.push({
+          action: entry.action_type || auditEventLabel(et),
+          session: entry.session_id || '',
+          timestamp: entry.timestamp,
+          entries: [entry],
+          outcome: et === 4 ? 'blocked' : et === 6 ? 'failed' : 'executed',
+        });
+      }
+    }
+    if (current) groups.push(current);
+    return groups;
+  }
+
+  let expandedTriplets: Set<number> = new Set();
+
+  function toggleTriplet(idx: number) {
+    if (expandedTriplets.has(idx)) {
+      expandedTriplets.delete(idx);
+    } else {
+      expandedTriplets.add(idx);
+    }
+    expandedTriplets = new Set(expandedTriplets);
   }
 </script>
 
@@ -252,18 +325,48 @@
     </div>
 
     <div class="log-entries">
-      {#if auditEntries.length === 0}
+      {#if auditTriplets.length === 0}
         <div class="empty-state">No audit entries yet</div>
       {:else}
-        {#each auditEntries as entry, i (i)}
-          <button class="log-entry audit-entry" on:click={() => toggleExpand(10000 + i)}>
-            <span class="entry-time">{new Date(entry.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-            <span class="entry-level audit-type">{auditEventLabel(entry.event_type)}</span>
-            <span class="entry-event">{entry.action_type || ''}</span>
-            <span class="entry-hash" title={entry.hash}>{(entry.hash || '').slice(0, 8)}</span>
+        {#each auditTriplets as triplet, i (i)}
+          <button
+            class="triplet-card"
+            class:executed={triplet.outcome === 'executed'}
+            class:blocked={triplet.outcome === 'blocked'}
+            class:failed={triplet.outcome === 'failed'}
+            on:click={() => toggleTriplet(i)}
+          >
+            <div class="triplet-header">
+              <span class="entry-time">{new Date(triplet.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+              <span class="triplet-action">{triplet.action}</span>
+              <span class="triplet-outcome" class:executed={triplet.outcome === 'executed'} class:blocked={triplet.outcome === 'blocked'} class:failed={triplet.outcome === 'failed'}>
+                {triplet.outcome.toUpperCase()}
+              </span>
+            </div>
+            <div class="triplet-flow">
+              {#each triplet.entries as entry, j}
+                {#if j > 0}<span class="flow-arrow">&rarr;</span>{/if}
+                <span class="flow-step" title={entry.hash || ''}>{auditEventLabel(entry.event_type)}</span>
+              {/each}
+            </div>
           </button>
-          {#if expandedEntries.has(10000 + i)}
-            <pre class="entry-detail">{JSON.stringify(entry, null, 2)}</pre>
+          {#if expandedTriplets.has(i)}
+            <div class="triplet-detail">
+              {#each triplet.entries as entry, j (j)}
+                <div class="triplet-entry">
+                  <div class="triplet-entry-header">
+                    <span class="audit-type">{auditEventLabel(entry.event_type)}</span>
+                    <span class="entry-hash" title={entry.hash}><span class="hash-label">hash:</span> {(entry.hash || '').slice(0, 12)}</span>
+                    {#if entry.previous_hash}
+                      <span class="entry-hash" title={entry.previous_hash}><span class="hash-label">prev:</span> {entry.previous_hash.slice(0, 12)}</span>
+                    {/if}
+                  </div>
+                  {#if entry.details_json}
+                    <pre class="entry-detail">{(() => { try { return JSON.stringify(JSON.parse(entry.details_json), null, 2); } catch { return entry.details_json; } })()}</pre>
+                  {/if}
+                </div>
+              {/each}
+            </div>
           {/if}
         {/each}
       {/if}
@@ -449,17 +552,94 @@
   .chain-valid { color: var(--success); }
   .chain-broken { color: var(--error); }
 
-  .audit-entry .entry-hash {
-    color: var(--text-tertiary);
+  .triplet-card {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 4px;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius);
+    background: var(--bg-inset);
+    cursor: pointer;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    transition: border-color 150ms ease;
+  }
+  .triplet-card:hover { border-color: var(--accent-border-active); }
+  .triplet-card.blocked { border-left: 2px solid var(--error); }
+  .triplet-card.failed { border-left: 2px solid var(--warning); }
+  .triplet-card.executed { border-left: 2px solid var(--success); }
+
+  .triplet-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .triplet-action { color: var(--accent-dim); font-weight: 500; flex: 1; }
+
+  .triplet-outcome {
     font-size: 10px;
-    flex-shrink: 0;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .triplet-outcome.executed { color: var(--success); background: rgba(0, 230, 118, 0.1); }
+  .triplet-outcome.blocked { color: var(--error); background: rgba(255, 61, 90, 0.1); }
+  .triplet-outcome.failed { color: var(--warning); background: rgba(255, 171, 0, 0.1); }
+
+  .triplet-flow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+
+  .flow-arrow { color: var(--text-tertiary); }
+
+  .flow-step {
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--accent-ghost);
+    color: var(--accent-dim);
+  }
+
+  .triplet-detail {
+    padding: 4px 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .triplet-entry {
+    border-left: 2px solid var(--accent-border);
+    padding-left: 10px;
+  }
+
+  .triplet-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    margin-bottom: 4px;
   }
 
   .audit-type {
     color: var(--accent-dim);
     background: var(--accent-ghost);
-    width: 80px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
   }
+
+  .entry-hash {
+    color: var(--text-tertiary);
+    font-size: 10px;
+  }
+  .hash-label { color: var(--text-tertiary); opacity: 0.6; }
 
   .console-tabs {
     display: flex;
