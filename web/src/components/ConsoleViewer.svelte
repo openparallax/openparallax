@@ -124,7 +124,9 @@
     if (!ts) return '';
     const d = new Date(ts);
     if (isNaN(d.getTime())) return ts.slice(0, 23) || ts;
-    return d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const ms = String(d.getMilliseconds()).padStart(3, '0');
+    const base = d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return `${base}.${ms}`;
   }
 
   function buildSummary(entry: LogEntry): string {
@@ -336,7 +338,7 @@
             class:failed={triplet.outcome === 'failed'}
             on:click={() => toggleTriplet(i)}
           >
-            <span class="entry-time">{new Date(triplet.timestamp).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            <span class="entry-time">{formatTime(new Date(triplet.timestamp).toISOString())}</span>
             <span class="triplet-action">{triplet.action}</span>
             <span class="triplet-flow-inline">
               {#each triplet.entries as entry, j}
@@ -353,7 +355,7 @@
               {#each triplet.entries as entry, j (j)}
                 <button class="triplet-entry" on:click|stopPropagation={() => toggleExpand(20000 + i * 10 + j)}>
                   <div class="triplet-entry-header">
-                    <span class="entry-time">{new Date(entry.timestamp).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                    <span class="entry-time">{formatTime(new Date(entry.timestamp).toISOString())}</span>
                     <span class="audit-type">{auditEventLabel(entry.event_type)}</span>
                     <span class="entry-hash" title={entry.hash}><span class="hash-label">hash:</span> {(entry.hash || '').slice(0, 12)}</span>
                     {#if entry.previous_hash}
