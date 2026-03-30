@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -22,6 +23,7 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/sessions/{id}/messages", s.handleGetMessages)
 	mux.HandleFunc("GET /api/artifacts", s.handleListArtifacts)
 	mux.HandleFunc("GET /api/tools", s.handleListTools)
+	mux.HandleFunc("GET /api/sessions/search", s.handleSearchSessions)
 	mux.HandleFunc("POST /api/restart", s.handleRestart)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
 	mux.HandleFunc("GET /api/audit", s.handleAudit)
@@ -164,6 +166,23 @@ func (s *Server) handleReadMemory(w http.ResponseWriter, r *http.Request) {
 		"type":    fileType,
 		"content": content,
 	})
+}
+
+func (s *Server) handleSearchSessions(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		writeError(w, http.StatusBadRequest, "q parameter is required")
+		return
+	}
+	results, err := s.engine.DB().SearchSessions(query, 20)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if results == nil {
+		results = []storage.SearchSessionResult{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 
 func (s *Server) handleListTools(w http.ResponseWriter, _ *http.Request) {

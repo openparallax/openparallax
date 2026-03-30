@@ -73,6 +73,10 @@ export async function getLogs(lines = 200, level = '', event = ''): Promise<{ en
   return fetchJSON(`/logs?${params}`);
 }
 
+export async function searchSessions(query: string): Promise<{ results: { session_id: string; title: string; match_type: string; snippet?: string }[] }> {
+  return fetchJSON(`/sessions/search?q=${encodeURIComponent(query)}`);
+}
+
 export async function getAudit(lines = 100): Promise<{ entries: any[]; total_entries: number; chain_valid: boolean; has_more: boolean; chain_break_at?: number }> {
   return fetchJSON(`/audit?lines=${lines}`);
 }

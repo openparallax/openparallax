@@ -163,6 +163,66 @@ func (db *DB) ListArtifacts() ([]types.Artifact, error) {
 	return all, rows.Err()
 }
 
+// SearchSessionResult is a session search match with optional content snippet.
+type SearchSessionResult struct {
+	SessionID string `json:"session_id"`
+	Title     string `json:"title"`
+	MatchType string `json:"match_type"`
+	Snippet   string `json:"snippet,omitempty"`
+}
+
+// SearchSessions searches for sessions by title or message content.
+func (db *DB) SearchSessions(query string, limit int) ([]SearchSessionResult, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	pattern := "%" + query + "%"
+
+	var results []SearchSessionResult
+	seen := make(map[string]bool)
+
+	titleRows, err := db.conn.Query(
+		`SELECT id, COALESCE(title, '') FROM sessions WHERE title LIKE ? ORDER BY last_message_at DESC LIMIT ?`,
+		pattern, limit,
+	)
+	if err == nil {
+		defer func() { _ = titleRows.Close() }()
+		for titleRows.Next() {
+			var id, title string
+			if err := titleRows.Scan(&id, &title); err == nil && !seen[id] {
+				seen[id] = true
+				results = append(results, SearchSessionResult{
+					SessionID: id, Title: title, MatchType: "title",
+				})
+			}
+		}
+	}
+
+	if len(results) < limit {
+		contentRows, err := db.conn.Query(
+			`SELECT m.session_id, COALESCE(s.title, ''), SUBSTR(m.content, MAX(1, INSTR(LOWER(m.content), LOWER(?)) - 30), 80)
+			 FROM messages m JOIN sessions s ON s.id = m.session_id
+			 WHERE m.content LIKE ?
+			 ORDER BY m.timestamp DESC LIMIT ?`,
+			query, pattern, limit-len(results),
+		)
+		if err == nil {
+			defer func() { _ = contentRows.Close() }()
+			for contentRows.Next() {
+				var sid, title, snippet string
+				if err := contentRows.Scan(&sid, &title, &snippet); err == nil && !seen[sid] {
+					seen[sid] = true
+					results = append(results, SearchSessionResult{
+						SessionID: sid, Title: title, MatchType: "content", Snippet: snippet,
+					})
+				}
+			}
+		}
+	}
+
+	return results, nil
+}
+
 // SessionCount returns the total number of sessions.
 func (db *DB) SessionCount() (int, error) {
 	var count int

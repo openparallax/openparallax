@@ -1,11 +1,31 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { MessageSquare, FileText, Brain, Eye, Plus, Settings, ChevronDown, RotateCw } from 'lucide-svelte';
+  import { MessageSquare, FileText, Brain, Eye, Plus, Settings, ChevronDown, RotateCw, Search } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { activeNavItem, settingsOpen, sidebarOpen } from '../stores/settings';
   import { clearMessages, loadMessages } from '../stores/messages';
   import { clearArtifactTabs } from '../stores/artifacts';
-  import { listSessions, createSession, getMessages } from '../lib/api';
+  import { listSessions, createSession, getMessages, searchSessions } from '../lib/api';
+
+  let sessionSearch = '';
+  let searchResults: { session_id: string; title: string; match_type: string; snippet?: string }[] | null = null;
+  let searchTimer: ReturnType<typeof setTimeout>;
+
+  function handleSessionSearch() {
+    clearTimeout(searchTimer);
+    if (!sessionSearch.trim()) {
+      searchResults = null;
+      return;
+    }
+    searchTimer = setTimeout(async () => {
+      try {
+        const data = await searchSessions(sessionSearch.trim());
+        searchResults = data.results || [];
+      } catch {
+        searchResults = [];
+      }
+    }, 300);
+  }
   import SessionList from './SessionList.svelte';
   import ShieldBadge from './ShieldBadge.svelte';
 
@@ -72,6 +92,23 @@
     }
   }
 
+  async function switchToSession(id: string) {
+    if (id === $currentSessionId) return;
+    const prevOTR = $currentMode === 'otr' ? $currentSessionId : null;
+    const target = $sessions.find(s => s.id === id);
+    currentSessionId.set(id);
+    currentMode.set(target?.mode === 'otr' ? 'otr' : 'normal');
+    clearMessages();
+    clearArtifactTabs();
+    if (prevOTR && prevOTR !== id) {
+      sessions.update(s => s.filter(sess => sess.id !== prevOTR));
+    }
+    try {
+      const msgs = await getMessages(id);
+      if (msgs && msgs.length > 0) loadMessages(msgs);
+    } catch { /* ignore */ }
+  }
+
   function handleClickOutsideDropdown() {
     showNewSessionDropdown = false;
     showRestartConfirm = false;
@@ -120,7 +157,35 @@
     {/if}
   </div>
 
-  <SessionList />
+  <div class="session-search">
+    <Search size={12} />
+    <input
+      type="text"
+      class="session-search-input"
+      placeholder="Search sessions..."
+      bind:value={sessionSearch}
+      on:input={handleSessionSearch}
+    />
+  </div>
+
+  {#if searchResults !== null}
+    <div class="search-results">
+      {#if searchResults.length === 0}
+        <div class="search-empty">No matches</div>
+      {:else}
+        {#each searchResults as result (result.session_id)}
+          <button class="search-result" on:click={() => { switchToSession(result.session_id); sessionSearch = ''; searchResults = null; }}>
+            <div class="search-result-title">{result.title || 'Untitled'}</div>
+            {#if result.snippet}
+              <div class="search-result-snippet">...{result.snippet}...</div>
+            {/if}
+          </button>
+        {/each}
+      {/if}
+    </div>
+  {:else}
+    <SessionList />
+  {/if}
 
   <div class="sidebar-footer">
     <ShieldBadge />
@@ -240,6 +305,76 @@
     padding: 4px 10px;
     flex-shrink: 0;
     position: relative;
+  }
+
+  .session-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    margin: 4px 10px 2px;
+    border-radius: var(--radius);
+    background: var(--bg-inset);
+    border: 1px solid var(--accent-border);
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+
+  .session-search-input {
+    flex: 1;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 12px;
+    outline: none;
+    font-family: inherit;
+    min-width: 0;
+  }
+  .session-search-input::placeholder { color: var(--text-tertiary); }
+
+  .search-results {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 10px;
+  }
+
+  .search-empty {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    text-align: center;
+    padding: 20px 0;
+  }
+
+  .search-result {
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: none;
+    text-align: left;
+    font-family: inherit;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background 150ms ease;
+    margin-bottom: 2px;
+  }
+  .search-result:hover { background: var(--bg-surface-hover); }
+
+  .search-result-title {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .search-result-snippet {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .new-session-group {
@@ -407,6 +542,7 @@
     .nav-label { display: none; }
     .sidebar-section-title { display: none; }
     .session-controls { display: none; }
+    .session-search { display: none; }
     .sidebar-footer { padding: 10px 8px; }
     .settings-link { padding: 10px; justify-content: center; }
     .settings-link .nav-label { display: none; }
