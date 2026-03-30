@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -164,6 +165,35 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.handleSwitchSession(id)
 				m.syncViewport()
 				return m, nil
+			case lower == "/help":
+				m.handleHelp()
+				m.syncViewport()
+				return m, nil
+			case lower == "/clear":
+				m.lines = nil
+				m.addLine(m.dimStyle("Chat cleared. History is preserved."))
+				m.syncViewport()
+				return m, nil
+			case lower == "/status":
+				m.handleStatus()
+				m.syncViewport()
+				return m, nil
+			case lower == "/delete":
+				m.handleDeleteSession()
+				m.syncViewport()
+				return m, nil
+			case lower == "/restart":
+				m.addLine(m.dimStyle("Restarting engine..."))
+				m.syncViewport()
+				return m, nil
+			case lower == "/export":
+				m.handleExport()
+				m.syncViewport()
+				return m, nil
+			case strings.HasPrefix(lower, "/"):
+				m.addLine(m.errStyle(fmt.Sprintf("Unknown command: %s. Type /help for available commands.", lower)))
+				m.syncViewport()
+				return m, nil
 			}
 
 			prompt := m.userStyle("You: ")
@@ -283,7 +313,7 @@ func (m *model) View() string {
 	if m.otrMode {
 		sb.WriteString(m.otrStyle(" [OTR] "))
 	}
-	sb.WriteString(m.dimStyle("  /quit  /new  /otr  /sessions"))
+	sb.WriteString(m.dimStyle("  /help for commands"))
 	sb.WriteString("\n")
 
 	// Scrollable viewport with chat content.
@@ -526,6 +556,100 @@ func (m *model) handleSwitchSession(id string) {
 	m.addLine(m.dimStyle(fmt.Sprintf("--- Switched to session %s ---", fullID[:8])))
 }
 
+// handleHelp displays all available slash commands.
+func (m *model) handleHelp() {
+	m.addLine(m.dimStyle("Available commands:"))
+	cmds := []struct{ cmd, desc string }{
+		{"/new", "Start a new session"},
+		{"/otr", "Start a new Off The Record session"},
+		{"/quit", "End current session and exit"},
+		{"/clear", "Clear the chat view (history preserved)"},
+		{"/status", "Show system health and session stats"},
+		{"/export", "Export this session as markdown"},
+		{"/delete", "Delete the current session"},
+		{"/sessions", "List sessions"},
+		{"/switch <id>", "Switch to a session by ID prefix"},
+		{"/restart", "Restart the engine"},
+		{"/help", "Show this help message"},
+	}
+	for _, c := range cmds {
+		m.addLine(m.dimStyle(fmt.Sprintf("  %-16s %s", c.cmd, c.desc)))
+	}
+}
+
+// handleStatus shows system health from the engine's gRPC status.
+func (m *model) handleStatus() {
+	ctx, cancel := context.WithTimeout(m.ctx, 3*time.Second)
+	defer cancel()
+
+	resp, err := m.client.GetStatus(ctx, &pb.StatusRequest{})
+	if err != nil {
+		m.addLine(m.errStyle("Failed to fetch status: " + err.Error()))
+		return
+	}
+
+	m.addLine(m.dimStyle("--- System Status ---"))
+	m.addLine(m.dimStyle(fmt.Sprintf("  Agent:     %s", resp.AgentName)))
+	m.addLine(m.dimStyle(fmt.Sprintf("  Model:     %s", resp.Model)))
+	m.addLine(m.dimStyle(fmt.Sprintf("  Sessions:  %d", resp.SessionCount)))
+	mode := "Normal"
+	if m.otrMode {
+		mode = "OTR (read-only)"
+	}
+	m.addLine(m.dimStyle(fmt.Sprintf("  Mode:      %s", mode)))
+}
+
+// handleDeleteSession removes the current session.
+func (m *model) handleDeleteSession() {
+	if m.db == nil {
+		m.addLine(m.errStyle("Delete unavailable: no database connection."))
+		return
+	}
+	if err := m.db.DeleteSession(m.sessionID); err != nil {
+		m.addLine(m.errStyle("Failed to delete session: " + err.Error()))
+		return
+	}
+	m.addLine(m.dimStyle("Session deleted."))
+	m.sessionID = crypto.NewID()
+	m.lines = nil
+	m.addLine(m.dimStyle("--- New session ---"))
+}
+
+// handleExport writes the current session messages to a markdown file.
+func (m *model) handleExport() {
+	if m.db == nil {
+		m.addLine(m.errStyle("Export unavailable: no database connection."))
+		return
+	}
+	messages, err := m.db.GetMessages(m.sessionID)
+	if err != nil || len(messages) == 0 {
+		m.addLine(m.errStyle("No messages to export."))
+		return
+	}
+
+	now := time.Now()
+	filename := fmt.Sprintf("session-export-%s.md", now.Format("2006-01-02"))
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "# Session Export\n*Exported on %s*\n\n---\n\n", now.Format("2006-01-02 15:04"))
+
+	for _, msg := range messages {
+		who := "**You**"
+		if msg.Role == "assistant" {
+			who = fmt.Sprintf("**%s**", m.agentName)
+		}
+		ts := msg.Timestamp.Format("15:04")
+		fmt.Fprintf(&sb, "%s (%s):\n%s\n\n---\n\n", who, ts, msg.Content)
+	}
+
+	path := filename
+	if writeErr := writeExportFile(path, sb.String()); writeErr != nil {
+		m.addLine(m.errStyle("Failed to write export: " + writeErr.Error()))
+		return
+	}
+	m.addLine(m.dimStyle(fmt.Sprintf("Session exported to %s", path)))
+}
+
 // triggerShutdown calls the engine's Shutdown RPC which summarizes active
 // sessions and persists memory. Waits up to 5 seconds.
 func (m *model) triggerShutdown() {
@@ -539,4 +663,8 @@ func (m *model) handleNewSession() tea.Cmd {
 	return func() tea.Msg {
 		return newSession{}
 	}
+}
+
+func writeExportFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0o644)
 }
