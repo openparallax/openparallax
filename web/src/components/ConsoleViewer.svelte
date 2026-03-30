@@ -175,6 +175,15 @@
       const after = d.after_tokens || 0;
       return before ? `${before}\u2192${after} tokens` : '';
     }
+    if (evt.includes('sandbox')) {
+      const mode = d.mode || '';
+      const ver = d.version ? `V${d.version}` : '';
+      const fs = d.filesystem ? 'filesystem' : '';
+      const net = d.network ? 'network' : '';
+      const reason = d.reason || '';
+      const caps = [fs, net].filter(Boolean).join(' + ');
+      return [mode, ver, caps, reason].filter(Boolean).join(' \u00B7 ');
+    }
 
     const vals = Object.values(d).slice(0, 3).map(v => String(v)).join(' \u00B7 ');
     return vals;

@@ -26,6 +26,7 @@ type Adapter struct {
 	grpcAddr  string
 	agentName string
 	workspace string
+	teaOpts   []tea.ProgramOption
 }
 
 // New creates a CLI adapter connected to the engine at the given gRPC address.
@@ -35,6 +36,13 @@ func New(grpcAddr, agentName, workspace string) *Adapter {
 		agentName: agentName,
 		workspace: workspace,
 	}
+}
+
+// WithTeaOptions sets additional bubbletea program options, such as custom
+// terminal I/O (tea.WithInput, tea.WithOutput) for /dev/tty access.
+func (a *Adapter) WithTeaOptions(opts ...tea.ProgramOption) *Adapter {
+	a.teaOpts = opts
+	return a
 }
 
 // Run starts the interactive terminal UI. Blocks until the user exits.
@@ -55,7 +63,9 @@ func (a *Adapter) Run(ctx context.Context) error {
 	sessionID := crypto.NewID()
 
 	m := newModel(ctx, client, db, sessionID, a.agentName)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	opts := []tea.ProgramOption{tea.WithAltScreen()}
+	opts = append(opts, a.teaOpts...)
+	p := tea.NewProgram(m, opts...)
 	m.program = p
 
 	_, err = p.Run()

@@ -74,12 +74,22 @@ export interface ShieldStatusData {
   tier2_enabled: boolean;
 }
 
+export interface SandboxStatusData {
+  active: boolean;
+  mode: string;
+  version?: number;
+  filesystem: boolean;
+  network: boolean;
+  reason?: string;
+}
+
 export interface StatusResponse {
   agent_name: string;
   model: string;
   session_count: number;
   workspace?: string;
   shield?: ShieldStatusData;
+  sandbox?: SandboxStatusData;
 }
 
 export interface ArtifactTab {

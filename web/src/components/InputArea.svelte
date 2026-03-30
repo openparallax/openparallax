@@ -1,6 +1,7 @@
 <script lang="ts">
   import { get } from 'svelte/store';
-  import { Send, Square } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { Send, Square, ShieldCheck, AlertTriangle } from 'lucide-svelte';
   import { currentSessionId, currentMode, sessions } from '../stores/session';
   import { streaming, addUserMessage, addSystemMessage, clearMessages, messages } from '../stores/messages';
   import { connected } from '../stores/connection';
@@ -8,6 +9,7 @@
   import { clearArtifactTabs } from '../stores/artifacts';
   import { sendMessage } from '../lib/websocket';
   import { createSession, getStatus, deleteSession } from '../lib/api';
+  import type { SandboxStatusData } from '../lib/types';
 
   let text = '';
   let textarea: HTMLTextAreaElement;
@@ -306,6 +308,17 @@
   }
 
   $: isOTR = $currentMode === 'otr';
+
+  let sandboxStatus: SandboxStatusData | null = null;
+
+  onMount(async () => {
+    try {
+      const s = await getStatus();
+      if (s.sandbox) sandboxStatus = s.sandbox;
+    } catch {
+      /* engine not ready */
+    }
+  });
 </script>
 
 <div class="input-area">
@@ -345,7 +358,17 @@
   </div>
   <div class="input-footer">
     <span>Shift+Enter for multiline</span>
-    <span class="encrypted-badge">&#x1F512; ENCRYPTED</span>
+    {#if sandboxStatus?.active}
+      <span class="sandbox-badge sandboxed">
+        <ShieldCheck size={11} />
+        Sandboxed
+      </span>
+    {:else}
+      <span class="sandbox-badge unsandboxed">
+        <AlertTriangle size={11} />
+        Unsandboxed
+      </span>
+    {/if}
   </div>
 </div>
 
@@ -462,7 +485,13 @@
     font-family: 'JetBrains Mono', monospace;
   }
 
-  .encrypted-badge {
+  .sandbox-badge {
     display: flex; align-items: center; gap: 4px;
+  }
+  .sandbox-badge.sandboxed {
+    color: var(--success);
+  }
+  .sandbox-badge.unsandboxed {
+    color: var(--text-tertiary);
   }
 </style>

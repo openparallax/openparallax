@@ -9,6 +9,7 @@ import (
 
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/engine/executors"
+	"github.com/openparallax/openparallax/internal/sandbox"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -167,6 +168,29 @@ func runDoctor(_ *cobra.Command, _ []string) error {
 	} else {
 		printCheck(true, "Audit", "no entries yet")
 		passed++
+	}
+
+	// Sandbox
+	sbStatus := sandbox.Probe()
+	if sbStatus.Active {
+		detail := sbStatus.Mode
+		if sbStatus.Version > 0 {
+			detail = fmt.Sprintf("%s V%d", detail, sbStatus.Version)
+		}
+		var capabilities string
+		switch {
+		case sbStatus.Filesystem && sbStatus.Network:
+			capabilities = " (filesystem + network)"
+		case sbStatus.Filesystem:
+			capabilities = " (filesystem only)"
+		default:
+			capabilities = " (process limits only)"
+		}
+		printCheck(true, "Sandbox", detail+capabilities)
+		passed++
+	} else {
+		printWarn("Sandbox", sbStatus.Reason)
+		warned++
 	}
 
 	// Web UI

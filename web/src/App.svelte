@@ -5,6 +5,7 @@
   import ChatPanel from './components/ChatPanel.svelte';
   import Particles from './components/Particles.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
+  import SetupWizard from './components/SetupWizard.svelte';
   import { Menu } from 'lucide-svelte';
   import { connect } from './lib/websocket';
   import { connected, reconnecting } from './stores/connection';
@@ -17,6 +18,7 @@
   let agentName = 'ATLAS';
   let workspace = '~/workspace';
   let originalTitle = 'OpenParallax';
+  let setupRequired = false;
 
   let sidebarWidth = parseInt(localStorage.getItem('op_sidebar_w') || '240');
   let chatWidth = parseInt(localStorage.getItem('op_chat_w') || '380');
@@ -52,7 +54,6 @@
   }
 
   onMount(async () => {
-    connect();
     originalTitle = document.title;
 
     document.addEventListener('visibilitychange', () => {
@@ -63,12 +64,24 @@
 
     try {
       const status = await getStatus();
+      if ((status as any).setup_required) {
+        setupRequired = true;
+        return;
+      }
       if (status.agent_name) agentName = status.agent_name.toUpperCase();
       if (status.workspace) workspace = status.workspace;
     } catch {
       /* engine not ready */
     }
+
+    connect();
   });
+
+  function handleSetupComplete() {
+    setupRequired = false;
+    // Reload to pick up the now-running engine.
+    window.location.reload();
+  }
 
   function handleKeydown(e: KeyboardEvent) {
     const mod = e.ctrlKey || e.metaKey;
@@ -110,6 +123,10 @@
 
 <div class="bg"></div>
 <Particles />
+
+{#if setupRequired}
+  <SetupWizard on:complete={handleSetupComplete} />
+{:else}
 <SettingsPanel />
 
 <div class="app" class:otr={$currentMode === 'otr'}>
@@ -150,6 +167,7 @@
     </div>
   </div>
 </div>
+{/if}
 
 <style>
   .bg {

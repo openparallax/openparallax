@@ -25,15 +25,27 @@ func main() {
 	}
 }
 
-// findConfig looks for config.yaml in common locations.
+// findConfig looks for config.yaml in common locations, including
+// agent-named workspaces under ~/.openparallax/.
 func findConfig() string {
 	candidates := []string{
 		"config.yaml",
 	}
 	if home, err := os.UserHomeDir(); err == nil {
+		opDir := filepath.Join(home, ".openparallax")
 		candidates = append(candidates,
-			filepath.Join(home, ".openparallax", "workspace", "config.yaml"),
+			filepath.Join(opDir, "workspace", "config.yaml"),
 		)
+		// Search agent-named workspaces (e.g. ~/.openparallax/atlas/config.yaml).
+		if entries, dirErr := os.ReadDir(opDir); dirErr == nil {
+			for _, e := range entries {
+				if e.IsDir() {
+					candidates = append(candidates,
+						filepath.Join(opDir, e.Name(), "config.yaml"),
+					)
+				}
+			}
+		}
 	}
 	for _, c := range candidates {
 		if _, err := os.Stat(c); err == nil {

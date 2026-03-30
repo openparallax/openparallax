@@ -148,6 +148,9 @@ type EvaluatorConfig struct {
 type IdentityConfig struct {
 	// Name overrides the agent name from IDENTITY.md.
 	Name string `yaml:"name,omitempty" json:"name,omitempty"`
+
+	// Avatar is an emoji displayed alongside the agent name.
+	Avatar string `yaml:"avatar,omitempty" json:"avatar,omitempty"`
 }
 
 // ChannelsConfig configures messaging platform adapters.

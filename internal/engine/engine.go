@@ -57,8 +57,20 @@ type Engine struct {
 	server   *grpc.Server
 	listener net.Listener
 
+	sandboxStatus sandboxInfo
+
 	mu       sync.Mutex
 	shutdown bool
+}
+
+// sandboxInfo holds the kernel sandbox state for API reporting.
+type sandboxInfo struct {
+	Active     bool
+	Mode       string
+	Version    int
+	Filesystem bool
+	Network    bool
+	Reason     string
 }
 
 // New creates an Engine from a config file path. When verbose is true,
@@ -809,6 +821,31 @@ func (e *Engine) ShieldStatus() map[string]any {
 		"tier2_used":    s.Tier2Used,
 		"tier2_budget":  s.Tier2Budget,
 		"tier2_enabled": s.Tier2Enabled,
+	}
+}
+
+// SandboxStatus returns the current kernel sandbox state for the Agent process.
+func (e *Engine) SandboxStatus() map[string]any {
+	s := e.sandboxStatus
+	return map[string]any{
+		"active":     s.Active,
+		"mode":       s.Mode,
+		"version":    s.Version,
+		"filesystem": s.Filesystem,
+		"network":    s.Network,
+		"reason":     s.Reason,
+	}
+}
+
+// SetSandboxStatus stores the sandbox probe result for API reporting.
+func (e *Engine) SetSandboxStatus(active bool, mode string, version int, filesystem, network bool, reason string) {
+	e.sandboxStatus = sandboxInfo{
+		Active:     active,
+		Mode:       mode,
+		Version:    version,
+		Filesystem: filesystem,
+		Network:    network,
+		Reason:     reason,
 	}
 }
 

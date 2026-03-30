@@ -38,12 +38,15 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	}
 	sessionCount, _ := s.engine.DB().SessionCount()
 
+	avatar := s.engine.Config().Identity.Avatar
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agent_name":    agentName,
+		"agent_avatar":  avatar,
 		"model":         s.engine.LLMModel(),
 		"session_count": sessionCount,
 		"workspace":     s.engine.Config().Workspace,
 		"shield":        s.engine.ShieldStatus(),
+		"sandbox":       s.engine.SandboxStatus(),
 	})
 }
 

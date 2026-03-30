@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/channels/cli"
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +36,7 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 }
 
-func runStart(cmd *cobra.Command, args []string) error {
+func runStart(_ *cobra.Command, _ []string) error {
 	cfgPath := startConfigPath
 	if cfgPath == "" {
 		cfgPath = findConfig()
@@ -58,7 +57,9 @@ func runStart(cmd *cobra.Command, args []string) error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	// Spawn the engine process.
+	// Spawn the engine process. The engine spawns the sandboxed agent as
+	// its own child, and serves the web UI. This process manager handles
+	// engine restarts (exit code 75) and crash recovery.
 	pm := newProcessManager(cfgPath, startVerbose)
 	port, err := pm.startEngine(ctx)
 	if err != nil {
@@ -79,28 +80,15 @@ func runStart(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Verbose log: %s\n", logPath)
 	}
 
-	// Start the CLI adapter.
-	agentName := cfg.Identity.Name
-	if agentName == "" {
-		agentName = "Atlas"
-	}
-
-	adapter := cli.New(grpcAddr, agentName, cfg.Workspace)
-
-	// Run CLI in a goroutine so we can handle signals.
-	cliDone := make(chan error, 1)
-	go func() {
-		cliDone <- adapter.Run(ctx)
-	}()
-
+	// Wait for engine to exit or signal. The engine manages the sandboxed
+	// agent child process internally. When the user quits the CLI (/quit),
+	// the agent exits, the engine detects it and also exits, and we get
+	// here.
 	select {
-	case err := <-cliDone:
-		// CLI exited (user typed /quit or error).
-		cancel()
-		pm.stopEngine()
-		return err
+	case <-pm.done:
+		// Engine exited (clean agent exit, or crash budget exhausted).
+		return nil
 	case <-sigCh:
-		// Received SIGTERM/SIGINT.
 		fmt.Println("\nShutting down...")
 		cancel()
 		pm.stopEngine()
@@ -114,12 +102,17 @@ type processManager struct {
 	verbose    bool
 	cmd        *exec.Cmd
 	logFile    *os.File
+	done       chan struct{}
 	mu         sync.Mutex
 	crashes    []time.Time
 }
 
 func newProcessManager(configPath string, verbose bool) *processManager {
-	return &processManager{configPath: configPath, verbose: verbose}
+	return &processManager{
+		configPath: configPath,
+		verbose:    verbose,
+		done:       make(chan struct{}),
+	}
 }
 
 // startEngine spawns the engine process and returns the port it's listening on.
@@ -203,6 +196,8 @@ func (pm *processManager) spawnEngine(ctx context.Context) (int, error) {
 
 // monitor watches the engine process and restarts it on crash.
 func (pm *processManager) monitor(ctx context.Context) {
+	defer close(pm.done)
+
 	for {
 		pm.mu.Lock()
 		cmd := pm.cmd
