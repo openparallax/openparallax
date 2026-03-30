@@ -137,13 +137,13 @@
   {/if}
 
   <div class="panels" class:resizing={resizing !== null}>
-    <div style="width: {sidebarWidth}px; min-width: {sidebarWidth}px;">
+    <div class="sidebar-wrap" style="--sw:{sidebarWidth}px">
       <Sidebar />
     </div>
     <div class="resize-handle" on:mousedown={startResize('sidebar')} role="separator" aria-label="Resize sidebar"></div>
     <ArtifactCanvas />
     <div class="resize-handle" on:mousedown={startResize('chat')} role="separator" aria-label="Resize chat"></div>
-    <div style="width: {chatWidth}px; min-width: {chatWidth}px;">
+    <div class="chat-wrap" style="--cw:{chatWidth}px">
       <ChatPanel />
     </div>
   </div>
@@ -287,6 +287,18 @@
     user-select: none;
   }
 
+  .sidebar-wrap {
+    width: var(--sw, 240px);
+    min-width: var(--sw, 240px);
+    flex-shrink: 0;
+  }
+
+  .chat-wrap {
+    width: var(--cw, 380px);
+    min-width: var(--cw, 380px);
+    flex-shrink: 0;
+  }
+
   .resize-handle {
     width: var(--gap);
     cursor: col-resize;
@@ -311,6 +323,8 @@
   @media (max-width: 1200px) {
     .app { padding: 30px 40px; }
     .resize-handle { display: none; }
+    .sidebar-wrap { width: 56px !important; min-width: 56px !important; }
+    .chat-wrap { width: 340px !important; min-width: 340px !important; }
   }
 
   @media (max-width: 800px) {
@@ -319,5 +333,7 @@
     .agent-name { font-size: 24px; }
     .agent-subtitle { display: none; }
     .hamburger { display: flex; }
+    .sidebar-wrap { display: none; }
+    .chat-wrap { width: 100% !important; min-width: 0 !important; flex: 1; }
   }
 </style>
