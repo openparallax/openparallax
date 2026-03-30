@@ -120,7 +120,11 @@ func (l *Logger) log(level, event string, kvs ...any) {
 			if !ok {
 				key = fmt.Sprintf("%v", kvs[i])
 			}
-			entry.Data[key] = kvs[i+1]
+			val := kvs[i+1]
+			if e, ok := val.(error); ok {
+				val = e.Error()
+			}
+			entry.Data[key] = val
 		}
 	}
 

@@ -123,8 +123,8 @@
   function formatTime(ts: string): string {
     if (!ts) return '';
     const d = new Date(ts);
-    if (isNaN(d.getTime())) return ts.slice(11, 23) || ts;
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+    if (isNaN(d.getTime())) return ts.slice(0, 23) || ts;
+    return d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
   function buildSummary(entry: LogEntry): string {
@@ -492,7 +492,7 @@
   .log-entry.warn { color: var(--warning); border-left: 2px solid rgba(255, 171, 0, 0.3); }
   .log-entry.error { color: var(--error); border-left: 2px solid rgba(255, 61, 90, 0.3); background: rgba(255, 61, 90, 0.02); }
 
-  .entry-time { color: var(--text-tertiary); font-size: 11px; flex-shrink: 0; width: 90px; }
+  .entry-time { color: var(--text-tertiary); font-size: 11px; flex-shrink: 0; white-space: nowrap; }
 
   .entry-level {
     font-size: 10px;
@@ -508,7 +508,7 @@
   .entry-level.warn { color: var(--warning); background: rgba(255, 171, 0, 0.1); }
   .entry-level.error { color: var(--error); background: rgba(255, 61, 90, 0.1); }
 
-  .entry-event { color: var(--accent-dim); flex-shrink: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry-event { color: var(--accent-dim); flex-shrink: 0; white-space: nowrap; }
 
   .entry-summary { color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 
