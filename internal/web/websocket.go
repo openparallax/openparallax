@@ -34,6 +34,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	s.registerConn(conn, ctx)
+	defer s.unregisterConn(conn)
+
 	s.log.Info("ws_connected", "remote", r.RemoteAddr)
 
 	// Read loop: process client messages.

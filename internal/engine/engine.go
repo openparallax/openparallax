@@ -788,6 +788,16 @@ func (e *Engine) Log() *logging.Logger { return e.log }
 // LLMModel returns the configured LLM model name.
 func (e *Engine) LLMModel() string { return e.llm.Model() }
 
+// LogPath returns the path to the engine log file.
+func (e *Engine) LogPath() string {
+	return filepath.Join(e.cfg.Workspace, ".openparallax", "engine.log")
+}
+
+// AuditPath returns the path to the audit JSONL file.
+func (e *Engine) AuditPath() string {
+	return filepath.Join(e.cfg.Workspace, ".openparallax", "audit.jsonl")
+}
+
 // --- Conversion helpers ---
 
 func formatToolCallSummary(tc *llm.ToolCall) string {

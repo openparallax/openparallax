@@ -64,3 +64,15 @@ export async function listArtifacts(): Promise<Artifact[]> {
 export async function getArtifactContent(path: string): Promise<{ content: string }> {
   return fetchJSON(`/artifacts/${encodeURIComponent(path)}`);
 }
+
+export async function getLogs(lines = 200, level = '', event = ''): Promise<{ entries: any[]; total_lines: number; has_more: boolean }> {
+  const params = new URLSearchParams();
+  params.set('lines', String(lines));
+  if (level) params.set('level', level);
+  if (event) params.set('event', event);
+  return fetchJSON(`/logs?${params}`);
+}
+
+export async function getAudit(lines = 100): Promise<{ entries: any[]; total_entries: number; chain_valid: boolean; has_more: boolean; chain_break_at?: number }> {
+  return fetchJSON(`/audit?lines=${lines}`);
+}

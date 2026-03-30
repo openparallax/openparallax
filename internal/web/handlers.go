@@ -1,8 +1,12 @@
 package web
 
 import (
+	"bufio"
 	"encoding/json"
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/openparallax/openparallax/internal/crypto"
 	"github.com/openparallax/openparallax/internal/types"
@@ -17,6 +21,8 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/sessions/{id}", s.handleUpdateSession)
 	mux.HandleFunc("GET /api/sessions/{id}/messages", s.handleGetMessages)
 	mux.HandleFunc("GET /api/artifacts", s.handleListArtifacts)
+	mux.HandleFunc("GET /api/logs", s.handleLogs)
+	mux.HandleFunc("GET /api/audit", s.handleAudit)
 	mux.HandleFunc("GET /api/memory/search", s.handleMemorySearch)
 	mux.HandleFunc("GET /api/memory/{type}", s.handleReadMemory)
 }
@@ -155,6 +161,139 @@ func (s *Server) handleReadMemory(w http.ResponseWriter, r *http.Request) {
 		"type":    fileType,
 		"content": content,
 	})
+}
+
+func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
+	lines := 200
+	if v := r.URL.Query().Get("lines"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			lines = n
+		}
+	}
+	if lines > 1000 {
+		lines = 1000
+	}
+
+	levelFilter := r.URL.Query().Get("level")
+	eventFilter := r.URL.Query().Get("event")
+
+	logPath := s.engine.LogPath()
+	f, err := os.Open(logPath)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"entries":     []any{},
+			"total_lines": 0,
+			"has_more":    false,
+		})
+		return
+	}
+	defer func() { _ = f.Close() }()
+
+	var allEntries []map[string]any
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 256*1024), 256*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+		if levelFilter != "" {
+			if lvl, ok := entry["level"].(string); !ok || lvl != levelFilter {
+				continue
+			}
+		}
+		if eventFilter != "" {
+			if evt, ok := entry["event"].(string); !ok || !strings.Contains(evt, eventFilter) {
+				continue
+			}
+		}
+		allEntries = append(allEntries, entry)
+	}
+
+	total := len(allEntries)
+	start := 0
+	if total > lines {
+		start = total - lines
+	}
+	result := allEntries[start:]
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"entries":     result,
+		"total_lines": total,
+		"has_more":    start > 0,
+	})
+}
+
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	lines := 100
+	if v := r.URL.Query().Get("lines"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			lines = n
+		}
+	}
+
+	auditPath := s.engine.AuditPath()
+	f, err := os.Open(auditPath)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"entries":       []any{},
+			"total_entries": 0,
+			"chain_valid":   true,
+			"has_more":      false,
+		})
+		return
+	}
+	defer func() { _ = f.Close() }()
+
+	var allEntries []map[string]any
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 256*1024), 256*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			continue
+		}
+		allEntries = append(allEntries, entry)
+	}
+
+	chainValid := true
+	chainBreakAt := -1
+	prevHash := ""
+	for i, entry := range allEntries {
+		ph, _ := entry["previous_hash"].(string)
+		if i > 0 && ph != prevHash {
+			chainValid = false
+			chainBreakAt = i
+			break
+		}
+		prevHash, _ = entry["hash"].(string)
+	}
+
+	total := len(allEntries)
+	start := 0
+	if total > lines {
+		start = total - lines
+	}
+	result := allEntries[start:]
+
+	resp := map[string]any{
+		"entries":       result,
+		"total_entries": total,
+		"chain_valid":   chainValid,
+		"has_more":      start > 0,
+	}
+	if !chainValid {
+		resp["chain_break_at"] = chainBreakAt
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {

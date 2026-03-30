@@ -2,12 +2,15 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/logging"
 )
@@ -20,11 +23,62 @@ type Server struct {
 	log    *logging.Logger
 	port   int
 	server *http.Server
+
+	connsMu sync.Mutex
+	conns   map[*websocket.Conn]context.Context
 }
 
 // NewServer creates a web server.
 func NewServer(eng *engine.Engine, log *logging.Logger, port int) *Server {
-	return &Server{engine: eng, log: log, port: port}
+	s := &Server{
+		engine: eng,
+		log:    log,
+		port:   port,
+		conns:  make(map[*websocket.Conn]context.Context),
+	}
+
+	log.AddHook(func(entry logging.LogEntry) {
+		s.broadcastLogEntry(entry)
+	})
+
+	return s
+}
+
+// registerConn adds a WebSocket connection for log broadcasting.
+func (s *Server) registerConn(conn *websocket.Conn, ctx context.Context) {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	s.conns[conn] = ctx
+}
+
+// unregisterConn removes a WebSocket connection.
+func (s *Server) unregisterConn(conn *websocket.Conn) {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	delete(s.conns, conn)
+}
+
+// broadcastLogEntry sends a log entry to all connected WebSocket clients.
+func (s *Server) broadcastLogEntry(entry logging.LogEntry) {
+	msg := map[string]any{
+		"type":  "log_entry",
+		"entry": entry,
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+
+	s.connsMu.Lock()
+	snapshot := make(map[*websocket.Conn]context.Context, len(s.conns))
+	for conn, ctx := range s.conns {
+		snapshot[conn] = ctx
+	}
+	s.connsMu.Unlock()
+
+	for conn, ctx := range snapshot {
+		_ = conn.Write(ctx, websocket.MessageText, data)
+	}
 }
 
 // Start begins serving HTTP on the configured port.

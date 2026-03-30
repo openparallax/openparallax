@@ -2,6 +2,7 @@ import { get } from 'svelte/store';
 import { connected, reconnecting } from '../stores/connection';
 import { currentSessionId } from '../stores/session';
 import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream, clearStreamingText } from '../stores/messages';
+import { addLogEntry } from '../stores/console';
 import type { WSEvent } from './types';
 
 let socket: WebSocket | null = null;
@@ -52,6 +53,11 @@ function scheduleReconnect() {
 }
 
 function handleEvent(event: WSEvent) {
+  if (event.type === 'log_entry' && (event as any).entry) {
+    addLogEntry((event as any).entry);
+    return;
+  }
+
   const currentSid = get(currentSessionId);
   if (event.session_id && currentSid && event.session_id !== currentSid) {
     if (event.type === 'response_complete') {
