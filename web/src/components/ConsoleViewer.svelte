@@ -330,41 +330,40 @@
       {:else}
         {#each auditTriplets as triplet, i (i)}
           <button
-            class="triplet-card"
+            class="triplet-row"
             class:executed={triplet.outcome === 'executed'}
             class:blocked={triplet.outcome === 'blocked'}
             class:failed={triplet.outcome === 'failed'}
             on:click={() => toggleTriplet(i)}
           >
-            <div class="triplet-header">
-              <span class="entry-time">{new Date(triplet.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-              <span class="triplet-action">{triplet.action}</span>
-              <span class="triplet-outcome" class:executed={triplet.outcome === 'executed'} class:blocked={triplet.outcome === 'blocked'} class:failed={triplet.outcome === 'failed'}>
-                {triplet.outcome.toUpperCase()}
-              </span>
-            </div>
-            <div class="triplet-flow">
+            <span class="entry-time">{new Date(triplet.timestamp).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            <span class="triplet-action">{triplet.action}</span>
+            <span class="triplet-flow-inline">
               {#each triplet.entries as entry, j}
                 {#if j > 0}<span class="flow-arrow">&rarr;</span>{/if}
-                <span class="flow-step" title={entry.hash || ''}>{auditEventLabel(entry.event_type)}</span>
+                <span class="flow-step">{auditEventLabel(entry.event_type)}</span>
               {/each}
-            </div>
+            </span>
+            <span class="triplet-outcome" class:executed={triplet.outcome === 'executed'} class:blocked={triplet.outcome === 'blocked'} class:failed={triplet.outcome === 'failed'}>
+              {triplet.outcome.toUpperCase()}
+            </span>
           </button>
           {#if expandedTriplets.has(i)}
             <div class="triplet-detail">
               {#each triplet.entries as entry, j (j)}
-                <div class="triplet-entry">
+                <button class="triplet-entry" on:click|stopPropagation={() => toggleExpand(20000 + i * 10 + j)}>
                   <div class="triplet-entry-header">
+                    <span class="entry-time">{new Date(entry.timestamp).toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                     <span class="audit-type">{auditEventLabel(entry.event_type)}</span>
                     <span class="entry-hash" title={entry.hash}><span class="hash-label">hash:</span> {(entry.hash || '').slice(0, 12)}</span>
                     {#if entry.previous_hash}
                       <span class="entry-hash" title={entry.previous_hash}><span class="hash-label">prev:</span> {entry.previous_hash.slice(0, 12)}</span>
                     {/if}
                   </div>
-                  {#if entry.details_json}
+                  {#if expandedEntries.has(20000 + i * 10 + j) && entry.details_json}
                     <pre class="entry-detail">{(() => { try { return JSON.stringify(JSON.parse(entry.details_json), null, 2); } catch { return entry.details_json; } })()}</pre>
                   {/if}
-                </div>
+                </button>
               {/each}
             </div>
           {/if}
@@ -552,50 +551,48 @@
   .chain-valid { color: var(--success); }
   .chain-broken { color: var(--error); }
 
-  .triplet-card {
+  .triplet-row {
     width: 100%;
-    padding: 10px 12px;
-    margin-bottom: 4px;
-    border: 1px solid var(--accent-border);
-    border-radius: var(--radius);
-    background: var(--bg-inset);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 8px;
+    border: none;
+    border-bottom: 1px solid var(--accent-border);
+    background: none;
     cursor: pointer;
     text-align: left;
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
-    transition: border-color 150ms ease;
+    color: var(--text-secondary);
+    transition: background 100ms ease;
   }
-  .triplet-card:hover { border-color: var(--accent-border-active); }
-  .triplet-card.blocked { border-left: 2px solid var(--error); }
-  .triplet-card.failed { border-left: 2px solid var(--warning); }
-  .triplet-card.executed { border-left: 2px solid var(--success); }
+  .triplet-row:hover { background: var(--accent-ghost); }
+  .triplet-row.blocked { border-left: 2px solid var(--error); }
+  .triplet-row.failed { border-left: 2px solid var(--warning); }
+  .triplet-row.executed { border-left: 2px solid var(--success); }
 
-  .triplet-header {
+  .triplet-action { color: var(--accent-dim); font-weight: 500; white-space: nowrap; }
+
+  .triplet-flow-inline {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 4px;
+    gap: 3px;
+    font-size: 10px;
+    flex: 1;
+    overflow: hidden;
   }
-
-  .triplet-action { color: var(--accent-dim); font-weight: 500; flex: 1; }
 
   .triplet-outcome {
     font-size: 10px;
     font-weight: 600;
     padding: 1px 6px;
     border-radius: 3px;
+    flex-shrink: 0;
   }
   .triplet-outcome.executed { color: var(--success); background: rgba(0, 230, 118, 0.1); }
   .triplet-outcome.blocked { color: var(--error); background: rgba(255, 61, 90, 0.1); }
   .triplet-outcome.failed { color: var(--warning); background: rgba(255, 171, 0, 0.1); }
-
-  .triplet-flow {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    color: var(--text-tertiary);
-  }
 
   .flow-arrow { color: var(--text-tertiary); }
 
@@ -604,26 +601,37 @@
     border-radius: 3px;
     background: var(--accent-ghost);
     color: var(--accent-dim);
+    font-size: 10px;
+    white-space: nowrap;
   }
 
   .triplet-detail {
-    padding: 4px 12px 8px;
+    padding: 4px 8px 8px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 2px;
+    border-bottom: 1px solid var(--accent-border);
   }
 
   .triplet-entry {
+    border: none;
+    background: none;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
     border-left: 2px solid var(--accent-border);
-    padding-left: 10px;
+    width: 100%;
   }
+  .triplet-entry:hover { background: var(--accent-ghost); }
 
   .triplet-entry-header {
     display: flex;
     align-items: center;
     gap: 10px;
     font-size: 11px;
-    margin-bottom: 4px;
   }
 
   .audit-type {
