@@ -7,7 +7,7 @@
   import SettingsPanel from './components/SettingsPanel.svelte';
   import { Menu } from 'lucide-svelte';
   import { connect } from './lib/websocket';
-  import { connected } from './stores/connection';
+  import { connected, reconnecting } from './stores/connection';
   import { currentMode } from './stores/session';
   import { sidebarOpen } from './stores/settings';
   import { getStatus } from './lib/api';
@@ -50,6 +50,10 @@
       {/if}
     </div>
   </header>
+
+  {#if $reconnecting}
+    <div class="reconnecting-bar">Reconnecting...</div>
+  {/if}
 
   <div class="panels">
     <Sidebar />
@@ -164,6 +168,23 @@
     background: rgba(255, 171, 0, 0.1);
     color: var(--warning);
     border: 1px solid rgba(255, 171, 0, 0.2);
+  }
+
+  .reconnecting-bar {
+    padding: 4px 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--warning);
+    background: rgba(255, 171, 0, 0.08);
+    border: 1px solid rgba(255, 171, 0, 0.15);
+    border-radius: 4px;
+    animation: pulse-bar 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-bar {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
   }
 
   .panels {

@@ -3,6 +3,8 @@
   import { currentSessionId, currentMode, sessions } from '../stores/session';
   import { streaming, addUserMessage, clearMessages } from '../stores/messages';
   import { connected } from '../stores/connection';
+  import { activeNavItem, sidebarOpen } from '../stores/settings';
+  import { clearArtifactTabs } from '../stores/artifacts';
   import { sendMessage } from '../lib/websocket';
   import { createSession } from '../lib/api';
 
@@ -20,17 +22,9 @@
     const content = text.trim();
     if (!content || !$connected) return;
 
-    if (content === '/otr') {
+    if (content.startsWith('/')) {
       text = '';
-      try {
-        const sess = await createSession('otr');
-        sessions.update(s => [sess, ...s]);
-        currentSessionId.set(sess.id);
-        currentMode.set('otr');
-        clearMessages();
-      } catch {
-        /* ignore */
-      }
+      await handleSlashCommand(content);
       return;
     }
 
@@ -52,6 +46,52 @@
 
     if (textarea) {
       textarea.style.height = 'auto';
+    }
+  }
+
+  async function handleSlashCommand(cmd: string) {
+    switch (cmd) {
+      case '/new':
+        await createNewSession('normal');
+        break;
+      case '/otr':
+        await createNewSession('otr');
+        break;
+      case '/restart':
+        try {
+          await fetch('/api/restart', { method: 'POST' });
+        } catch {
+          /* WS will drop and reconnect */
+        }
+        break;
+      case '/quit':
+        clearMessages();
+        clearArtifactTabs();
+        currentSessionId.set(null);
+        currentMode.set('normal');
+        await createNewSession('normal');
+        break;
+      case '/sessions':
+        sidebarOpen.set(true);
+        break;
+    }
+  }
+
+  async function createNewSession(mode: 'normal' | 'otr') {
+    try {
+      if ($currentMode === 'otr' && $currentSessionId) {
+        const otrId = $currentSessionId;
+        sessions.update(s => s.filter(sess => sess.id !== otrId));
+      }
+      const sess = await createSession(mode);
+      sessions.update(s => [sess, ...s]);
+      currentSessionId.set(sess.id);
+      currentMode.set(mode);
+      clearMessages();
+      clearArtifactTabs();
+      activeNavItem.set('chat');
+    } catch {
+      /* ignore */
     }
   }
 

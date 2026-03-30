@@ -21,6 +21,7 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/sessions/{id}", s.handleUpdateSession)
 	mux.HandleFunc("GET /api/sessions/{id}/messages", s.handleGetMessages)
 	mux.HandleFunc("GET /api/artifacts", s.handleListArtifacts)
+	mux.HandleFunc("POST /api/restart", s.handleRestart)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
 	mux.HandleFunc("GET /api/audit", s.handleAudit)
 	mux.HandleFunc("GET /api/memory/search", s.handleMemorySearch)
@@ -161,6 +162,17 @@ func (s *Server) handleReadMemory(w http.ResponseWriter, r *http.Request) {
 		"type":    fileType,
 		"content": content,
 	})
+}
+
+func (s *Server) handleRestart(w http.ResponseWriter, _ *http.Request) {
+	s.log.Info("restart_requested", "source", "web_ui")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "restarting"})
+
+	go func() {
+		s.engine.Log().Info("engine_restart_initiated")
+		p, _ := os.FindProcess(os.Getpid())
+		_ = p.Signal(os.Interrupt)
+	}()
 }
 
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {

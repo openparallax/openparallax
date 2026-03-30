@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { MessageSquare, FileText, Brain, Eye, Plus, Settings, ChevronDown } from 'lucide-svelte';
+  import { MessageSquare, FileText, Brain, Eye, Plus, Settings, ChevronDown, RotateCw } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { activeNavItem, settingsOpen, sidebarOpen } from '../stores/settings';
   import { clearMessages, loadMessages } from '../stores/messages';
@@ -61,8 +61,20 @@
     sidebarOpen.set(false);
   }
 
+  let showRestartConfirm = false;
+
+  async function handleRestart() {
+    showRestartConfirm = false;
+    try {
+      await fetch('/api/restart', { method: 'POST' });
+    } catch {
+      /* WS will drop and reconnect */
+    }
+  }
+
   function handleClickOutsideDropdown() {
     showNewSessionDropdown = false;
+    showRestartConfirm = false;
   }
 </script>
 
@@ -112,10 +124,22 @@
 
   <div class="sidebar-footer">
     <ShieldBadge />
-    <button class="settings-link" on:click={() => settingsOpen.set(true)} title="Settings">
-      <Settings size={15} />
-      <span class="nav-label">Settings</span>
-    </button>
+    <div class="footer-actions">
+      <button class="settings-link" on:click={() => settingsOpen.set(true)} title="Settings">
+        <Settings size={15} />
+        <span class="nav-label">Settings</span>
+      </button>
+      <button class="restart-btn" on:click|stopPropagation={() => showRestartConfirm = !showRestartConfirm} title="Restart engine">
+        <RotateCw size={13} />
+      </button>
+    </div>
+    {#if showRestartConfirm}
+      <div class="restart-confirm">
+        <span>Restart engine?</span>
+        <button class="confirm-yes" on:click|stopPropagation={handleRestart}>Yes</button>
+        <button class="confirm-no" on:click|stopPropagation={() => showRestartConfirm = false}>No</button>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -319,6 +343,53 @@
   }
 
   .settings-link:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+
+  .footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .restart-btn {
+    width: 32px; height: 32px;
+    border-radius: var(--radius);
+    border: 1px solid var(--accent-border);
+    background: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 150ms ease;
+    flex-shrink: 0;
+  }
+  .restart-btn:hover {
+    color: var(--warning);
+    border-color: rgba(255, 171, 0, 0.3);
+    background: rgba(255, 171, 0, 0.05);
+  }
+
+  .restart-confirm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--warning);
+    background: rgba(255, 171, 0, 0.05);
+    border: 1px solid rgba(255, 171, 0, 0.15);
+    border-radius: var(--radius);
+  }
+  .restart-confirm span { flex: 1; }
+  .confirm-yes, .confirm-no {
+    padding: 2px 10px;
+    border-radius: 4px;
+    border: none;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+  }
+  .confirm-yes { background: var(--warning); color: var(--bg-void); }
+  .confirm-no { background: var(--accent-ghost); color: var(--text-secondary); }
 
   .sidebar-backdrop {
     display: none;
