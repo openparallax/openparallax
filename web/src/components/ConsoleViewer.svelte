@@ -8,7 +8,7 @@
   let activeTab: Tab = 'live';
 
   type Filter = 'all' | 'shield' | 'tools' | 'llm' | 'memory' | 'errors';
-  let activeFilters: Set<Filter> = new Set(['all']);
+  let activeFilterList: Filter[] = ['all'];
   let searchQuery = '';
   let debounceTimer: ReturnType<typeof setTimeout>;
 
@@ -40,27 +40,26 @@
 
   function toggleFilter(f: Filter) {
     if (f === 'all') {
-      activeFilters = new Set(['all']);
+      activeFilterList = ['all'];
     } else {
-      activeFilters.delete('all');
-      if (activeFilters.has(f)) {
-        activeFilters.delete(f);
+      let next = activeFilterList.filter(x => x !== 'all');
+      if (next.includes(f)) {
+        next = next.filter(x => x !== f);
       } else {
-        activeFilters.add(f);
+        next = [...next, f];
       }
-      if (activeFilters.size === 0) activeFilters.add('all');
+      activeFilterList = next.length === 0 ? ['all'] : next;
     }
-    activeFilters = activeFilters;
   }
 
-  function matchesFilter(entry: LogEntry): boolean {
-    if (activeFilters.has('all')) return true;
+  function matchesFilter(entry: LogEntry, filters: Filter[]): boolean {
+    if (filters.includes('all')) return true;
     const evt = entry.event || '';
-    if (activeFilters.has('shield') && (evt.includes('shield') || evt.includes('ifc'))) return true;
-    if (activeFilters.has('tools') && (evt.includes('tool') || evt.includes('executor'))) return true;
-    if (activeFilters.has('llm') && (evt.includes('llm') || evt.includes('compaction'))) return true;
-    if (activeFilters.has('memory') && evt.includes('memory')) return true;
-    if (activeFilters.has('errors') && (entry.level === 'warn' || entry.level === 'error')) return true;
+    if (filters.includes('shield') && (evt.includes('shield') || evt.includes('ifc'))) return true;
+    if (filters.includes('tools') && (evt.includes('tool') || evt.includes('executor'))) return true;
+    if (filters.includes('llm') && (evt.includes('llm') || evt.includes('compaction'))) return true;
+    if (filters.includes('memory') && evt.includes('memory')) return true;
+    if (filters.includes('errors') && (entry.level === 'warn' || entry.level === 'error')) return true;
     return false;
   }
 
@@ -75,7 +74,7 @@
     return false;
   }
 
-  $: filteredEntries = $logEntries.filter(e => matchesFilter(e) && matchesSearch(e));
+  $: filteredEntries = $logEntries.filter(e => matchesFilter(e, activeFilterList) && matchesSearch(e));
 
   function handleSearchInput() {
     clearTimeout(debounceTimer);
@@ -199,7 +198,7 @@
         {#each [['all','All'],['shield','Shield'],['tools','Tools'],['llm','LLM'],['memory','Memory'],['errors','Errors']] as [id, label]}
           <button
             class="filter-btn"
-            class:active={activeFilters.has(id)}
+            class:active={activeFilterList.includes(id)}
             on:click={() => toggleFilter(id)}
           >{label}</button>
         {/each}
