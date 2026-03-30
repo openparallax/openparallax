@@ -12,6 +12,41 @@
   let text = '';
   let textarea: HTMLTextAreaElement;
 
+  const COMMANDS = [
+    { cmd: '/help', desc: 'Show available commands' },
+    { cmd: '/new', desc: 'Start a new session' },
+    { cmd: '/otr', desc: 'Start a new OTR session' },
+    { cmd: '/quit', desc: 'Close session, start new one' },
+    { cmd: '/restart', desc: 'Restart the engine' },
+    { cmd: '/clear', desc: 'Clear chat view' },
+    { cmd: '/status', desc: 'Show system health' },
+    { cmd: '/export', desc: 'Export session as markdown' },
+    { cmd: '/delete', desc: 'Delete current session' },
+    { cmd: '/sessions', desc: 'Focus session list' },
+  ];
+
+  let showAutocomplete = false;
+  let autocompleteItems: typeof COMMANDS = [];
+  let selectedIndex = 0;
+
+  $: {
+    if (text.startsWith('/') && !text.includes(' ')) {
+      const prefix = text.toLowerCase();
+      autocompleteItems = COMMANDS.filter(c => c.cmd.startsWith(prefix));
+      showAutocomplete = autocompleteItems.length > 0 && text !== autocompleteItems[0]?.cmd;
+      selectedIndex = 0;
+    } else {
+      showAutocomplete = false;
+      autocompleteItems = [];
+    }
+  }
+
+  function selectAutocomplete(idx: number) {
+    text = autocompleteItems[idx].cmd;
+    showAutocomplete = false;
+    textarea?.focus();
+  }
+
   const HELP_TEXT = `**Available commands:**
 - \`/new\` — Start a new session
 - \`/otr\` — Start a new Off The Record session
@@ -25,6 +60,33 @@
 - \`/help\` — Show this help message`;
 
   function handleKeydown(e: KeyboardEvent) {
+    if (showAutocomplete) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = (selectedIndex + 1) % autocompleteItems.length;
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = (selectedIndex - 1 + autocompleteItems.length) % autocompleteItems.length;
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        selectAutocomplete(selectedIndex);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        showAutocomplete = false;
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        selectAutocomplete(selectedIndex);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -247,6 +309,20 @@
 </script>
 
 <div class="input-area">
+  {#if showAutocomplete}
+    <div class="autocomplete-dropdown">
+      {#each autocompleteItems as item, i (item.cmd)}
+        <button
+          class="autocomplete-item"
+          class:selected={i === selectedIndex}
+          on:mousedown|preventDefault={() => selectAutocomplete(i)}
+        >
+          <span class="ac-cmd">{item.cmd}</span>
+          <span class="ac-desc">{item.desc}</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
   <div class="input-container">
     <textarea
       bind:this={textarea}
@@ -277,7 +353,47 @@
   .input-area {
     padding: 12px 14px;
     border-top: 1px solid var(--accent-border);
+    position: relative;
   }
+
+  .autocomplete-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 14px; right: 14px;
+    margin-bottom: 4px;
+    background: rgba(12, 16, 28, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--accent-border-active);
+    border-radius: var(--radius);
+    padding: 4px;
+    z-index: 20;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .autocomplete-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 100ms ease;
+    text-align: left;
+  }
+  .autocomplete-item:hover,
+  .autocomplete-item.selected {
+    background: var(--accent-ghost);
+  }
+
+  .ac-cmd { color: var(--accent); font-weight: 500; }
+  .ac-desc { color: var(--text-tertiary); font-size: 11px; }
 
   .input-container {
     display: flex; gap: 8px;

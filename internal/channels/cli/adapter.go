@@ -72,17 +72,18 @@ type model struct {
 	ctx       context.Context
 	program   *tea.Program
 
-	spinner  spinner.Model
-	viewport viewport.Model
-	lines    []styledLine
-	thoughts []string
-	input    textarea.Model
-	stream   string
-	thinking bool
-	quitting bool
-	ready    bool
-	width    int
-	height   int
+	spinner       spinner.Model
+	viewport      viewport.Model
+	lines         []styledLine
+	thoughts      []string
+	input         textarea.Model
+	stream        string
+	thinking      bool
+	quitting      bool
+	tabCycleIndex int
+	ready         bool
+	width         int
+	height        int
 }
 
 // styledLine is a pre-rendered line in the chat history.
@@ -136,6 +137,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.triggerShutdown()
 			m.quitting = true
 			return m, tea.Quit
+		case tea.KeyTab:
+			if !m.thinking {
+				text := strings.TrimSpace(m.input.Value())
+				if strings.HasPrefix(text, "/") && !strings.Contains(text, " ") {
+					completed := m.tabComplete(text)
+					if completed != text {
+						m.input.SetValue(completed)
+						m.input.CursorEnd()
+						return m, nil
+					}
+				}
+			}
 		case tea.KeyEnter:
 			if m.thinking {
 				break
@@ -663,6 +676,30 @@ func (m *model) handleNewSession() tea.Cmd {
 	return func() tea.Msg {
 		return newSession{}
 	}
+}
+
+var slashCommands = []string{
+	"/help", "/new", "/otr", "/quit", "/clear", "/status",
+	"/export", "/delete", "/restart", "/sessions", "/switch",
+}
+
+func (m *model) tabComplete(prefix string) string {
+	lower := strings.ToLower(prefix)
+	var matches []string
+	for _, cmd := range slashCommands {
+		if strings.HasPrefix(cmd, lower) {
+			matches = append(matches, cmd)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0]
+	}
+	if len(matches) > 1 {
+		idx := (m.tabCycleIndex) % len(matches)
+		m.tabCycleIndex++
+		return matches[idx]
+	}
+	return prefix
 }
 
 func writeExportFile(path, content string) error {
