@@ -9,7 +9,7 @@
   import { connect } from './lib/websocket';
   import { connected, reconnecting } from './stores/connection';
   import { sessions, currentSessionId, currentMode } from './stores/session';
-  import { sidebarOpen, settingsOpen } from './stores/settings';
+  import { sidebarOpen, settingsOpen, activeNavItem } from './stores/settings';
   import { clearMessages, addSystemMessage, messages } from './stores/messages';
   import { clearArtifactTabs } from './stores/artifacts';
   import { createSession, getStatus } from './lib/api';
@@ -141,9 +141,11 @@
       <Sidebar />
     </div>
     <div class="resize-handle" on:mousedown={startResize('sidebar')} role="separator" aria-label="Resize sidebar"></div>
-    <ArtifactCanvas />
+    <div class="canvas-wrap" class:mobile-hidden={$activeNavItem === 'chat'} class:mobile-show={$activeNavItem !== 'chat'}>
+      <ArtifactCanvas />
+    </div>
     <div class="resize-handle" on:mousedown={startResize('chat')} role="separator" aria-label="Resize chat"></div>
-    <div class="chat-wrap" style="--cw:{chatWidth}px">
+    <div class="chat-wrap" style="--cw:{chatWidth}px" class:mobile-hidden={$activeNavItem !== 'chat'}>
       <ChatPanel />
     </div>
   </div>
@@ -293,6 +295,12 @@
     flex-shrink: 0;
   }
 
+  .canvas-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+  }
+
   .chat-wrap {
     width: var(--cw, 380px);
     min-width: var(--cw, 380px);
@@ -333,7 +341,10 @@
     .agent-name { font-size: 24px; }
     .agent-subtitle { display: none; }
     .hamburger { display: flex; }
-    .sidebar-wrap { display: none; }
+    .sidebar-wrap { width: 0 !important; min-width: 0 !important; overflow: visible; }
     .chat-wrap { width: 100% !important; min-width: 0 !important; flex: 1; }
+    .canvas-wrap { flex: 1; min-width: 0; }
+    .mobile-hidden { display: none !important; }
+    .mobile-show { display: flex !important; flex: 1; }
   }
 </style>

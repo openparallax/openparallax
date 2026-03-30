@@ -1,16 +1,17 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { ShieldCheck, ShieldX } from 'lucide-svelte';
+  import { ShieldCheck, ShieldX, Gauge } from 'lucide-svelte';
   import { getStatus } from '../lib/api';
 
   let active = false;
   let tier2Used = 0;
   let tier2Budget = 50;
-  let tier2Enabled = false;
   let pollTimer: ReturnType<typeof setInterval>;
 
   $: budgetPercent = tier2Budget > 0 ? Math.min(100, (tier2Used / tier2Budget) * 100) : 0;
   $: barColor = budgetPercent >= 100 ? 'var(--error)' : budgetPercent >= 80 ? 'var(--warning)' : '';
+  $: shieldColor = active ? 'var(--success)' : 'var(--error)';
+  $: gaugeColor = budgetPercent >= 100 ? 'var(--error)' : budgetPercent >= 80 ? 'var(--warning)' : 'var(--accent)';
 
   async function refresh() {
     try {
@@ -19,7 +20,6 @@
         active = s.shield.active;
         tier2Used = s.shield.tier2_used;
         tier2Budget = s.shield.tier2_budget;
-        tier2Enabled = s.shield.tier2_enabled;
       } else {
         active = true;
       }
@@ -38,21 +38,40 @@
   });
 </script>
 
-<div class="shield-status">
-  {#if active}
-    <ShieldCheck size={14} />
-    <span>Shield: <strong class="active">Active</strong></span>
-  {:else}
-    <ShieldX size={14} />
-    <span>Shield: <strong class="unavailable">Down</strong></span>
-  {/if}
+<div class="shield-badge">
+  <div class="badge-full">
+    <div class="shield-status">
+      {#if active}
+        <ShieldCheck size={14} />
+        <span>Shield: <strong class="active">Active</strong></span>
+      {:else}
+        <ShieldX size={14} />
+        <span>Shield: <strong class="unavailable">Down</strong></span>
+      {/if}
+    </div>
+    <div class="shield-bar">
+      <div class="shield-bar-fill" style="width: {budgetPercent}%; {barColor ? `background: ${barColor}` : ''}"></div>
+    </div>
+    <div class="shield-detail">Tier 2: {tier2Used}/{tier2Budget} calls today</div>
+  </div>
+
+  <div class="badge-icons" title="Shield: {active ? 'Active' : 'Down'} · Tier 2: {tier2Used}/{tier2Budget}">
+    <div class="icon-row">
+      {#if active}
+        <ShieldCheck size={16} style="color: {shieldColor}" />
+      {:else}
+        <ShieldX size={16} style="color: {shieldColor}" />
+      {/if}
+      <Gauge size={14} style="color: {gaugeColor}" />
+    </div>
+  </div>
 </div>
-<div class="shield-bar">
-  <div class="shield-bar-fill" style="width: {budgetPercent}%; {barColor ? `background: ${barColor}` : ''}"></div>
-</div>
-<div class="shield-detail">Tier 2: {tier2Used}/{tier2Budget} calls today</div>
 
 <style>
+  .badge-icons {
+    display: none;
+  }
+
   .shield-status {
     display: flex; align-items: center;
     gap: 8px;
@@ -83,5 +102,23 @@
     font-size: 11px;
     color: var(--text-tertiary);
     font-family: 'JetBrains Mono', monospace;
+  }
+
+  .icon-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 0;
+  }
+
+  @media (max-width: 1200px) {
+    .badge-full { display: none; }
+    .badge-icons { display: block; }
+  }
+
+  @media (max-width: 800px) {
+    .badge-full { display: block; }
+    .badge-icons { display: none; }
   }
 </style>
