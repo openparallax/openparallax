@@ -418,7 +418,19 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 		}
 	}
 
-	e.log.Info("message_complete", "session", sid, "response_length", len(fullResponse), "rounds", rounds)
+	// Estimate token usage for telemetry.
+	inputTokens := 0
+	for _, m := range messages {
+		inputTokens += e.llm.EstimateTokens(m.Content)
+	}
+	outputTokens := e.llm.EstimateTokens(fullResponse)
+	toolTokens := len(tools) * 120 // ~120 tokens per tool definition estimate
+
+	e.log.Info("message_complete", "session", sid,
+		"response_length", len(fullResponse), "rounds", rounds,
+		"input_tokens", inputTokens, "output_tokens", outputTokens,
+		"tool_def_tokens", toolTokens, "history_msgs", len(messages),
+		"tools_sent", len(tools))
 	return nil
 }
 
@@ -647,7 +659,12 @@ func (e *Engine) Shutdown(ctx context.Context, _ *pb.ShutdownRequest) (*pb.Shutd
 }
 
 // summarizeActiveSessions generates summaries for sessions with sufficient history.
-func (e *Engine) summarizeActiveSessions(ctx context.Context) {
+// Uses a dedicated context to avoid cancellation when the caller's context ends.
+func (e *Engine) summarizeActiveSessions(_ context.Context) {
+	// Detached context with 30s timeout — survives session switches and shutdown.
+	sumCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	sessions, err := e.db.ListSessions()
 	if err != nil {
 		e.log.Warn("summarize_sessions_failed", "error", err)
@@ -658,7 +675,7 @@ func (e *Engine) summarizeActiveSessions(ctx context.Context) {
 		if len(history) < 4 {
 			continue
 		}
-		if err := e.memory.SummarizeSession(ctx, "", history); err != nil {
+		if err := e.memory.SummarizeSession(sumCtx, "", history); err != nil {
 			e.log.Warn("session_summarize_failed", "session", sess.ID, "error", err)
 		} else {
 			e.log.Info("session_summarized", "session", sess.ID)
