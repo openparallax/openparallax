@@ -257,7 +257,7 @@
       {:else}
         {#each auditEntries as entry, i (i)}
           <button class="log-entry audit-entry" on:click={() => toggleExpand(10000 + i)}>
-            <span class="entry-time">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+            <span class="entry-time">{new Date(entry.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
             <span class="entry-level audit-type">{auditEventLabel(entry.event_type)}</span>
             <span class="entry-event">{entry.action_type || ''}</span>
             <span class="entry-hash" title={entry.hash}>{(entry.hash || '').slice(0, 8)}</span>
