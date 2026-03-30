@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { afterUpdate } from 'svelte';
   import type { Message as MessageType, Artifact } from '../lib/types';
   import { renderMarkdown } from '../lib/format';
   import { openArtifactTab } from '../stores/artifacts';
@@ -9,10 +10,33 @@
   export let agentName = 'Atlas';
   export let agentAvatar = 'A';
 
+  let bubbleEl: HTMLDivElement;
+
   $: isAtlas = message.role === 'assistant';
+  $: isSystem = message.role === 'system';
   $: htmlContent = renderMarkdown(message.content);
   $: timestamp = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   $: messageArtifacts = message.artifacts || [];
+
+  afterUpdate(() => {
+    if (!bubbleEl) return;
+    bubbleEl.querySelectorAll('pre').forEach(pre => {
+      if (pre.querySelector('.copy-code-btn')) return;
+      const btn = document.createElement('button');
+      btn.className = 'copy-code-btn';
+      btn.textContent = '\u2398';
+      btn.title = 'Copy code';
+      btn.addEventListener('click', () => {
+        const code = pre.querySelector('code');
+        const text = code ? code.textContent || '' : pre.textContent || '';
+        navigator.clipboard.writeText(text);
+        btn.textContent = '\u2713';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = '\u2398'; btn.classList.remove('copied'); }, 1500);
+      });
+      pre.appendChild(btn);
+    });
+  });
 
   function viewArtifact(artifact: Artifact) {
     openArtifactTab(artifact);
@@ -20,26 +44,34 @@
   }
 </script>
 
-<div class="message" class:atlas={isAtlas} class:user={!isAtlas}>
-  <div class="msg-header">
-    <div class="msg-avatar" class:atlas-avatar={isAtlas} class:user-avatar={!isAtlas}>
-      {isAtlas ? agentAvatar : 'Y'}
+{#if isSystem}
+  <div class="system-message">
+    <div class="system-bubble markdown-content">
+      {@html htmlContent}
     </div>
-    <div class="msg-name">{isAtlas ? agentName : 'You'}</div>
-    <div class="msg-time">{timestamp}</div>
   </div>
-  <div class="msg-bubble markdown-content">
-    {@html htmlContent}
-    {#if isStreaming}
-      <span class="cursor"></span>
-    {/if}
-    {#each messageArtifacts as artifact (artifact.id)}
-      <button class="artifact-ref" on:click={() => viewArtifact(artifact)}>
-        &#x1F4C4; {artifact.title} &rarr; View in canvas
-      </button>
-    {/each}
+{:else}
+  <div class="message" class:atlas={isAtlas} class:user={!isAtlas}>
+    <div class="msg-header">
+      <div class="msg-avatar" class:atlas-avatar={isAtlas} class:user-avatar={!isAtlas}>
+        {isAtlas ? agentAvatar : 'Y'}
+      </div>
+      <div class="msg-name">{isAtlas ? agentName : 'You'}</div>
+      <div class="msg-time">{timestamp}</div>
+    </div>
+    <div class="msg-bubble markdown-content" bind:this={bubbleEl}>
+      {@html htmlContent}
+      {#if isStreaming}
+        <span class="cursor"></span>
+      {/if}
+      {#each messageArtifacts as artifact (artifact.id)}
+        <button class="artifact-ref" on:click={() => viewArtifact(artifact)}>
+          &#x1F4C4; {artifact.title} &rarr; View in canvas
+        </button>
+      {/each}
+    </div>
   </div>
-</div>
+{/if}
 
 <style>
   .message {
@@ -106,6 +138,24 @@
     border: 1px solid rgba(240, 240, 245, 0.06);
     border-right: 2px solid rgba(240, 240, 245, 0.2);
     max-width: 85%;
+  }
+
+  .system-message {
+    display: flex;
+    justify-content: center;
+    animation: msg-in 300ms ease-out;
+  }
+
+  .system-bubble {
+    max-width: 95%;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    background: var(--bg-inset);
+    border: 1px solid var(--accent-border);
+    font-family: 'JetBrains Mono', monospace;
   }
 
   .cursor {

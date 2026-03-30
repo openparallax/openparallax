@@ -1,15 +1,26 @@
 <script lang="ts">
   import { Send, Square } from 'lucide-svelte';
   import { currentSessionId, currentMode, sessions } from '../stores/session';
-  import { streaming, addUserMessage, clearMessages } from '../stores/messages';
+  import { streaming, addUserMessage, addSystemMessage, clearMessages, messages } from '../stores/messages';
   import { connected } from '../stores/connection';
   import { activeNavItem, sidebarOpen } from '../stores/settings';
   import { clearArtifactTabs } from '../stores/artifacts';
   import { sendMessage } from '../lib/websocket';
-  import { createSession } from '../lib/api';
+  import { createSession, getStatus, deleteSession } from '../lib/api';
 
   let text = '';
   let textarea: HTMLTextAreaElement;
+
+  const HELP_TEXT = `**Available commands:**
+- \`/new\` — Start a new session
+- \`/otr\` — Start a new Off The Record session
+- \`/quit\` — Close current session, start new one
+- \`/restart\` — Restart the engine
+- \`/clear\` — Clear the chat view (history preserved)
+- \`/status\` — Show system health and session stats
+- \`/delete\` — Delete the current session
+- \`/sessions\` — Focus session list
+- \`/help\` — Show this help message`;
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -24,6 +35,7 @@
 
     if (content.startsWith('/')) {
       text = '';
+      if (textarea) textarea.style.height = 'auto';
       await handleSlashCommand(content);
       return;
     }
@@ -50,20 +62,40 @@
   }
 
   async function handleSlashCommand(cmd: string) {
-    switch (cmd) {
+    const parts = cmd.split(/\s+/);
+    const command = parts[0].toLowerCase();
+
+    switch (command) {
+      case '/help':
+        addSystemMessage(HELP_TEXT);
+        break;
+
       case '/new':
         await createNewSession('normal');
         break;
+
       case '/otr':
         await createNewSession('otr');
         break;
+
+      case '/clear':
+        messages.set([]);
+        addSystemMessage('Chat cleared. History is preserved.');
+        break;
+
+      case '/status':
+        await showStatus();
+        break;
+
       case '/restart':
+        addSystemMessage('Restarting engine...');
         try {
           await fetch('/api/restart', { method: 'POST' });
         } catch {
           /* WS will drop and reconnect */
         }
         break;
+
       case '/quit':
         clearMessages();
         clearArtifactTabs();
@@ -71,10 +103,70 @@
         currentMode.set('normal');
         await createNewSession('normal');
         break;
+
+      case '/delete':
+        await handleDelete();
+        break;
+
       case '/sessions':
         sidebarOpen.set(true);
         break;
+
+      default:
+        addSystemMessage(`Unknown command: \`${command}\`\nType \`/help\` for available commands.`);
+        break;
     }
+  }
+
+  async function showStatus() {
+    try {
+      const s = await getStatus();
+      const shield = s.shield;
+      const shieldLine = shield
+        ? `Shield: ${shield.active ? 'Active' : 'Down'} · Tier 2: ${shield.tier2_used}/${shield.tier2_budget} calls today`
+        : 'Shield: Unknown';
+      const msgCount = $messages.length;
+
+      addSystemMessage(`**System Status**
+- **Session:** ${msgCount} messages
+- **Model:** ${s.model || 'Not configured'}
+- **${shieldLine}**
+- **Workspace:** ${s.workspace || 'Unknown'}`);
+    } catch {
+      addSystemMessage('Failed to fetch system status. Engine may be unreachable.');
+    }
+  }
+
+  async function handleDelete() {
+    const sid = $currentSessionId;
+    if (!sid) {
+      addSystemMessage('No active session to delete.');
+      return;
+    }
+    addSystemMessage('Delete this session and all its messages? This cannot be undone.\nType `/delete confirm` to proceed.');
+    pendingDelete = sid;
+  }
+
+  let pendingDelete: string | null = null;
+
+  $: if (text.trim() === '/delete confirm' && pendingDelete) {
+    (async () => {
+      const sid = pendingDelete;
+      pendingDelete = null;
+      text = '';
+      try {
+        await deleteSession(sid);
+        sessions.update(s => s.filter(sess => sess.id !== sid));
+        clearMessages();
+        clearArtifactTabs();
+        currentSessionId.set(null);
+        currentMode.set('normal');
+        addSystemMessage('Session deleted.');
+        await createNewSession('normal');
+      } catch {
+        addSystemMessage('Failed to delete session.');
+      }
+    })();
   }
 
   async function createNewSession(mode: 'normal' | 'otr') {

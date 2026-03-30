@@ -11,7 +11,7 @@ export interface Session {
 export interface Message {
   id: string;
   session_id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
   toolCalls?: ToolCall[];

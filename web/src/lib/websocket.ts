@@ -109,6 +109,9 @@ function handleEvent(event: WSEvent) {
         finalizeResponse(event.response_complete.content, event.response_complete.thoughts);
         setStreaming(false);
         activeStreamSessionId = null;
+        if (document.hidden) {
+          document.title = '\u25CF Atlas';
+        }
       }
       break;
 

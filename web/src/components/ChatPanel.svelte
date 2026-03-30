@@ -2,6 +2,7 @@
   import { afterUpdate } from 'svelte';
   import { ChevronDown } from 'lucide-svelte';
   import { messages, pendingToolCalls, streaming, streamingText } from '../stores/messages';
+  import { logEntries } from '../stores/console';
   import Message from './Message.svelte';
   import ToolCallEnvelope from './ToolCallEnvelope.svelte';
   import InputArea from './InputArea.svelte';
@@ -34,12 +35,24 @@
   }
 
   $: messageCount = $messages.length;
+
+  $: totalTokens = $logEntries
+    .filter(e => e.event && e.event.includes('llm'))
+    .reduce((sum, e) => {
+      const d = e.data || {};
+      return sum + (Number(d.input_tokens) || 0) + (Number(d.output_tokens) || 0);
+    }, 0);
+
+  function formatTokens(n: number): string {
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(n);
+  }
 </script>
 
 <div class="chat glass" class:streaming={$streaming}>
   <div class="chat-header">
     <span>CHAT</span>
-    <span class="msg-count">{messageCount} messages</span>
+    <span class="msg-count">{messageCount} messages{#if totalTokens > 0} &middot; {formatTokens(totalTokens)} tokens{/if}</span>
   </div>
 
   <div class="messages-container">

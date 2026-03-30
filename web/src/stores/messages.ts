@@ -115,6 +115,16 @@ export function loadMessages(msgs: Message[]) {
   }
 }
 
+export function addSystemMessage(content: string) {
+  messages.update(msgs => [...msgs, {
+    id: 'sys-' + Date.now(),
+    session_id: '',
+    role: 'system' as const,
+    content,
+    timestamp: new Date().toISOString(),
+  }]);
+}
+
 export function addUserMessage(content: string) {
   messages.update(msgs => [...msgs, {
     id: 'msg-' + Date.now(),

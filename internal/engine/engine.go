@@ -788,6 +788,19 @@ func (e *Engine) Log() *logging.Logger { return e.log }
 // LLMModel returns the configured LLM model name.
 func (e *Engine) LLMModel() string { return e.llm.Model() }
 
+// ToolList returns all available tools grouped by name.
+func (e *Engine) ToolList() []map[string]string {
+	schemas := e.executors.AllToolSchemas()
+	tools := make([]map[string]string, 0, len(schemas))
+	for _, s := range schemas {
+		tools = append(tools, map[string]string{
+			"name":        s.Name,
+			"description": s.Description,
+		})
+	}
+	return tools
+}
+
 // ShieldStatus returns the current Shield operational state.
 func (e *Engine) ShieldStatus() map[string]any {
 	s := e.shield.Status()

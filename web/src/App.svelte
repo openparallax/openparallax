@@ -8,15 +8,26 @@
   import { Menu } from 'lucide-svelte';
   import { connect } from './lib/websocket';
   import { connected, reconnecting } from './stores/connection';
-  import { currentMode } from './stores/session';
-  import { sidebarOpen } from './stores/settings';
-  import { getStatus } from './lib/api';
+  import { sessions, currentSessionId, currentMode } from './stores/session';
+  import { sidebarOpen, settingsOpen } from './stores/settings';
+  import { clearMessages, addSystemMessage, messages } from './stores/messages';
+  import { clearArtifactTabs } from './stores/artifacts';
+  import { createSession, getStatus } from './lib/api';
 
   let agentName = 'ATLAS';
   let workspace = '~/workspace';
+  let originalTitle = 'OpenParallax';
 
   onMount(async () => {
     connect();
+    originalTitle = document.title;
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        document.title = originalTitle;
+      }
+    });
+
     try {
       const status = await getStatus();
       if (status.agent_name) agentName = status.agent_name.toUpperCase();
@@ -25,7 +36,44 @@
       /* engine not ready */
     }
   });
+
+  function handleKeydown(e: KeyboardEvent) {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key === 'n' && !e.shiftKey) {
+      e.preventDefault();
+      createNewSession('normal');
+    } else if (mod && e.shiftKey && e.key === 'O') {
+      e.preventDefault();
+      createNewSession('otr');
+    } else if (mod && e.key === 'l') {
+      e.preventDefault();
+      messages.set([]);
+      addSystemMessage('Chat cleared. History is preserved.');
+    } else if (e.key === 'Escape') {
+      settingsOpen.set(false);
+      sidebarOpen.set(false);
+    }
+  }
+
+  async function createNewSession(mode: 'normal' | 'otr') {
+    try {
+      if ($currentMode === 'otr' && $currentSessionId) {
+        const otrId = $currentSessionId;
+        sessions.update(s => s.filter(sess => sess.id !== otrId));
+      }
+      const sess = await createSession(mode);
+      sessions.update(s => [sess, ...s]);
+      currentSessionId.set(sess.id);
+      currentMode.set(mode);
+      clearMessages();
+      clearArtifactTabs();
+    } catch {
+      /* ignore */
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div class="bg"></div>
 <Particles />
