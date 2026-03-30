@@ -24,6 +24,8 @@
 
   function handleContextMenu(e: MouseEvent) {
     if (isSystem) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'A' || target.closest('a')) return;
     e.preventDefault();
     showContextMenu = true;
     menuX = e.clientX;

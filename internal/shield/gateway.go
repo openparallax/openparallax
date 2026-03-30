@@ -204,6 +204,13 @@ func (g *Gateway) Status() ShieldStatus {
 	}
 }
 
+// UpdateBudget changes the daily Tier 2 evaluation budget.
+func (g *Gateway) UpdateBudget(budget int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.cfg.DailyBudget = budget
+}
+
 func (g *Gateway) checkBudget() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()

@@ -2,21 +2,33 @@ package executors
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync"
+	"time"
 
+	"github.com/chromedp/chromedp"
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
-// BrowserExecutor handles browser navigation and content extraction.
-// Uses a detected Chromium-based browser. Returns nil if no browser is found.
+// BrowserExecutor handles all browser actions via chromedp (Chrome DevTools Protocol).
+// Maintains a persistent headless browser session that is lazily started on first use
+// and shut down after an idle timeout.
 type BrowserExecutor struct {
 	browserPath string
 	log         *logging.Logger
+
+	mu       sync.Mutex
+	ctx      context.Context
+	cancel   context.CancelFunc
+	lastUsed time.Time
+	running  bool
 }
 
 // NewBrowserExecutor detects a Chromium-based browser and creates the executor.
@@ -35,6 +47,7 @@ func NewBrowserExecutor(log *logging.Logger) *BrowserExecutor {
 	return &BrowserExecutor{browserPath: browserPath, log: log}
 }
 
+// SupportedActions returns all browser action types.
 func (b *BrowserExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{
 		types.ActionBrowserNav, types.ActionBrowserExtract,
@@ -43,63 +56,339 @@ func (b *BrowserExecutor) SupportedActions() []types.ActionType {
 	}
 }
 
+// ToolSchemas returns tool definitions for the LLM.
 func (b *BrowserExecutor) ToolSchemas() []ToolSchema {
 	return []ToolSchema{
-		{ActionType: types.ActionBrowserNav, Name: "browser_navigate", Description: "Navigate to a URL and return the page content as an accessibility tree — structured headings, links, buttons, and text that represent the page layout.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"url": map[string]any{"type": "string", "description": "URL to navigate to."}}, "required": []string{"url"}}},
-		{ActionType: types.ActionBrowserExtract, Name: "browser_extract", Description: "Extract content from the current page using a CSS selector or as full accessibility tree.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"selector": map[string]any{"type": "string", "description": "CSS selector to extract. Omit for full page."}, "format": map[string]any{"type": "string", "description": "Output format: text, html, or accessibility_tree.", "enum": []string{"text", "html", "accessibility_tree"}}}}},
-		{ActionType: types.ActionBrowserClick, Name: "browser_click", Description: "Click an element on the current page.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"selector": map[string]any{"type": "string", "description": "CSS selector of the element to click."}}, "required": []string{"selector"}}},
+		{ActionType: types.ActionBrowserNav, Name: "browser_navigate", Description: "Navigate to a URL and return the page text content.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"url": map[string]any{"type": "string", "description": "URL to navigate to."}}, "required": []string{"url"}}},
+		{ActionType: types.ActionBrowserExtract, Name: "browser_extract", Description: "Extract content from the current page using a CSS selector.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"selector": map[string]any{"type": "string", "description": "CSS selector to extract. Omit for full page text."}, "format": map[string]any{"type": "string", "description": "Output format: text or html.", "enum": []string{"text", "html"}}}}},
+		{ActionType: types.ActionBrowserClick, Name: "browser_click", Description: "Click an element on the current page by CSS selector.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"selector": map[string]any{"type": "string", "description": "CSS selector of the element to click."}}, "required": []string{"selector"}}},
 		{ActionType: types.ActionBrowserType, Name: "browser_type", Description: "Type text into an input field on the current page.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"selector": map[string]any{"type": "string", "description": "CSS selector of the input element."}, "text": map[string]any{"type": "string", "description": "Text to type."}}, "required": []string{"selector", "text"}}},
-		{ActionType: types.ActionBrowserShot, Name: "browser_screenshot", Description: "Take a screenshot of the current page.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"full_page": map[string]any{"type": "boolean", "description": "Capture the full page including scroll. Default false."}}}},
+		{ActionType: types.ActionBrowserShot, Name: "browser_screenshot", Description: "Take a screenshot of the current page and save it as an artifact.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"full_page": map[string]any{"type": "boolean", "description": "Capture the full scrollable page. Default false."}}}},
 	}
 }
 
-func (b *BrowserExecutor) Execute(_ context.Context, action *types.ActionRequest) *types.ActionResult {
-	switch action.Type {
-	case types.ActionBrowserNav:
-		return b.navigatePage(action)
-	case types.ActionBrowserExtract, types.ActionBrowserClick, types.ActionBrowserType, types.ActionBrowserShot:
-		return ErrorResult(action.RequestID,
-			"interactive browser actions (click, type, extract, screenshot) require the chromedp package which is not yet integrated. Use browser_navigate for page content or http_request for API calls.",
-			"browser action not available")
-	default:
+// Execute dispatches browser actions.
+func (b *BrowserExecutor) Execute(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
+	bctx, err := b.ensureSession(ctx)
+	if err != nil {
 		return &types.ActionResult{
-			RequestID: action.RequestID, Success: false,
-			Error:   "interactive browser actions (click, type, extract, screenshot) require the chromedp package. Use browser_navigate for page content or http_request for API calls.",
-			Summary: "browser action not available",
+			RequestID: action.RequestID,
+			Success:   false,
+			Error:     "failed to start browser: " + err.Error(),
+			Summary:   "browser session failed",
 		}
 	}
+
+	switch action.Type {
+	case types.ActionBrowserNav:
+		return b.navigate(bctx, action)
+	case types.ActionBrowserExtract:
+		return b.extract(bctx, action)
+	case types.ActionBrowserClick:
+		return b.click(bctx, action)
+	case types.ActionBrowserType:
+		return b.typeText(bctx, action)
+	case types.ActionBrowserShot:
+		return b.screenshot(bctx, action)
+	default:
+		return ErrorResult(action.RequestID, "unknown browser action", "unknown action")
+	}
 }
 
-func (b *BrowserExecutor) navigatePage(action *types.ActionRequest) *types.ActionResult {
+// Shutdown closes the browser session.
+func (b *BrowserExecutor) Shutdown() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.cancel != nil {
+		b.cancel()
+		b.running = false
+	}
+}
+
+func (b *BrowserExecutor) navigate(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
 	url, _ := action.Payload["url"].(string)
 	if url == "" {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "url is required"}
+		return ErrorResult(action.RequestID, "url is required", "missing url")
 	}
 
-	// Use headless browser to dump DOM content as text.
-	cmd := exec.Command(b.browserPath, "--headless=new", "--dump-dom", "--disable-gpu", "--no-sandbox", url)
-	output, err := cmd.Output()
+	var body string
+	taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	err := chromedp.Run(taskCtx,
+		chromedp.Navigate(url),
+		chromedp.WaitReady("body"),
+		chromedp.InnerHTML("body", &body),
+	)
 	if err != nil {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "browser navigation failed: " + err.Error(), Summary: "browser navigate failed"}
+		return ErrorResult(action.RequestID, "navigation failed: "+err.Error(), "navigate failed")
 	}
 
-	// Truncate large output.
-	content := string(output)
-	if len(content) > 50000 {
-		content = content[:50000] + "\n\n[Content truncated at 50KB]"
+	// Extract text content for the LLM — raw HTML is too noisy.
+	var text string
+	_ = chromedp.Run(taskCtx, chromedp.Text("body", &text))
+	if text == "" {
+		text = body
 	}
+
+	content := truncateContent(text, 50000)
 
 	return &types.ActionResult{
 		RequestID: action.RequestID, Success: true,
 		Output:  content,
-		Summary: fmt.Sprintf("navigated to %s", url),
+		Summary: fmt.Sprintf("navigated to %s (%d chars)", url, len(content)),
 	}
+}
+
+func (b *BrowserExecutor) extract(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
+	selector, _ := action.Payload["selector"].(string)
+	format, _ := action.Payload["format"].(string)
+	if selector == "" {
+		selector = "body"
+	}
+	if format == "" {
+		format = "text"
+	}
+
+	taskCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	var content string
+	var err error
+
+	switch format {
+	case "html":
+		err = chromedp.Run(taskCtx, chromedp.InnerHTML(selector, &content))
+	default:
+		err = chromedp.Run(taskCtx, chromedp.Text(selector, &content))
+	}
+	if err != nil {
+		return ErrorResult(action.RequestID, "extract failed: "+err.Error(), "extract failed")
+	}
+
+	content = truncateContent(content, 50000)
+
+	return &types.ActionResult{
+		RequestID: action.RequestID, Success: true,
+		Output:  content,
+		Summary: fmt.Sprintf("extracted %s from %s (%d chars)", format, selector, len(content)),
+	}
+}
+
+func (b *BrowserExecutor) click(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
+	selector, _ := action.Payload["selector"].(string)
+	if selector == "" {
+		return ErrorResult(action.RequestID, "selector is required", "missing selector")
+	}
+
+	taskCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	err := chromedp.Run(taskCtx,
+		chromedp.WaitVisible(selector),
+		chromedp.Click(selector),
+	)
+	if err != nil {
+		return ErrorResult(action.RequestID, "click failed: "+err.Error(), "click failed")
+	}
+
+	// Brief wait for any navigation or rendering triggered by the click.
+	_ = chromedp.Run(taskCtx, chromedp.Sleep(500*time.Millisecond))
+
+	return &types.ActionResult{
+		RequestID: action.RequestID, Success: true,
+		Output:  "clicked",
+		Summary: fmt.Sprintf("clicked %s", selector),
+	}
+}
+
+func (b *BrowserExecutor) typeText(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
+	selector, _ := action.Payload["selector"].(string)
+	text, _ := action.Payload["text"].(string)
+	if selector == "" {
+		return ErrorResult(action.RequestID, "selector is required", "missing selector")
+	}
+	if text == "" {
+		return ErrorResult(action.RequestID, "text is required", "missing text")
+	}
+
+	taskCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	err := chromedp.Run(taskCtx,
+		chromedp.WaitVisible(selector),
+		chromedp.Clear(selector),
+		chromedp.SendKeys(selector, text),
+	)
+	if err != nil {
+		return ErrorResult(action.RequestID, "type failed: "+err.Error(), "type failed")
+	}
+
+	return &types.ActionResult{
+		RequestID: action.RequestID, Success: true,
+		Output:  "typed",
+		Summary: fmt.Sprintf("typed %d chars into %s", len(text), selector),
+	}
+}
+
+func (b *BrowserExecutor) screenshot(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
+	fullPage, _ := action.Payload["full_page"].(bool)
+
+	taskCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	var buf []byte
+	var err error
+
+	if fullPage {
+		err = chromedp.Run(taskCtx, chromedp.FullScreenshot(&buf, 90))
+	} else {
+		err = chromedp.Run(taskCtx, chromedp.CaptureScreenshot(&buf))
+	}
+	if err != nil {
+		return ErrorResult(action.RequestID, "screenshot failed: "+err.Error(), "screenshot failed")
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(buf)
+	return &types.ActionResult{
+		RequestID: action.RequestID, Success: true,
+		Output:  fmt.Sprintf("data:image/png;base64,%s", encoded),
+		Summary: fmt.Sprintf("screenshot taken (%d bytes)", len(buf)),
+	}
+}
+
+// ensureSession lazily starts the headless browser via chromedp.
+func (b *BrowserExecutor) ensureSession(ctx context.Context) (context.Context, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.running {
+		b.lastUsed = time.Now()
+		return b.ctx, nil
+	}
+
+	// Build chromedp allocator options.
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.NoSandbox,
+		chromedp.DisableGPU,
+		chromedp.Flag("disable-dev-shm-usage", true),
+	)
+
+	// Set the browser executable path.
+	// For Flatpak browsers, we need the real binary path inside the Flatpak.
+	// chromedp can only use a direct executable path, not "flatpak run ...".
+	browserBin := b.resolveBrowserBinary()
+	if browserBin != "" {
+		opts = append(opts, chromedp.ExecPath(browserBin))
+	}
+
+	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
+	bctx, bcancel := chromedp.NewContext(allocCtx)
+
+	// Test the connection with a blank page.
+	if err := chromedp.Run(bctx, chromedp.Navigate("about:blank")); err != nil {
+		bcancel()
+		allocCancel()
+		return nil, fmt.Errorf("browser startup: %w", err)
+	}
+
+	b.ctx = bctx
+	b.cancel = func() {
+		bcancel()
+		allocCancel()
+	}
+	b.running = true
+	b.lastUsed = time.Now()
+
+	go b.idleShutdown()
+
+	if b.log != nil {
+		b.log.Info("browser_session_started", "path", browserBin)
+	}
+
+	return bctx, nil
+}
+
+// resolveBrowserBinary converts the detected browser path into a direct
+// executable path that chromedp can use. For Flatpak browsers, it creates
+// a wrapper script since the binary can't run outside the Flatpak sandbox.
+func (b *BrowserExecutor) resolveBrowserBinary() string {
+	path := b.browserPath
+
+	// Flatpak browsers need a wrapper script — the binary inside the
+	// Flatpak can't run directly (missing runtime libraries like cobalt).
+	if strings.HasPrefix(path, "flatpak run ") {
+		wrapper, err := createFlatpakWrapper(path)
+		if err != nil {
+			return ""
+		}
+		return wrapper
+	}
+
+	// For multi-word paths, take the first token.
+	parts := strings.Fields(path)
+	if len(parts) > 1 {
+		return parts[0]
+	}
+
+	if resolved, err := exec.LookPath(path); err == nil {
+		return resolved
+	}
+	return path
+}
+
+// createFlatpakWrapper writes a temp shell script that delegates to flatpak run.
+// chromedp needs a single executable path; this wrapper provides that.
+func createFlatpakWrapper(flatpakCmd string) (string, error) {
+	f, err := os.CreateTemp("", "openparallax-browser-*.sh")
+	if err != nil {
+		return "", err
+	}
+	script := fmt.Sprintf("#!/bin/sh\nexec %s \"$@\"\n", flatpakCmd)
+	if _, err := f.WriteString(script); err != nil {
+		_ = f.Close()
+		return "", err
+	}
+	_ = f.Close()
+	if err := os.Chmod(f.Name(), 0o755); err != nil {
+		return "", err
+	}
+	return f.Name(), nil
+}
+
+// idleShutdown closes the browser after 5 minutes of inactivity.
+func (b *BrowserExecutor) idleShutdown() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		b.mu.Lock()
+		if !b.running {
+			b.mu.Unlock()
+			return
+		}
+		if time.Since(b.lastUsed) > 5*time.Minute {
+			if b.log != nil {
+				b.log.Info("browser_session_idle_shutdown")
+			}
+			b.cancel()
+			b.running = false
+			b.mu.Unlock()
+			return
+		}
+		b.mu.Unlock()
+	}
+}
+
+func truncateContent(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "\n\n[Content truncated]"
 }
 
 // DetectBrowser finds an installed Chromium-based browser.
 // Checks system PATH, absolute paths, Flatpak, and Snap installations.
 func DetectBrowser() string {
-	// System PATH and absolute paths.
 	for _, path := range browserCandidates() {
 		if _, err := exec.LookPath(path); err == nil {
 			return path

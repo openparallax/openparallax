@@ -849,6 +849,35 @@ func (e *Engine) SetSandboxStatus(active bool, mode string, version int, filesys
 	}
 }
 
+// ConfigPath returns the path to the config.yaml file.
+func (e *Engine) ConfigPath() string {
+	return filepath.Join(e.cfg.Workspace, "config.yaml")
+}
+
+// MCPServerStatus returns the status of all configured MCP servers.
+func (e *Engine) MCPServerStatus() []map[string]any {
+	if e.mcpManager == nil {
+		return nil
+	}
+	return e.mcpManager.ServerStatus()
+}
+
+// UpdateIdentity applies new agent identity settings in-memory.
+func (e *Engine) UpdateIdentity(name, avatar string) {
+	if name != "" {
+		e.cfg.Identity.Name = name
+	}
+	if avatar != "" {
+		e.cfg.Identity.Avatar = avatar
+	}
+}
+
+// UpdateShieldBudget changes the daily Tier 2 budget in-memory.
+func (e *Engine) UpdateShieldBudget(budget int) {
+	e.cfg.General.DailyBudget = budget
+	e.shield.UpdateBudget(budget)
+}
+
 // LogPath returns the path to the engine log file.
 func (e *Engine) LogPath() string {
 	return filepath.Join(e.cfg.Workspace, ".openparallax", "engine.log")

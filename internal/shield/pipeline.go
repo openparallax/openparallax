@@ -102,3 +102,8 @@ func (p *Pipeline) Evaluate(ctx context.Context, action *types.ActionRequest) *t
 func (p *Pipeline) Status() ShieldStatus {
 	return p.gateway.Status()
 }
+
+// UpdateBudget changes the daily Tier 2 evaluation budget.
+func (p *Pipeline) UpdateBudget(budget int) {
+	p.gateway.UpdateBudget(budget)
+}

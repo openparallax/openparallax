@@ -27,6 +27,9 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/restart", s.handleRestart)
 	mux.HandleFunc("GET /api/logs", s.handleLogs)
 	mux.HandleFunc("GET /api/audit", s.handleAudit)
+	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
+	mux.HandleFunc("PUT /api/settings", s.handlePutSettings)
+	mux.HandleFunc("POST /api/settings/test-mcp", s.handleTestMCP)
 	mux.HandleFunc("GET /api/memory/search", s.handleMemorySearch)
 	mux.HandleFunc("GET /api/memory/{type}", s.handleReadMemory)
 }

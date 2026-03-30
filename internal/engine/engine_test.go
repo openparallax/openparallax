@@ -45,9 +45,12 @@ func setupTestWorkspace(t *testing.T) (string, string) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("LLM endpoint unreachable (%s): %v", checkURL, err)
+		t.Skipf("LLM endpoint unreachable (%s): %v", checkURL, err)
 	}
 	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		t.Skip("OPENAI_API_KEY is invalid or expired, skipping engine integration test")
+	}
 
 	// Create a minimal policy file in the test workspace.
 	policyDir := filepath.Join(dir, "policies")

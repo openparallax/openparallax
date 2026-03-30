@@ -7,9 +7,19 @@ marked.setOptions({
   gfm: true,
 });
 
+// Override link renderer to open links in new tabs.
+const renderer = new marked.Renderer();
+renderer.link = function ({ href, title, text }) {
+  const titleAttr = title ? ` title="${title}"` : '';
+  return `<a href="${href}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+};
+marked.use({ renderer });
+
 export function renderMarkdown(text: string): string {
   const html = marked.parse(text) as string;
-  return DOMPurify.sanitize(html);
+  return DOMPurify.sanitize(html, {
+    ADD_ATTR: ['target'],
+  });
 }
 
 export function formatTimestamp(iso: string): string {

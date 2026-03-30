@@ -110,7 +110,7 @@ function handleEvent(event: WSEvent) {
         setStreaming(false);
         activeStreamSessionId = null;
         if (document.hidden) {
-          document.title = '\u25CF Atlas';
+          document.title = '\u25CF OpenParallax';
         }
       }
       break;

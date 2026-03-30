@@ -72,6 +72,27 @@ func (m *Manager) Route(toolName string) (*Client, string, bool) {
 	return client, parts[2], ok
 }
 
+// ServerStatus returns the status of each configured MCP server.
+func (m *Manager) ServerStatus() []map[string]any {
+	result := make([]map[string]any, 0, len(m.clients))
+	for name, c := range m.clients {
+		c.mu.Lock()
+		status := "idle"
+		toolCount := len(c.tools)
+		if c.running {
+			status = "running"
+		}
+		c.mu.Unlock()
+		result = append(result, map[string]any{
+			"name":        name,
+			"command":     c.config.Command,
+			"status":      status,
+			"tools_count": toolCount,
+		})
+	}
+	return result
+}
+
 // ShutdownAll cleanly stops all running MCP servers.
 func (m *Manager) ShutdownAll() {
 	for _, client := range m.clients {
@@ -241,6 +262,28 @@ func convertMCPTools(tools []mcptypes.Tool) []llm.ToolDefinition {
 		})
 	}
 	return defs
+}
+
+// TestServer spawns an MCP server briefly, discovers its tools, shuts it down,
+// and returns the tool names. Used by the settings UI to validate MCP config.
+func TestServer(ctx context.Context, cfg types.MCPServerConfig, log *logging.Logger) ([]string, error) {
+	c := &Client{
+		config: cfg,
+		idle:   30 * time.Second,
+		log:    log,
+	}
+
+	tools, err := c.DiscoverTools(ctx)
+	defer c.Shutdown()
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, len(tools))
+	for i, t := range tools {
+		names[i] = t.Name
+	}
+	return names, nil
 }
 
 func extractResultText(result *mcptypes.CallToolResult) string {

@@ -1,11 +1,21 @@
 <script lang="ts">
-  import { afterUpdate } from 'svelte';
+  import { afterUpdate, onMount } from 'svelte';
   import { ChevronDown } from 'lucide-svelte';
   import { messages, pendingToolCalls, streaming, streamingText } from '../stores/messages';
   import { logEntries } from '../stores/console';
+  import { getStatus } from '../lib/api';
   import Message from './Message.svelte';
   import ToolCallEnvelope from './ToolCallEnvelope.svelte';
   import InputArea from './InputArea.svelte';
+
+  let agentName = 'Atlas';
+
+  onMount(async () => {
+    try {
+      const status = await getStatus();
+      if (status.agent_name) agentName = status.agent_name;
+    } catch { /* engine not ready */ }
+  });
 
   let messagesEl: HTMLDivElement;
   let prevMessageCount = 0;
@@ -58,10 +68,10 @@
   <div class="messages-container">
     <div class="messages" bind:this={messagesEl} on:scroll={handleScroll}>
       {#each $messages as msg (msg.id)}
-        {#if msg.role === 'assistant' && msg.thoughts && msg.thoughts.length > 0}
+        {#if msg.role === 'assistant' && msg.thoughts && msg.thoughts.some(t => t.stage === 'tool_call')}
           <ToolCallEnvelope thoughts={msg.thoughts} />
         {/if}
-        <Message message={msg} />
+        <Message message={msg} {agentName} />
       {/each}
 
       {#if $pendingToolCalls.length > 0}
@@ -69,7 +79,7 @@
       {/if}
 
       {#if $streaming && $streamingText}
-        <Message message={{ id: 'streaming', session_id: '', role: 'assistant', content: $streamingText, timestamp: new Date().toISOString() }} isStreaming={true} />
+        <Message message={{ id: 'streaming', session_id: '', role: 'assistant', content: $streamingText, timestamp: new Date().toISOString() }} isStreaming={true} {agentName} />
       {/if}
 
       {#if $streaming && !$streamingText && $pendingToolCalls.length === 0}

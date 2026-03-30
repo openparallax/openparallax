@@ -7,7 +7,7 @@
   import { addUserMessage, clearMessages, loadMessages } from '../stores/messages';
   import { sendMessage } from '../lib/websocket';
   import { connected } from '../stores/connection';
-  import { createSession, listSessions, getMessages } from '../lib/api';
+  import { createSession, listSessions, getMessages, getStatus } from '../lib/api';
   import { renderMarkdown } from '../lib/format';
   import ArtifactBrowser from './ArtifactBrowser.svelte';
   import MemoryDashboard from './MemoryDashboard.svelte';
@@ -30,8 +30,14 @@
   ];
 
   let quickActions: QuickAction[] = defaultActions;
+  let agentName = 'Atlas';
 
   onMount(async () => {
+    try {
+      const status = await getStatus();
+      if (status.agent_name) agentName = status.agent_name;
+    } catch { /* engine not ready */ }
+
     try {
       const sessionList = await listSessions();
       if (sessionList && sessionList.length > 0) {
@@ -176,7 +182,7 @@
     {:else}
       <div class="canvas-content">
         <div class="empty-state">
-          <div class="empty-agent-name">Atlas</div>
+          <div class="empty-agent-name">{agentName}</div>
           <div class="empty-tagline">What would you like to create?</div>
           <div class="quick-actions">
             {#each quickActions as action (action.title)}
@@ -257,8 +263,9 @@
   .canvas-content {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: safe center;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 24px;

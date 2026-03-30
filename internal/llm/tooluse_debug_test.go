@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -28,6 +29,22 @@ func TestToolUseRoundTrip(t *testing.T) {
 	model := os.Getenv("OPENAI_MODEL")
 	if apiKey == "" {
 		t.Skip("OPENAI_API_KEY not set")
+	}
+	// Verify the key is valid before running the full test.
+	checkURL := "https://api.openai.com/v1/models"
+	if baseURL != "" {
+		checkURL = baseURL + "/models"
+	}
+	httpClient := &http.Client{Timeout: 3 * time.Second}
+	req, _ := http.NewRequest("GET", checkURL, nil)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	resp, httpErr := httpClient.Do(req)
+	if httpErr != nil {
+		t.Skipf("LLM endpoint unreachable: %v", httpErr)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		t.Skip("OPENAI_API_KEY is invalid or expired")
 	}
 	if model == "" {
 		model = "gpt-4o-mini"
