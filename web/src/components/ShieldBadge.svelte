@@ -1,30 +1,56 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { ShieldCheck } from 'lucide-svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { ShieldCheck, ShieldX } from 'lucide-svelte';
   import { getStatus } from '../lib/api';
 
-  let status = 'Active';
-  let budgetPercent = 0;
-  let tier2Calls = '0/50';
+  let active = false;
+  let tier2Used = 0;
+  let tier2Budget = 50;
+  let tier2Enabled = false;
+  let pollTimer: ReturnType<typeof setInterval>;
 
-  onMount(async () => {
+  $: budgetPercent = tier2Budget > 0 ? Math.min(100, (tier2Used / tier2Budget) * 100) : 0;
+  $: barColor = budgetPercent >= 100 ? 'var(--error)' : budgetPercent >= 80 ? 'var(--warning)' : '';
+
+  async function refresh() {
     try {
       const s = await getStatus();
-      status = 'Active';
+      if (s.shield) {
+        active = s.shield.active;
+        tier2Used = s.shield.tier2_used;
+        tier2Budget = s.shield.tier2_budget;
+        tier2Enabled = s.shield.tier2_enabled;
+      } else {
+        active = true;
+      }
     } catch {
-      status = 'Unavailable';
+      active = false;
     }
+  }
+
+  onMount(() => {
+    refresh();
+    pollTimer = setInterval(refresh, 15000);
+  });
+
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
   });
 </script>
 
 <div class="shield-status">
-  <ShieldCheck size={14} />
-  <span>Shield: <strong class:active={status === 'Active'} class:unavailable={status !== 'Active'}>{status}</strong></span>
+  {#if active}
+    <ShieldCheck size={14} />
+    <span>Shield: <strong class="active">Active</strong></span>
+  {:else}
+    <ShieldX size={14} />
+    <span>Shield: <strong class="unavailable">Down</strong></span>
+  {/if}
 </div>
 <div class="shield-bar">
-  <div class="shield-bar-fill" style="width: {budgetPercent}%"></div>
+  <div class="shield-bar-fill" style="width: {budgetPercent}%; {barColor ? `background: ${barColor}` : ''}"></div>
 </div>
-<div class="shield-detail">Tier 2: {tier2Calls} calls today</div>
+<div class="shield-detail">Tier 2: {tier2Used}/{tier2Budget} calls today</div>
 
 <style>
   .shield-status {
@@ -56,5 +82,6 @@
   .shield-detail {
     font-size: 11px;
     color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
   }
 </style>

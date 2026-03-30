@@ -40,6 +40,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		"model":         s.engine.LLMModel(),
 		"session_count": sessionCount,
 		"workspace":     s.engine.Config().Workspace,
+		"shield":        s.engine.ShieldStatus(),
 	})
 }
 

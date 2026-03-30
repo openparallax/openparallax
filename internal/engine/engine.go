@@ -788,6 +788,17 @@ func (e *Engine) Log() *logging.Logger { return e.log }
 // LLMModel returns the configured LLM model name.
 func (e *Engine) LLMModel() string { return e.llm.Model() }
 
+// ShieldStatus returns the current Shield operational state.
+func (e *Engine) ShieldStatus() map[string]any {
+	s := e.shield.Status()
+	return map[string]any{
+		"active":        s.Active,
+		"tier2_used":    s.Tier2Used,
+		"tier2_budget":  s.Tier2Budget,
+		"tier2_enabled": s.Tier2Enabled,
+	}
+}
+
 // LogPath returns the path to the engine log file.
 func (e *Engine) LogPath() string {
 	return filepath.Join(e.cfg.Workspace, ".openparallax", "engine.log")

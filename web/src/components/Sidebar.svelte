@@ -410,6 +410,23 @@
     .sidebar-footer { padding: 10px 8px; }
     .settings-link { padding: 10px; justify-content: center; }
     .settings-link .nav-label { display: none; }
+    .footer-actions { justify-content: center; }
+    .restart-btn { display: none; }
+    .restart-confirm { display: none; }
+  }
+
+  :global(.session-list) {
+    display: block;
+  }
+  @media (max-width: 1200px) {
+    :global(.session-list) {
+      display: none;
+    }
+  }
+  @media (max-width: 800px) {
+    :global(.session-list) {
+      display: block;
+    }
   }
 
   @media (max-width: 800px) {

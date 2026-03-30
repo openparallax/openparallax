@@ -179,6 +179,31 @@ func actionTypeMinTier(at types.ActionType) int {
 	}
 }
 
+// ShieldStatus returns the current shield state: budget used, budget total, and whether tier2 is available.
+type ShieldStatus struct {
+	Active       bool `json:"active"`
+	Tier2Used    int  `json:"tier2_used"`
+	Tier2Budget  int  `json:"tier2_budget"`
+	Tier2Enabled bool `json:"tier2_enabled"`
+}
+
+// Status returns the current operational state of the gateway.
+func (g *Gateway) Status() ShieldStatus {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	today := time.Now().Format("2006-01-02")
+	used := g.budgetCount
+	if g.budgetDate != today {
+		used = 0
+	}
+	return ShieldStatus{
+		Active:       true,
+		Tier2Used:    used,
+		Tier2Budget:  g.cfg.DailyBudget,
+		Tier2Enabled: g.cfg.Evaluator != nil,
+	}
+}
+
 func (g *Gateway) checkBudget() bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()

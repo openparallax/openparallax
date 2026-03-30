@@ -67,11 +67,19 @@ export interface WSEvent {
   error?: { code: string; message: string };
 }
 
+export interface ShieldStatusData {
+  active: boolean;
+  tier2_used: number;
+  tier2_budget: number;
+  tier2_enabled: boolean;
+}
+
 export interface StatusResponse {
   agent_name: string;
   model: string;
   session_count: number;
   workspace?: string;
+  shield?: ShieldStatusData;
 }
 
 export interface ArtifactTab {

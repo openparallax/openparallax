@@ -97,3 +97,8 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 func (p *Pipeline) Evaluate(ctx context.Context, action *types.ActionRequest) *types.Verdict {
 	return p.gateway.Evaluate(ctx, action)
 }
+
+// Status returns the current operational state of the Shield.
+func (p *Pipeline) Status() ShieldStatus {
+	return p.gateway.Status()
+}
