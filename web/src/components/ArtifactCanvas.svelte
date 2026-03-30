@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { X } from 'lucide-svelte';
   import { activeNavItem } from '../stores/settings';
-  import { artifactTabs, activeTabId, activeTab, closeArtifactTab, clearArtifactTabs } from '../stores/artifacts';
+  import { artifactTabs, activeTabId, activeTab, closeArtifactTab, clearArtifactTabs, togglePinTab } from '../stores/artifacts';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { addUserMessage, clearMessages, loadMessages } from '../stores/messages';
   import { sendMessage } from '../lib/websocket';
@@ -122,16 +122,24 @@
           <div
             class="canvas-tab"
             class:active={$activeTabId === tab.id}
+            class:pinned={tab.pinned}
             role="tab"
             tabindex="0"
             on:click={() => activeTabId.set(tab.id)}
             on:keydown={(e) => e.key === 'Enter' && activeTabId.set(tab.id)}
+            on:contextmenu|preventDefault={() => togglePinTab(tab.id)}
           >
-            <span class="tab-icon">{iconForType(tab.artifact.type)}</span>
+            {#if tab.pinned}
+              <span class="tab-pin" title="Pinned">&#x1F4CC;</span>
+            {:else}
+              <span class="tab-icon">{iconForType(tab.artifact.type)}</span>
+            {/if}
             <span class="tab-name">{tab.artifact.title}</span>
-            <button class="tab-close" on:click|stopPropagation={() => closeArtifactTab(tab.id)}>
-              <X size={11} />
-            </button>
+            {#if !tab.pinned}
+              <button class="tab-close" on:click|stopPropagation={() => closeArtifactTab(tab.id)}>
+                <X size={11} />
+              </button>
+            {/if}
           </div>
         {/each}
       </div>
@@ -227,6 +235,8 @@
   .canvas-tab:hover { color: var(--text-secondary); }
   .canvas-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
+  .canvas-tab.pinned { border-bottom-color: var(--accent-border); }
+  .tab-pin { font-size: 10px; }
   .tab-icon { font-size: 12px; }
   .tab-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 

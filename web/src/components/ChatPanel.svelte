@@ -93,8 +93,8 @@
 
 <style>
   .chat {
-    width: 380px;
-    min-width: 380px;
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;

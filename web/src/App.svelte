@@ -18,6 +18,39 @@
   let workspace = '~/workspace';
   let originalTitle = 'OpenParallax';
 
+  let sidebarWidth = parseInt(localStorage.getItem('op_sidebar_w') || '240');
+  let chatWidth = parseInt(localStorage.getItem('op_chat_w') || '380');
+  let resizing: 'sidebar' | 'chat' | null = null;
+
+  function startResize(panel: 'sidebar' | 'chat') {
+    return (e: MouseEvent) => {
+      e.preventDefault();
+      resizing = panel;
+      const startX = e.clientX;
+      const startW = panel === 'sidebar' ? sidebarWidth : chatWidth;
+
+      function onMove(ev: MouseEvent) {
+        const delta = ev.clientX - startX;
+        if (panel === 'sidebar') {
+          sidebarWidth = Math.max(180, Math.min(320, startW + delta));
+        } else {
+          chatWidth = Math.max(300, Math.min(500, startW - delta));
+        }
+      }
+
+      function onUp() {
+        resizing = null;
+        localStorage.setItem('op_sidebar_w', String(sidebarWidth));
+        localStorage.setItem('op_chat_w', String(chatWidth));
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+  }
+
   onMount(async () => {
     connect();
     originalTitle = document.title;
@@ -103,10 +136,16 @@
     <div class="reconnecting-bar">Reconnecting...</div>
   {/if}
 
-  <div class="panels">
-    <Sidebar />
+  <div class="panels" class:resizing={resizing !== null}>
+    <div style="width: {sidebarWidth}px; min-width: {sidebarWidth}px;">
+      <Sidebar />
+    </div>
+    <div class="resize-handle" on:mousedown={startResize('sidebar')} role="separator" aria-label="Resize sidebar"></div>
     <ArtifactCanvas />
-    <ChatPanel />
+    <div class="resize-handle" on:mousedown={startResize('chat')} role="separator" aria-label="Resize chat"></div>
+    <div style="width: {chatWidth}px; min-width: {chatWidth}px;">
+      <ChatPanel />
+    </div>
   </div>
 </div>
 
@@ -238,13 +277,40 @@
   .panels {
     flex: 1;
     display: flex;
-    gap: var(--gap);
+    gap: 0;
     min-height: 0;
     overflow: hidden;
   }
 
+  .panels.resizing {
+    cursor: col-resize;
+    user-select: none;
+  }
+
+  .resize-handle {
+    width: var(--gap);
+    cursor: col-resize;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: transparent;
+    transition: background 200ms ease;
+  }
+
+  .resize-handle:hover::after {
+    background: var(--accent-border-active);
+  }
+
   @media (max-width: 1200px) {
     .app { padding: 30px 40px; }
+    .resize-handle { display: none; }
   }
 
   @media (max-width: 800px) {

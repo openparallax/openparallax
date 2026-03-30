@@ -214,12 +214,11 @@
 
 <style>
   .sidebar {
-    width: 240px;
-    min-width: 240px;
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transition: width 200ms ease, min-width 200ms ease;
   }
 
   .sidebar-header {
