@@ -220,6 +220,16 @@ func (pm *processManager) monitor(ctx context.Context) {
 			return // Clean exit.
 		}
 
+		// Exit code 75 = restart requested (not a crash).
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 75 {
+			fmt.Fprintln(os.Stderr, "Engine restart requested. Restarting...")
+			if _, spawnErr := pm.spawnEngine(ctx); spawnErr != nil {
+				fmt.Fprintf(os.Stderr, "Failed to restart engine: %s\n", spawnErr)
+				return
+			}
+			continue
+		}
+
 		// Engine crashed. Check restart budget.
 		now := time.Now()
 		pm.mu.Lock()

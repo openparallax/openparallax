@@ -196,8 +196,7 @@ func (s *Server) handleRestart(w http.ResponseWriter, _ *http.Request) {
 
 	go func() {
 		s.engine.Log().Info("engine_restart_initiated")
-		p, _ := os.FindProcess(os.Getpid())
-		_ = p.Signal(os.Interrupt)
+		os.Exit(75)
 	}()
 }
 
