@@ -23,8 +23,8 @@ type AgentConfig struct {
 	// Web configures the Web UI server.
 	Web WebConfig `yaml:"web" json:"web"`
 
-	// Agents defines the multi-agent configuration.
-	Agents []AgentEntry `yaml:"agents,omitempty" json:"agents,omitempty"`
+	// Agents configures sub-agent orchestration defaults.
+	Agents AgentsConfig `yaml:"agents,omitempty" json:"agents,omitempty"`
 
 	// General holds global settings.
 	General GeneralConfig `yaml:"general" json:"general"`
@@ -258,23 +258,19 @@ type WebConfig struct {
 	// Port is the HTTP listen port.
 	Port int `yaml:"port" json:"port"`
 
+	// GRPCPort is the gRPC listen port for CLI-Engine communication.
+	// When zero, the engine binds a dynamic port.
+	GRPCPort int `yaml:"grpc_port,omitempty" json:"grpc_port,omitempty"`
+
 	// Auth enables cookie-based authentication.
 	Auth bool `yaml:"auth" json:"auth"`
 }
 
-// AgentEntry configures a single agent in a multi-agent setup.
-type AgentEntry struct {
-	// Name is the agent identifier.
-	Name string `yaml:"name" json:"name"`
-
-	// Workspace is the agent's workspace directory.
-	Workspace string `yaml:"workspace" json:"workspace"`
-
-	// Channels is the list of channel names assigned to this agent.
-	Channels []string `yaml:"channels" json:"channels"`
-
-	// Default marks this agent as the default for unrouted messages.
-	Default bool `yaml:"default,omitempty" json:"default,omitempty"`
+// AgentsConfig configures sub-agent orchestration defaults.
+type AgentsConfig struct {
+	// SubAgentModel overrides the default sub-agent model.
+	// Empty means auto-detect cheapest model from the configured provider.
+	SubAgentModel string `yaml:"sub_agent_model,omitempty" json:"sub_agent_model,omitempty"`
 }
 
 // GeneralConfig holds global settings.

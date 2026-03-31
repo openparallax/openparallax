@@ -16,6 +16,7 @@ import (
 	"github.com/openparallax/openparallax/internal/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
+	"github.com/openparallax/openparallax/internal/registry"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/templates"
 	"github.com/openparallax/openparallax/internal/types"
@@ -23,9 +24,10 @@ import (
 )
 
 var initCmd = &cobra.Command{
-	Use:          "init",
+	Use:          "init [name]",
 	Short:        "Initialize a new OpenParallax workspace",
-	Long:         "Interactive wizard that creates a workspace with smart defaults. Takes under 60 seconds.",
+	Long:         "Interactive wizard that creates a workspace with smart defaults. Takes under 60 seconds.\nOptionally pass an agent name as an argument to skip the name prompt.",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE:         runInit,
 }
@@ -102,7 +104,7 @@ var avatarOptions = []struct {
 	{"🛡️", "shield"},
 }
 
-func runInit(_ *cobra.Command, _ []string) error {
+func runInit(_ *cobra.Command, args []string) error {
 	if !isatty.IsTerminal(os.Stdin.Fd()) && !isatty.IsCygwinTerminal(os.Stdin.Fd()) {
 		return fmt.Errorf("interactive terminal required: openparallax init must be run in a terminal, not piped")
 	}
@@ -140,17 +142,25 @@ func runInit(_ *cobra.Command, _ []string) error {
 	fmt.Println("  └─────────────────────────────────────┘")
 	fmt.Println()
 
-	err = huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("What would you like to call your agent?").
-				Value(&agentNameInput).
-				Placeholder("Atlas").
-				Validate(validateAgentName),
-		),
-	).Run()
-	if err != nil {
-		return err
+	// Accept name from positional arg or interactive prompt.
+	if len(args) > 0 {
+		agentNameInput = args[0]
+		if vErr := validateAgentName(agentNameInput); vErr != nil {
+			return fmt.Errorf("invalid agent name: %w", vErr)
+		}
+	} else {
+		err = huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("What would you like to call your agent?").
+					Value(&agentNameInput).
+					Placeholder("Atlas").
+					Validate(validateAgentName),
+			),
+		).Run()
+		if err != nil {
+			return err
+		}
 	}
 	if agentNameInput == "" {
 		agentNameInput = "Atlas"
@@ -409,7 +419,16 @@ func runInit(_ *cobra.Command, _ []string) error {
 		embDisplay = fmt.Sprintf("%s / %s", embProvider, embModel)
 	}
 
-	webPort := 3100
+	// Allocate web port from the global agent registry.
+	regPath, regPathErr := registry.DefaultPath()
+	if regPathErr != nil {
+		return regPathErr
+	}
+	reg, regErr := registry.Load(regPath)
+	if regErr != nil {
+		return fmt.Errorf("load registry: %w", regErr)
+	}
+	webPort := reg.AllocatePort()
 
 	fmt.Println()
 	fmt.Println("  ┌─────────────────────────────────────┐")
@@ -479,6 +498,20 @@ func runInit(_ *cobra.Command, _ []string) error {
 	}
 	if err := os.WriteFile(filepath.Join(dotDir, "canary.token"), []byte(canary), 0o600); err != nil {
 		return fmt.Errorf("failed to write canary: %w", err)
+	}
+
+	// Register agent in the global registry.
+	regRec := registry.AgentRecord{
+		Name:       agentNameInput,
+		Slug:       slug,
+		Workspace:  workspacePath,
+		ConfigPath: configPath,
+		WebPort:    webPort,
+		GRPCPort:   webPort + registry.GRPCPortOffset,
+		CreatedAt:  time.Now(),
+	}
+	if addErr := reg.Add(regRec); addErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not register agent: %s\n", addErr)
 	}
 
 	fmt.Println()
@@ -682,6 +715,7 @@ func writeConfig(path, workspace, agentName, avatar string,
 	sb.WriteString("web:\n")
 	sb.WriteString("  enabled: true\n")
 	fmt.Fprintf(&sb, "  port: %d\n", webPort)
+	fmt.Fprintf(&sb, "  grpc_port: %d\n", webPort+registry.GRPCPortOffset)
 	sb.WriteString("  auth: true\n\n")
 
 	// General
