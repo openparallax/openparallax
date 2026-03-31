@@ -32,6 +32,7 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/settings/test-mcp", s.handleTestMCP)
 	mux.HandleFunc("GET /api/memory/search", s.handleMemorySearch)
 	mux.HandleFunc("GET /api/memory/{type}", s.handleReadMemory)
+	mux.HandleFunc("GET /api/sub-agents", s.handleListSubAgents)
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
@@ -347,4 +348,14 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func (s *Server) handleListSubAgents(w http.ResponseWriter, _ *http.Request) {
+	mgr := s.engine.SubAgentManager()
+	if mgr == nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	agents := mgr.List()
+	writeJSON(w, http.StatusOK, agents)
 }

@@ -81,6 +81,26 @@ func (s *Server) broadcastLogEntry(entry logging.LogEntry) {
 	}
 }
 
+// BroadcastEvent sends a pipeline event to all connected WebSocket clients.
+// Used for sub-agent lifecycle events that are not tied to a specific message stream.
+func (s *Server) BroadcastEvent(event *engine.PipelineEvent) {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+
+	s.connsMu.Lock()
+	snapshot := make(map[*websocket.Conn]context.Context, len(s.conns))
+	for conn, ctx := range s.conns {
+		snapshot[conn] = ctx
+	}
+	s.connsMu.Unlock()
+
+	for conn, ctx := range snapshot {
+		_ = conn.Write(ctx, websocket.MessageText, data)
+	}
+}
+
 // Start begins serving HTTP on the configured port.
 // This method blocks until the server is stopped.
 func (s *Server) Start() error {

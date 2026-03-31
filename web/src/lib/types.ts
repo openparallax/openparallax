@@ -65,6 +65,11 @@ export interface WSEvent {
   response_complete?: { content: string; thoughts?: Thought[] };
   otr_blocked?: { reason: string };
   error?: { code: string; message: string };
+  sub_agent_spawned?: { name: string; task: string; tool_groups?: string[] };
+  sub_agent_progress?: { name: string; llm_calls: number; tool_calls: number; elapsed_ms: number };
+  sub_agent_completed?: { name: string; result: string; duration_ms: number };
+  sub_agent_failed?: { name: string; error: string };
+  sub_agent_cancelled?: { name: string };
 }
 
 export interface ShieldStatusData {

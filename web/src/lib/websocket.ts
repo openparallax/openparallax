@@ -2,6 +2,7 @@ import { get } from 'svelte/store';
 import { connected, reconnecting } from '../stores/connection';
 import { currentSessionId } from '../stores/session';
 import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream, clearStreamingText, addTier3Request } from '../stores/messages';
+import { addSubAgent, updateSubAgentProgress, completeSubAgent, failSubAgent, cancelSubAgent } from '../stores/subagents';
 import { addLogEntry } from '../stores/console';
 import type { WSEvent } from './types';
 
@@ -55,6 +56,28 @@ function scheduleReconnect() {
 function handleEvent(event: WSEvent) {
   if (event.type === 'log_entry' && (event as any).entry) {
     addLogEntry((event as any).entry);
+    return;
+  }
+
+  // Sub-agent events are global (not session-filtered).
+  if (event.type === 'sub_agent_spawned' && event.sub_agent_spawned) {
+    addSubAgent(event.sub_agent_spawned);
+    return;
+  }
+  if (event.type === 'sub_agent_progress' && event.sub_agent_progress) {
+    updateSubAgentProgress(event.sub_agent_progress);
+    return;
+  }
+  if (event.type === 'sub_agent_completed' && event.sub_agent_completed) {
+    completeSubAgent(event.sub_agent_completed);
+    return;
+  }
+  if (event.type === 'sub_agent_failed' && event.sub_agent_failed) {
+    failSubAgent(event.sub_agent_failed);
+    return;
+  }
+  if (event.type === 'sub_agent_cancelled' && event.sub_agent_cancelled) {
+    cancelSubAgent(event.sub_agent_cancelled);
     return;
   }
 

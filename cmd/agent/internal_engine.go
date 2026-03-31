@@ -108,6 +108,11 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Wire sub-agent events to WebSocket broadcast.
+	if webServer != nil && eng.SubAgentManager() != nil {
+		eng.SubAgentManager().SetEventBroadcaster(webServer.BroadcastEvent)
+	}
+
 	// Spawn the sandboxed Agent child process.
 	agentName := cfg.Identity.Name
 	if agentName == "" {

@@ -12,6 +12,8 @@
   import ArtifactBrowser from './ArtifactBrowser.svelte';
   import MemoryDashboard from './MemoryDashboard.svelte';
   import ConsoleViewer from './ConsoleViewer.svelte';
+  import SubAgentDock from './SubAgentDock.svelte';
+  import { subAgentCount } from '../stores/subagents';
   import type { Session } from '../lib/types';
 
   interface QuickAction {
@@ -216,6 +218,9 @@
         <ConsoleViewer />
       {/if}
     </div>
+  {/if}
+  {#if $subAgentCount > 0}
+    <SubAgentDock />
   {/if}
 </div>
 
