@@ -277,17 +277,25 @@ func TestCalendarUnknownAction(t *testing.T) {
 }
 
 func TestNewCalendarExecutorNilWhenUnconfigured(t *testing.T) {
-	assert.Nil(t, NewCalendarExecutor(types.CalendarConfig{}))
+	assert.Nil(t, NewCalendarExecutor(types.CalendarConfig{}, nil))
 }
 
 func TestNewCalendarExecutorWithProviderButNoCreds(t *testing.T) {
-	exec := NewCalendarExecutor(types.CalendarConfig{Provider: "google"})
+	exec := NewCalendarExecutor(types.CalendarConfig{Provider: "google"}, nil)
 	assert.Nil(t, exec, "google provider without credentials returns nil")
 }
 
 func TestNewCalendarExecutorWithCalDAVButNoURL(t *testing.T) {
-	exec := NewCalendarExecutor(types.CalendarConfig{Provider: "caldav"})
+	exec := NewCalendarExecutor(types.CalendarConfig{Provider: "caldav"}, nil)
 	assert.Nil(t, exec, "caldav provider without URL returns nil")
+}
+
+func TestNewCalendarExecutorMicrosoftNilWithoutOAuth(t *testing.T) {
+	exec := NewCalendarExecutor(types.CalendarConfig{
+		Provider:         "microsoft",
+		MicrosoftAccount: "user@outlook.com",
+	}, nil)
+	assert.Nil(t, exec, "microsoft provider without OAuth manager returns nil")
 }
 
 func TestCalendarSupportedActions(t *testing.T) {

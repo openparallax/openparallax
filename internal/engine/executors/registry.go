@@ -43,7 +43,7 @@ func NewRegistry(workspacePath string, cfg *types.AgentConfig, oauthMgr *oauth.M
 			}
 		}
 
-		if calendar := NewCalendarExecutor(cfg.Calendar); calendar != nil {
+		if calendar := NewCalendarExecutor(cfg.Calendar, oauthMgr); calendar != nil {
 			r.register(calendar)
 			if log != nil {
 				log.Info("executor_registered", "executor", "calendar")

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openparallax/openparallax/internal/oauth"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -35,22 +36,31 @@ type CalendarExecutor struct {
 }
 
 // NewCalendarExecutor creates a calendar executor. Returns nil if not configured.
-// When a provider is specified but credentials are incomplete, it returns an
-// executor with an unconfiguredProvider that gives clear error messages.
-func NewCalendarExecutor(cfg types.CalendarConfig) *CalendarExecutor {
+// The oauthMgr parameter is required for Microsoft 365 calendar.
+func NewCalendarExecutor(cfg types.CalendarConfig, oauthMgr *oauth.Manager) *CalendarExecutor {
 	switch cfg.Provider {
 	case "google":
 		if cfg.GoogleCredFile == "" {
 			return nil
 		}
-		// Google Calendar provider will be wired when OAuth2 infrastructure lands.
 		return nil
 	case "caldav":
 		if cfg.CalDAVURL == "" {
 			return nil
 		}
-		// CalDAV provider will be wired when go-webdav is integrated.
 		return nil
+	case "microsoft":
+		if oauthMgr == nil || cfg.MicrosoftAccount == "" {
+			return nil
+		}
+		ctx := context.Background()
+		has, _ := oauthMgr.HasTokens(ctx, "microsoft", cfg.MicrosoftAccount)
+		if !has {
+			return nil
+		}
+		return &CalendarExecutor{
+			provider: newMS365CalendarProvider(oauthMgr, cfg.MicrosoftAccount),
+		}
 	default:
 		return nil
 	}

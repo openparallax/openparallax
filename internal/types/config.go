@@ -136,12 +136,13 @@ type SMTPConfig struct {
 
 // CalendarConfig configures calendar access.
 type CalendarConfig struct {
-	Provider       string `yaml:"provider,omitempty" json:"provider,omitempty"` // "google", "caldav"
-	GoogleCredFile string `yaml:"google_credentials_file,omitempty" json:"google_credentials_file,omitempty"`
-	CalendarID     string `yaml:"calendar_id,omitempty" json:"calendar_id,omitempty"`
-	CalDAVURL      string `yaml:"caldav_url,omitempty" json:"caldav_url,omitempty"`
-	CalDAVUsername string `yaml:"caldav_username,omitempty" json:"caldav_username,omitempty"`
-	CalDAVPassword string `yaml:"caldav_password,omitempty" json:"caldav_password,omitempty"`
+	Provider         string `yaml:"provider,omitempty" json:"provider,omitempty"` // "google", "caldav", "microsoft"
+	GoogleCredFile   string `yaml:"google_credentials_file,omitempty" json:"google_credentials_file,omitempty"`
+	CalendarID       string `yaml:"calendar_id,omitempty" json:"calendar_id,omitempty"`
+	CalDAVURL        string `yaml:"caldav_url,omitempty" json:"caldav_url,omitempty"`
+	CalDAVUsername   string `yaml:"caldav_username,omitempty" json:"caldav_username,omitempty"`
+	CalDAVPassword   string `yaml:"caldav_password,omitempty" json:"caldav_password,omitempty"`
+	MicrosoftAccount string `yaml:"microsoft_account,omitempty" json:"microsoft_account,omitempty"`
 }
 
 // MemoryConfig configures the memory subsystem.
