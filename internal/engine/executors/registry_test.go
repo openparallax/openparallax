@@ -9,7 +9,7 @@ import (
 )
 
 func TestRegistryAlwaysHasFileShellGitHTTPScheduleCanvas(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 
 	// These action types should always be registered.
 	alwaysAvailable := []types.ActionType{
@@ -35,7 +35,7 @@ func TestRegistryAlwaysHasFileShellGitHTTPScheduleCanvas(t *testing.T) {
 }
 
 func TestRegistryEmailNotRegisteredWithoutConfig(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 	result := r.Execute(context.Background(), &types.ActionRequest{
 		RequestID: "r1", Type: types.ActionSendEmail,
 		Payload: map[string]any{},
@@ -50,7 +50,7 @@ func TestRegistryEmailRegisteredWithConfig(t *testing.T) {
 			SMTP: types.SMTPConfig{Host: "smtp.test.com", Port: 587, From: "test@test.com"},
 		},
 	}
-	r := NewRegistry(t.TempDir(), cfg, nil)
+	r := NewRegistry(t.TempDir(), cfg, nil, nil)
 
 	available := r.AvailableActions()
 	found := false
@@ -64,7 +64,7 @@ func TestRegistryEmailRegisteredWithConfig(t *testing.T) {
 }
 
 func TestRegistryCalendarNotRegisteredWithoutConfig(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 	result := r.Execute(context.Background(), &types.ActionRequest{
 		RequestID: "r1", Type: types.ActionReadCalendar,
 		Payload: map[string]any{},
@@ -74,7 +74,7 @@ func TestRegistryCalendarNotRegisteredWithoutConfig(t *testing.T) {
 }
 
 func TestRegistryAllToolSchemasNoDuplicates(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 	schemas := r.AllToolSchemas()
 
 	names := make(map[string]int)
@@ -88,7 +88,7 @@ func TestRegistryAllToolSchemasNoDuplicates(t *testing.T) {
 }
 
 func TestRegistryAllToolSchemasHaveRequiredFields(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 	schemas := r.AllToolSchemas()
 
 	for _, s := range schemas {
@@ -100,7 +100,7 @@ func TestRegistryAllToolSchemasHaveRequiredFields(t *testing.T) {
 }
 
 func TestRegistryDispatchToCorrectExecutor(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 
 	// Shell should work.
 	result := r.Execute(context.Background(), &types.ActionRequest{
@@ -112,7 +112,7 @@ func TestRegistryDispatchToCorrectExecutor(t *testing.T) {
 }
 
 func TestRegistryRejectUnknownActionType(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 	result := r.Execute(context.Background(), &types.ActionRequest{
 		RequestID: "r1", Type: "totally_fake_action",
 		Payload: map[string]any{},

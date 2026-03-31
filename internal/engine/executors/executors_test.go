@@ -237,7 +237,7 @@ func TestShellEmptyCommand(t *testing.T) {
 }
 
 func TestRegistryDispatchesKnownAction(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.txt"), []byte("content"), 0o644))
 
@@ -252,7 +252,7 @@ func TestRegistryDispatchesKnownAction(t *testing.T) {
 }
 
 func TestRegistryRejectsUnknownAction(t *testing.T) {
-	r := NewRegistry(t.TempDir(), nil, nil)
+	r := NewRegistry(t.TempDir(), nil, nil, nil)
 	result := r.Execute(context.Background(), &types.ActionRequest{
 		RequestID: "r1", Type: "unknown_action_type",
 		Payload: map[string]any{},

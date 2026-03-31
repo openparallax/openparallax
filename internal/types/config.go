@@ -43,6 +43,30 @@ type AgentConfig struct {
 
 	// Generation configures image and video generation providers.
 	Generation GenerationConfig `yaml:"generation,omitempty" json:"generation,omitempty"`
+
+	// OAuth configures OAuth2 providers for email and calendar integrations.
+	OAuth OAuthConfig `yaml:"oauth,omitempty" json:"oauth,omitempty"`
+}
+
+// OAuthConfig holds OAuth2 client credentials per provider.
+type OAuthConfig struct {
+	// Google configures Google OAuth2 (Gmail IMAP, Google Calendar).
+	Google *OAuthProviderConfig `yaml:"google,omitempty" json:"google,omitempty"`
+
+	// Microsoft configures Microsoft OAuth2 (MS365 IMAP, Graph Calendar).
+	Microsoft *OAuthProviderConfig `yaml:"microsoft,omitempty" json:"microsoft,omitempty"`
+}
+
+// OAuthProviderConfig holds client credentials for one OAuth2 provider.
+type OAuthProviderConfig struct {
+	// ClientID is the OAuth2 application client ID.
+	ClientID string `yaml:"client_id" json:"client_id"`
+
+	// ClientSecret is the OAuth2 application client secret.
+	ClientSecret string `yaml:"client_secret" json:"client_secret"`
+
+	// TenantID is the Azure AD tenant ID (Microsoft only, default "common").
+	TenantID string `yaml:"tenant_id,omitempty" json:"tenant_id,omitempty"`
 }
 
 // GenerationConfig configures media generation providers.

@@ -25,6 +25,7 @@ import (
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/mcp"
 	"github.com/openparallax/openparallax/internal/memory"
+	"github.com/openparallax/openparallax/internal/oauth"
 	"github.com/openparallax/openparallax/internal/session"
 	"github.com/openparallax/openparallax/internal/shield"
 	"github.com/openparallax/openparallax/internal/storage"
@@ -57,6 +58,7 @@ type Engine struct {
 
 	tier3Manager    *Tier3Manager
 	subAgentManager *SubAgentManager
+	oauthManager    *oauth.Manager
 
 	server   *grpc.Server
 	listener net.Listener
@@ -111,8 +113,16 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	db.RepairSessions()
-	registry := executors.NewRegistry(cfg.Workspace, cfg, log)
 	canaryToken := readCanaryToken(cfg.Workspace)
+
+	// Create OAuth manager (nil-safe if no providers configured).
+	var oauthMgr *oauth.Manager
+	oauthProviders := buildOAuthProviders(cfg)
+	if len(oauthProviders) > 0 {
+		oauthMgr, _ = oauth.NewManager(db, canaryToken, oauthProviders, log)
+	}
+
+	registry := executors.NewRegistry(cfg.Workspace, cfg, oauthMgr, log)
 
 	configDir := filepath.Dir(configPath)
 	policyFile := resolveFilePath(cfg.Shield.PolicyFile, configDir, cfg.Workspace)
@@ -173,6 +183,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		db:           db,
 		mcpManager:   mcpMgr,
 		tier3Manager: NewTier3Manager(cfg.Shield.Tier3.MaxPerHour, cfg.Shield.Tier3.TimeoutSeconds),
+		oauthManager: oauthMgr,
 	}
 	eng.backgroundCtx, eng.backgroundCancel = context.WithCancel(context.Background())
 	return eng, nil
@@ -982,6 +993,9 @@ func (e *Engine) SetSandboxStatus(active bool, mode string, version int, filesys
 	}
 }
 
+// OAuthManager returns the OAuth2 token manager, or nil if not configured.
+func (e *Engine) OAuthManager() *oauth.Manager { return e.oauthManager }
+
 // Tier3 returns the Tier 3 human-in-the-loop manager.
 func (e *Engine) Tier3() *Tier3Manager { return e.tier3Manager }
 
@@ -1163,6 +1177,25 @@ func toProtoArtifact(a *types.Artifact) *pb.Artifact {
 		Content: a.Content, Language: a.Language,
 		SizeBytes: a.SizeBytes, PreviewType: a.PreviewType,
 	}
+}
+
+// buildOAuthProviders creates OAuth provider configs from the agent config.
+func buildOAuthProviders(cfg *types.AgentConfig) map[string]oauth.ProviderConfig {
+	providers := make(map[string]oauth.ProviderConfig)
+	if cfg.OAuth.Google != nil && cfg.OAuth.Google.ClientID != "" {
+		providers["google"] = oauth.ProviderConfig{
+			ClientID:     cfg.OAuth.Google.ClientID,
+			ClientSecret: cfg.OAuth.Google.ClientSecret,
+		}
+	}
+	if cfg.OAuth.Microsoft != nil && cfg.OAuth.Microsoft.ClientID != "" {
+		providers["microsoft"] = oauth.ProviderConfig{
+			ClientID:     cfg.OAuth.Microsoft.ClientID,
+			ClientSecret: cfg.OAuth.Microsoft.ClientSecret,
+			TenantID:     cfg.OAuth.Microsoft.TenantID,
+		}
+	}
+	return providers
 }
 
 func readCanaryToken(workspace string) string {

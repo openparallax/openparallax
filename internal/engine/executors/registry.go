@@ -6,6 +6,7 @@ import (
 
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/memory"
+	"github.com/openparallax/openparallax/internal/oauth"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -17,7 +18,8 @@ type Registry struct {
 
 // NewRegistry creates a Registry with all always-available executors registered.
 // Conditional executors (browser, email, calendar) are added separately.
-func NewRegistry(workspacePath string, cfg *types.AgentConfig, log *logging.Logger) *Registry {
+// The oauthMgr parameter is optional (nil when OAuth is not configured).
+func NewRegistry(workspacePath string, cfg *types.AgentConfig, oauthMgr *oauth.Manager, log *logging.Logger) *Registry {
 	r := &Registry{executors: make(map[types.ActionType]Executor)}
 
 	// Always available.

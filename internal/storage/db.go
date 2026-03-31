@@ -131,6 +131,19 @@ func (db *DB) migrate() error {
 			hash TEXT NOT NULL,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
+
+		// OAuth2 token storage (encrypted at rest).
+		`CREATE TABLE IF NOT EXISTS oauth_tokens (
+			provider TEXT NOT NULL,
+			account TEXT NOT NULL,
+			access_token_enc BLOB NOT NULL,
+			refresh_token_enc BLOB NOT NULL,
+			expiry TEXT NOT NULL,
+			scopes TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+			PRIMARY KEY (provider, account)
+		)`,
 	}
 
 	// Enable foreign key enforcement.

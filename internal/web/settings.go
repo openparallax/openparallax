@@ -48,15 +48,8 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
 		"mcp": map[string]any{
 			"servers": s.engine.MCPServerStatus(),
 		},
-		"email": map[string]any{
-			"provider":   cfg.Email.Provider,
-			"configured": cfg.Email.SMTP.Host != "",
-			"from":       cfg.Email.SMTP.From,
-		},
-		"calendar": map[string]any{
-			"provider":   cfg.Calendar.Provider,
-			"configured": cfg.Calendar.Provider != "",
-		},
+		"email":    s.buildEmailSettings(cfg),
+		"calendar": s.buildCalendarSettings(cfg),
 		"web": map[string]any{
 			"port": cfg.Web.Port,
 		},
@@ -349,4 +342,37 @@ func writeConfigToDisk(path string, cfg *types.AgentConfig) error {
 	fmt.Fprintf(&sb, "  daily_budget: %d\n", cfg.General.DailyBudget)
 
 	return os.WriteFile(path, []byte(sb.String()), 0o644)
+}
+
+func (s *Server) buildEmailSettings(cfg *types.AgentConfig) map[string]any {
+	result := map[string]any{
+		"provider":   cfg.Email.Provider,
+		"configured": cfg.Email.SMTP.Host != "",
+		"from":       cfg.Email.SMTP.From,
+	}
+	oauthMgr := s.engine.OAuthManager()
+	if oauthMgr != nil {
+		ctx := context.Background()
+		googleAccounts, _ := oauthMgr.ListAccounts(ctx, "google")
+		msAccounts, _ := oauthMgr.ListAccounts(ctx, "microsoft")
+		var oauthAccounts []string
+		oauthAccounts = append(oauthAccounts, googleAccounts...)
+		oauthAccounts = append(oauthAccounts, msAccounts...)
+		result["oauth_accounts"] = oauthAccounts
+	}
+	return result
+}
+
+func (s *Server) buildCalendarSettings(cfg *types.AgentConfig) map[string]any {
+	result := map[string]any{
+		"provider":   cfg.Calendar.Provider,
+		"configured": cfg.Calendar.Provider != "",
+	}
+	oauthMgr := s.engine.OAuthManager()
+	if oauthMgr != nil && cfg.Calendar.Provider == "microsoft" {
+		ctx := context.Background()
+		accounts, _ := oauthMgr.ListAccounts(ctx, "microsoft")
+		result["oauth_accounts"] = accounts
+	}
+	return result
 }
