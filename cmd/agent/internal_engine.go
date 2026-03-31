@@ -64,6 +64,9 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	// Write PID file so stop/list commands can find us.
 	_ = registry.WritePID(cfg.Workspace, os.Getpid())
 
+	// Initialize sub-agent orchestration.
+	eng.SetupSubAgents(grpcAddr)
+
 	// Probe and record sandbox status for API reporting.
 	sbStatus := sandbox.Probe()
 	eng.SetSandboxStatus(sbStatus.Active, sbStatus.Mode, sbStatus.Version,

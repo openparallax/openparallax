@@ -164,6 +164,9 @@ func (o *OllamaProvider) Name() string { return "ollama" }
 // Model returns the model name.
 func (o *OllamaProvider) Model() string { return o.model }
 
+// CheapestModel returns the same model since local models have no cost tiers.
+func (o *OllamaProvider) CheapestModel() string { return o.model }
+
 // doChat performs a non-streaming chat request and returns the full response.
 func (o *OllamaProvider) doChat(ctx context.Context, messages []ollamaChatMessage, cfg *CompletionConfig) (string, error) {
 	reqBody := ollamaChatRequest{

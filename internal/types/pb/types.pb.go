@@ -72,48 +72,61 @@ const (
 	// Canvas
 	ActionType_CANVAS_CREATE ActionType = 90
 	ActionType_CANVAS_UPDATE ActionType = 91
+	// Sub-agents
+	ActionType_CREATE_AGENT  ActionType = 100
+	ActionType_AGENT_STATUS  ActionType = 101
+	ActionType_AGENT_RESULT  ActionType = 102
+	ActionType_AGENT_MESSAGE ActionType = 103
+	ActionType_DELETE_AGENT  ActionType = 104
+	ActionType_LIST_AGENTS   ActionType = 105
 )
 
 // Enum value maps for ActionType.
 var (
 	ActionType_name = map[int32]string{
-		0:  "ACTION_TYPE_UNSPECIFIED",
-		1:  "READ_FILE",
-		2:  "WRITE_FILE",
-		3:  "DELETE_FILE",
-		4:  "MOVE_FILE",
-		5:  "COPY_FILE",
-		6:  "CREATE_DIRECTORY",
-		7:  "LIST_DIRECTORY",
-		8:  "SEARCH_FILES",
-		10: "EXECUTE_COMMAND",
-		20: "SEND_MESSAGE",
-		21: "SEND_EMAIL",
-		30: "HTTP_REQUEST",
-		40: "BROWSER_NAVIGATE",
-		41: "BROWSER_CLICK",
-		42: "BROWSER_TYPE",
-		43: "BROWSER_EXTRACT",
-		44: "BROWSER_SCREENSHOT",
-		50: "CREATE_SCHEDULE",
-		51: "DELETE_SCHEDULE",
-		52: "LIST_SCHEDULES",
-		60: "READ_CALENDAR",
-		61: "CREATE_EVENT",
-		62: "UPDATE_EVENT",
-		63: "DELETE_EVENT",
-		70: "GIT_STATUS",
-		71: "GIT_DIFF",
-		72: "GIT_COMMIT",
-		73: "GIT_PUSH",
-		74: "GIT_PULL",
-		75: "GIT_LOG",
-		76: "GIT_BRANCH",
-		77: "GIT_CHECKOUT",
-		80: "MEMORY_WRITE",
-		81: "MEMORY_SEARCH",
-		90: "CANVAS_CREATE",
-		91: "CANVAS_UPDATE",
+		0:   "ACTION_TYPE_UNSPECIFIED",
+		1:   "READ_FILE",
+		2:   "WRITE_FILE",
+		3:   "DELETE_FILE",
+		4:   "MOVE_FILE",
+		5:   "COPY_FILE",
+		6:   "CREATE_DIRECTORY",
+		7:   "LIST_DIRECTORY",
+		8:   "SEARCH_FILES",
+		10:  "EXECUTE_COMMAND",
+		20:  "SEND_MESSAGE",
+		21:  "SEND_EMAIL",
+		30:  "HTTP_REQUEST",
+		40:  "BROWSER_NAVIGATE",
+		41:  "BROWSER_CLICK",
+		42:  "BROWSER_TYPE",
+		43:  "BROWSER_EXTRACT",
+		44:  "BROWSER_SCREENSHOT",
+		50:  "CREATE_SCHEDULE",
+		51:  "DELETE_SCHEDULE",
+		52:  "LIST_SCHEDULES",
+		60:  "READ_CALENDAR",
+		61:  "CREATE_EVENT",
+		62:  "UPDATE_EVENT",
+		63:  "DELETE_EVENT",
+		70:  "GIT_STATUS",
+		71:  "GIT_DIFF",
+		72:  "GIT_COMMIT",
+		73:  "GIT_PUSH",
+		74:  "GIT_PULL",
+		75:  "GIT_LOG",
+		76:  "GIT_BRANCH",
+		77:  "GIT_CHECKOUT",
+		80:  "MEMORY_WRITE",
+		81:  "MEMORY_SEARCH",
+		90:  "CANVAS_CREATE",
+		91:  "CANVAS_UPDATE",
+		100: "CREATE_AGENT",
+		101: "AGENT_STATUS",
+		102: "AGENT_RESULT",
+		103: "AGENT_MESSAGE",
+		104: "DELETE_AGENT",
+		105: "LIST_AGENTS",
 	}
 	ActionType_value = map[string]int32{
 		"ACTION_TYPE_UNSPECIFIED": 0,
@@ -153,6 +166,12 @@ var (
 		"MEMORY_SEARCH":           81,
 		"CANVAS_CREATE":           90,
 		"CANVAS_UPDATE":           91,
+		"CREATE_AGENT":            100,
+		"AGENT_STATUS":            101,
+		"AGENT_RESULT":            102,
+		"AGENT_MESSAGE":           103,
+		"DELETE_AGENT":            104,
+		"LIST_AGENTS":             105,
 	}
 )
 
@@ -1252,7 +1271,7 @@ const file_openparallax_v1_types_proto_rawDesc = "" +
 	"\x04hash\x18\b \x01(\tR\x04hash\x12\x10\n" +
 	"\x03otr\x18\t \x01(\bR\x03otr\x12\x16\n" +
 	"\x06source\x18\n" +
-	" \x01(\tR\x06source*\xaf\x05\n" +
+	" \x01(\tR\x06source*\x9b\x06\n" +
 	"\n" +
 	"ActionType\x12\x1b\n" +
 	"\x17ACTION_TYPE_UNSPECIFIED\x10\x00\x12\r\n" +
@@ -1297,7 +1316,13 @@ const file_openparallax_v1_types_proto_rawDesc = "" +
 	"\fMEMORY_WRITE\x10P\x12\x11\n" +
 	"\rMEMORY_SEARCH\x10Q\x12\x11\n" +
 	"\rCANVAS_CREATE\x10Z\x12\x11\n" +
-	"\rCANVAS_UPDATE\x10[*W\n" +
+	"\rCANVAS_UPDATE\x10[\x12\x10\n" +
+	"\fCREATE_AGENT\x10d\x12\x10\n" +
+	"\fAGENT_STATUS\x10e\x12\x10\n" +
+	"\fAGENT_RESULT\x10f\x12\x11\n" +
+	"\rAGENT_MESSAGE\x10g\x12\x10\n" +
+	"\fDELETE_AGENT\x10h\x12\x0f\n" +
+	"\vLIST_AGENTS\x10i*W\n" +
 	"\x0fVerdictDecision\x12 \n" +
 	"\x1cVERDICT_DECISION_UNSPECIFIED\x10\x00\x12\t\n" +
 	"\x05ALLOW\x10\x01\x12\t\n" +

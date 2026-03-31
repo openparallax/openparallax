@@ -111,6 +111,9 @@ func (o *OpenAIProvider) Name() string { return "openai" }
 // Model returns the model name.
 func (o *OpenAIProvider) Model() string { return o.model }
 
+// CheapestModel returns the cheapest OpenAI model for sub-agent use.
+func (o *OpenAIProvider) CheapestModel() string { return "gpt-4o-mini" }
+
 // buildParams constructs the ChatCompletionNewParams from config, messages, and optional tools.
 func (o *OpenAIProvider) buildParams(cfg *CompletionConfig, messages []ChatMessage, tools []ToolDefinition) openai.ChatCompletionNewParams {
 	params := openai.ChatCompletionNewParams{

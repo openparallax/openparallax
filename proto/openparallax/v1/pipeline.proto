@@ -1,0 +1,294 @@
+syntax = "proto3";
+package openparallax.v1;
+option go_package = "github.com/openparallax/openparallax/internal/types/pb";
+
+import "openparallax/v1/types.proto";
+
+// PipelineService handles Agent-to-Engine communication.
+service PipelineService {
+  // ProcessMessage runs a user message through the full pipeline.
+  rpc ProcessMessage(ProcessMessageRequest) returns (stream PipelineEvent);
+
+  // ResolveApproval responds to a Tier 3 approval request.
+  rpc ResolveApproval(ApprovalResponse) returns (ApprovalAck);
+
+  // ReadMemory reads a memory file.
+  rpc ReadMemory(MemoryReadRequest) returns (MemoryReadResponse);
+
+  // SearchMemory searches memory via FTS5.
+  rpc SearchMemory(MemorySearchRequest) returns (MemorySearchResponse);
+
+  // GetStatus returns agent status.
+  rpc GetStatus(StatusRequest) returns (StatusResponse);
+
+  // Shutdown initiates graceful shutdown.
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+
+  // RegisterSubAgent authenticates a sub-agent process and returns its task assignment.
+  rpc RegisterSubAgent(SubAgentRegisterRequest) returns (SubAgentRegisterResponse);
+
+  // SubAgentExecuteTool forwards a tool call from a sub-agent to the engine for
+  // Shield evaluation and execution.
+  rpc SubAgentExecuteTool(SubAgentToolRequest) returns (SubAgentToolResponse);
+
+  // SubAgentComplete reports that a sub-agent has finished its task.
+  rpc SubAgentComplete(SubAgentCompleteRequest) returns (SubAgentCompleteResponse);
+
+  // SubAgentFailed reports that a sub-agent encountered an error.
+  rpc SubAgentFailed(SubAgentFailedRequest) returns (SubAgentFailedResponse);
+}
+
+// ProcessMessageRequest is the main pipeline input.
+message ProcessMessageRequest {
+  string content = 1;
+  string session_id = 2;
+  string message_id = 3;
+  SessionMode mode = 4;
+  string source = 5;
+}
+
+// PipelineEvent is streamed back to the caller during pipeline execution.
+message PipelineEvent {
+  string session_id = 1;
+  string message_id = 2;
+  PipelineEventType event_type = 3;
+
+  IntentParsed intent_parsed = 10;
+  ActionsPlanned actions_planned = 11;
+  SelfEvalResult self_eval_result = 12;
+  ShieldVerdict shield_verdict = 13;
+  ActionStarted action_started = 14;
+  ActionCompleted action_completed = 15;
+  ActionArtifact action_artifact = 16;
+  LLMToken llm_token = 17;
+  ResponseComplete response_complete = 18;
+  ApprovalNeeded approval_needed = 19;
+  OTRBlocked otr_blocked = 20;
+  PipelineError pipeline_error = 21;
+}
+
+// PipelineEventType identifies the event category.
+enum PipelineEventType {
+  PIPELINE_EVENT_UNSPECIFIED = 0;
+  INTENT_PARSED = 1;
+  ACTIONS_PLANNED = 2;
+  SELF_EVAL_PASSED = 3;
+  SHIELD_VERDICT = 4;
+  ACTION_STARTED = 5;
+  ACTION_COMPLETED = 6;
+  ACTION_ARTIFACT = 7;
+  LLM_TOKEN = 8;
+  COMPOSING = 9;
+  RESPONSE_COMPLETE = 10;
+  APPROVAL_NEEDED = 11;
+  OTR_BLOCKED = 12;
+  ERROR = 13;
+  SUB_AGENT_SPAWNED = 14;
+  SUB_AGENT_PROGRESS = 15;
+  SUB_AGENT_COMPLETED = 16;
+  SUB_AGENT_FAILED = 17;
+  SUB_AGENT_CANCELLED = 18;
+}
+
+// IntentParsed is emitted when intent parsing completes.
+message IntentParsed {
+  GoalType goal = 1;
+  ActionType primary_action = 2;
+  double confidence = 3;
+  bool destructive = 4;
+}
+
+// ActionsPlanned is emitted when the agent finishes planning actions.
+message ActionsPlanned {
+  repeated ActionType actions = 1;
+  int32 count = 2;
+}
+
+// SelfEvalResult is emitted after Layer 0 self-check.
+message SelfEvalResult {
+  bool passed = 1;
+  string reason = 2;
+}
+
+// ShieldVerdict is emitted after Shield evaluation.
+message ShieldVerdict {
+  VerdictDecision decision = 1;
+  int32 tier = 2;
+  double confidence = 3;
+  string reasoning = 4;
+  ActionType action_type = 5;
+}
+
+// ActionStarted is emitted when an action begins execution.
+message ActionStarted {
+  ActionType action_type = 1;
+  string summary = 2;
+}
+
+// ActionCompleted is emitted when an action finishes execution.
+message ActionCompleted {
+  ActionType action_type = 1;
+  bool success = 2;
+  string summary = 3;
+}
+
+// ActionArtifact is emitted when an action produces a viewable artifact.
+message ActionArtifact {
+  Artifact artifact = 1;
+}
+
+// LLMToken carries a single streaming token from the LLM.
+message LLMToken {
+  string text = 1;
+}
+
+// ResponseComplete carries the full final response text.
+message ResponseComplete {
+  string content = 1;
+}
+
+// ApprovalNeeded is emitted when Tier 3 human approval is required.
+message ApprovalNeeded {
+  string approval_id = 1;
+  ActionRequest action = 2;
+  Verdict shield_assessment = 3;
+  string context_summary = 4;
+  int64 timeout_at = 5;
+}
+
+// OTRBlocked is emitted when an action is blocked in OTR mode.
+message OTRBlocked {
+  ActionType action_type = 1;
+  string reason = 2;
+}
+
+// PipelineError is emitted when a pipeline stage fails.
+message PipelineError {
+  string code = 1;
+  string message = 2;
+  bool recoverable = 3;
+}
+
+// ApprovalResponse carries the user's approval decision.
+message ApprovalResponse {
+  string approval_id = 1;
+  string session_id = 2;
+  bool approved = 3;
+}
+
+// ApprovalAck confirms receipt of an approval response.
+message ApprovalAck {
+  bool received = 1;
+}
+
+// MemoryReadRequest asks for a specific memory file.
+message MemoryReadRequest {
+  string file_type = 1;
+}
+
+// MemoryReadResponse returns the content of a memory file.
+message MemoryReadResponse {
+  string content = 1;
+  string path = 2;
+}
+
+// MemorySearchRequest performs FTS5 search across memory.
+message MemorySearchRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+// MemorySearchResponse returns FTS5 search results.
+message MemorySearchResponse {
+  repeated MemorySearchResult results = 1;
+}
+
+// MemorySearchResult is a single FTS5 search hit.
+message MemorySearchResult {
+  string path = 1;
+  string section = 2;
+  string snippet = 3;
+  double score = 4;
+}
+
+// StatusRequest asks for agent status.
+message StatusRequest {}
+
+// StatusResponse returns agent status.
+message StatusResponse {
+  string agent_name = 1;
+  string model = 2;
+  bool shield_connected = 3;
+  int32 shield_max_tier = 4;
+  int64 uptime_seconds = 5;
+  int32 session_count = 6;
+  int32 actions_today = 7;
+}
+
+// ShutdownRequest initiates graceful shutdown.
+message ShutdownRequest {}
+
+// ShutdownResponse confirms shutdown status.
+message ShutdownResponse {
+  bool clean = 1;
+}
+
+// --- Sub-agent messages ---
+
+// SubAgentRegisterRequest authenticates a sub-agent process.
+message SubAgentRegisterRequest {
+  string token = 1;
+}
+
+// SubAgentToolDef describes a tool available to the sub-agent.
+message SubAgentToolDef {
+  string name = 1;
+  string description = 2;
+  string parameters_json = 3;
+}
+
+// SubAgentRegisterResponse returns the sub-agent's task assignment.
+message SubAgentRegisterResponse {
+  string name = 1;
+  string task = 2;
+  repeated SubAgentToolDef tools = 3;
+  string system_prompt = 4;
+  string model = 5;
+  string provider = 6;
+  string api_key_env = 7;
+  string base_url = 8;
+  int32 max_llm_calls = 9;
+}
+
+// SubAgentToolRequest forwards a tool call from a sub-agent to the engine.
+message SubAgentToolRequest {
+  string name = 1;
+  string call_id = 2;
+  string tool_name = 3;
+  string arguments_json = 4;
+  string session_id = 5;
+}
+
+// SubAgentToolResponse returns the tool execution result.
+message SubAgentToolResponse {
+  string content = 1;
+  bool is_error = 2;
+}
+
+// SubAgentCompleteRequest reports task completion.
+message SubAgentCompleteRequest {
+  string name = 1;
+  string result = 2;
+}
+
+// SubAgentCompleteResponse acknowledges completion.
+message SubAgentCompleteResponse {}
+
+// SubAgentFailedRequest reports task failure.
+message SubAgentFailedRequest {
+  string name = 1;
+  string error = 2;
+}
+
+// SubAgentFailedResponse acknowledges failure.
+message SubAgentFailedResponse {}

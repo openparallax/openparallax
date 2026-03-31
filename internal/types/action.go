@@ -98,6 +98,19 @@ const (
 	ActionEditImage ActionType = "edit_image"
 	// ActionGenerateVideo generates a short video from a text prompt.
 	ActionGenerateVideo ActionType = "generate_video"
+
+	// ActionCreateAgent spawns a sub-agent to work on a task.
+	ActionCreateAgent ActionType = "create_agent"
+	// ActionAgentStatus checks the status of a sub-agent.
+	ActionAgentStatus ActionType = "agent_status"
+	// ActionAgentResult collects the result from a completed sub-agent.
+	ActionAgentResult ActionType = "agent_result"
+	// ActionAgentMessage sends an additional instruction to a running sub-agent.
+	ActionAgentMessage ActionType = "agent_message"
+	// ActionDeleteAgent terminates a sub-agent immediately.
+	ActionDeleteAgent ActionType = "delete_agent"
+	// ActionListAgents lists all active sub-agents.
+	ActionListAgents ActionType = "list_agents"
 )
 
 // AllActionTypes contains every defined action type for enumeration and validation.
@@ -114,6 +127,8 @@ var AllActionTypes = []ActionType{
 	ActionMemoryWrite, ActionMemorySearch, ActionCanvasCreate, ActionCanvasUpdate,
 	ActionCanvasProject, ActionCanvasPreview, ActionGitClone,
 	ActionGenerateImage, ActionEditImage, ActionGenerateVideo,
+	ActionCreateAgent, ActionAgentStatus, ActionAgentResult,
+	ActionAgentMessage, ActionDeleteAgent, ActionListAgents,
 }
 
 // ActionRequest represents a proposed action from the agent.

@@ -1,0 +1,214 @@
+syntax = "proto3";
+package openparallax.v1;
+option go_package = "github.com/openparallax/openparallax/internal/types/pb";
+
+// ActionType represents the category of action the agent can propose.
+enum ActionType {
+  ACTION_TYPE_UNSPECIFIED = 0;
+
+  // File operations
+  READ_FILE = 1;
+  WRITE_FILE = 2;
+  DELETE_FILE = 3;
+  MOVE_FILE = 4;
+  COPY_FILE = 5;
+  CREATE_DIRECTORY = 6;
+  LIST_DIRECTORY = 7;
+  SEARCH_FILES = 8;
+
+  // Shell
+  EXECUTE_COMMAND = 10;
+
+  // Communication
+  SEND_MESSAGE = 20;
+  SEND_EMAIL = 21;
+
+  // HTTP
+  HTTP_REQUEST = 30;
+
+  // Browser
+  BROWSER_NAVIGATE = 40;
+  BROWSER_CLICK = 41;
+  BROWSER_TYPE = 42;
+  BROWSER_EXTRACT = 43;
+  BROWSER_SCREENSHOT = 44;
+
+  // Schedule
+  CREATE_SCHEDULE = 50;
+  DELETE_SCHEDULE = 51;
+  LIST_SCHEDULES = 52;
+
+  // Calendar
+  READ_CALENDAR = 60;
+  CREATE_EVENT = 61;
+  UPDATE_EVENT = 62;
+  DELETE_EVENT = 63;
+
+  // Git
+  GIT_STATUS = 70;
+  GIT_DIFF = 71;
+  GIT_COMMIT = 72;
+  GIT_PUSH = 73;
+  GIT_PULL = 74;
+  GIT_LOG = 75;
+  GIT_BRANCH = 76;
+  GIT_CHECKOUT = 77;
+
+  // Memory
+  MEMORY_WRITE = 80;
+  MEMORY_SEARCH = 81;
+
+  // Canvas
+  CANVAS_CREATE = 90;
+  CANVAS_UPDATE = 91;
+
+  // Sub-agents
+  CREATE_AGENT = 100;
+  AGENT_STATUS = 101;
+  AGENT_RESULT = 102;
+  AGENT_MESSAGE = 103;
+  DELETE_AGENT = 104;
+  LIST_AGENTS = 105;
+}
+
+// VerdictDecision is the security evaluation outcome.
+enum VerdictDecision {
+  VERDICT_DECISION_UNSPECIFIED = 0;
+  ALLOW = 1;
+  BLOCK = 2;
+  ESCALATE = 3;
+}
+
+// Verdict is the complete evaluation result from Shield.
+message Verdict {
+  VerdictDecision decision = 1;
+  int32 tier = 2;
+  double confidence = 3;
+  string reasoning = 4;
+  string action_hash = 5;
+  int64 evaluated_at = 6;
+  int64 expires_at = 7;
+}
+
+// ActionRequest represents a proposed action from the agent.
+message ActionRequest {
+  string request_id = 1;
+  ActionType type = 2;
+  map<string, string> payload = 3;
+  string payload_json = 4;
+  string hash = 5;
+  DataClassification data_classification = 6;
+}
+
+// SensitivityLevel is the data sensitivity classification.
+enum SensitivityLevel {
+  SENSITIVITY_UNSPECIFIED = 0;
+  PUBLIC = 1;
+  INTERNAL = 2;
+  CONFIDENTIAL = 3;
+  RESTRICTED = 4;
+  CRITICAL = 5;
+}
+
+// DataClassification is the IFC tag attached to data flowing through the pipeline.
+message DataClassification {
+  SensitivityLevel sensitivity = 1;
+  string source_path = 2;
+  string content_type = 3;
+}
+
+// GoalType represents the high-level category of user intent.
+enum GoalType {
+  GOAL_TYPE_UNSPECIFIED = 0;
+  FILE_MANAGEMENT = 1;
+  CODE_EXECUTION = 2;
+  COMMUNICATION = 3;
+  INFORMATION_RETRIEVAL = 4;
+  SCHEDULING = 5;
+  NOTE_TAKING = 6;
+  WEB_BROWSING = 7;
+  GIT_OPERATIONS = 8;
+  TEXT_PROCESSING = 9;
+  SYSTEM_MANAGEMENT = 10;
+  CREATIVE = 11;
+  CONVERSATION = 12;
+  CALENDAR = 13;
+}
+
+// StructuredIntent is the output of the intent parser.
+message StructuredIntent {
+  GoalType goal = 1;
+  ActionType primary_action = 2;
+  map<string, string> parameters = 3;
+  double confidence = 4;
+  bool destructive = 5;
+  SensitivityLevel sensitivity = 6;
+  string raw_input = 7;
+}
+
+// ActionResult is the outcome of executing an action.
+message ActionResult {
+  string request_id = 1;
+  bool success = 2;
+  string output = 3;
+  string error = 4;
+  string summary = 5;
+  Artifact artifact = 6;
+  int64 duration_ms = 7;
+}
+
+// Artifact is a viewable output produced by an action.
+message Artifact {
+  string id = 1;
+  string type = 2;
+  string title = 3;
+  string path = 4;
+  string content = 5;
+  string language = 6;
+  int64 size_bytes = 7;
+  string preview_type = 8;
+}
+
+// SessionMode controls what the agent can do in a session.
+enum SessionMode {
+  SESSION_MODE_UNSPECIFIED = 0;
+  NORMAL = 1;
+  OTR = 2;
+}
+
+// AuditEventType identifies the category of audit event.
+enum AuditEventType {
+  AUDIT_EVENT_UNSPECIFIED = 0;
+  ACTION_PROPOSED = 1;
+  ACTION_EVALUATED = 2;
+  ACTION_APPROVED = 3;
+  ACTION_BLOCKED = 4;
+  ACTION_EXECUTED = 5;
+  ACTION_FAILED = 6;
+  SHIELD_ERROR = 7;
+  CANARY_VERIFIED = 8;
+  CANARY_MISSING = 9;
+  RATE_LIMIT_HIT = 10;
+  BUDGET_EXHAUSTED = 11;
+  SELF_PROTECTION = 12;
+  TRANSACTION_BEGIN = 13;
+  TRANSACTION_COMMIT = 14;
+  TRANSACTION_ROLLBACK = 15;
+  INTEGRITY_VIOLATION = 16;
+  SESSION_STARTED = 17;
+  SESSION_ENDED = 18;
+}
+
+// AuditEntry is a single audit log entry.
+message AuditEntry {
+  string id = 1;
+  AuditEventType event_type = 2;
+  int64 timestamp = 3;
+  string session_id = 4;
+  string action_type = 5;
+  string details_json = 6;
+  string previous_hash = 7;
+  string hash = 8;
+  bool otr = 9;
+  string source = 10;
+}

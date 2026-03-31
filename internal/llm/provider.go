@@ -33,6 +33,10 @@ type Provider interface {
 
 	// Model returns the model name (for logging and display).
 	Model() string
+
+	// CheapestModel returns the cheapest/fastest model available on this provider.
+	// Used as the default model for sub-agents to optimize cost.
+	CheapestModel() string
 }
 
 // StreamReader provides sequential access to streaming LLM tokens.

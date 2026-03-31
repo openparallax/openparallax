@@ -148,6 +148,7 @@ var otrWriteTools = map[string]bool{
 	"memory_write":  true,
 	"canvas_create": true, "canvas_update": true, "canvas_project": true,
 	"generate_image": true, "edit_image": true, "generate_video": true,
+	"create_agent": true,
 }
 
 func filterOTRTools(tools []llm.ToolDefinition) []llm.ToolDefinition {
@@ -174,6 +175,7 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		"canvas":           {Name: "canvas", Description: "Create files, multi-file projects, and live-preview websites"},
 		"image_generation": {Name: "image_generation", Description: "Generate images using AI (DALL-E, Imagen, Stability AI)"},
 		"video_generation": {Name: "video_generation", Description: "Generate videos using AI (Sora)"},
+		"agents":           {Name: "agents", Description: "Spawn and manage sub-agents for parallel task execution"},
 	}
 
 	actionToGroup := map[types.ActionType]string{
@@ -202,6 +204,9 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		types.ActionCanvasProject: "canvas", types.ActionCanvasPreview: "canvas",
 		types.ActionGenerateImage: "image_generation", types.ActionEditImage: "image_generation",
 		types.ActionGenerateVideo: "video_generation",
+		types.ActionCreateAgent:   "agents", types.ActionAgentStatus: "agents",
+		types.ActionAgentResult: "agents", types.ActionAgentMessage: "agents",
+		types.ActionDeleteAgent: "agents", types.ActionListAgents: "agents",
 	}
 
 	for _, s := range schemas {

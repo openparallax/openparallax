@@ -116,6 +116,9 @@ func (a *AnthropicProvider) Name() string { return "anthropic" }
 // Model returns the model name.
 func (a *AnthropicProvider) Model() string { return a.model }
 
+// CheapestModel returns the cheapest Anthropic model for sub-agent use.
+func (a *AnthropicProvider) CheapestModel() string { return "claude-haiku-4-5-20251001" }
+
 // buildParams constructs Anthropic MessageNewParams.
 func (a *AnthropicProvider) buildParams(cfg *CompletionConfig, messages []ChatMessage) anthropic.MessageNewParams {
 	params := anthropic.MessageNewParams{

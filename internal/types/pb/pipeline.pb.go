@@ -39,6 +39,11 @@ const (
 	PipelineEventType_APPROVAL_NEEDED            PipelineEventType = 11
 	PipelineEventType_OTR_BLOCKED                PipelineEventType = 12
 	PipelineEventType_ERROR                      PipelineEventType = 13
+	PipelineEventType_SUB_AGENT_SPAWNED          PipelineEventType = 14
+	PipelineEventType_SUB_AGENT_PROGRESS         PipelineEventType = 15
+	PipelineEventType_SUB_AGENT_COMPLETED        PipelineEventType = 16
+	PipelineEventType_SUB_AGENT_FAILED           PipelineEventType = 17
+	PipelineEventType_SUB_AGENT_CANCELLED        PipelineEventType = 18
 )
 
 // Enum value maps for PipelineEventType.
@@ -58,6 +63,11 @@ var (
 		11: "APPROVAL_NEEDED",
 		12: "OTR_BLOCKED",
 		13: "ERROR",
+		14: "SUB_AGENT_SPAWNED",
+		15: "SUB_AGENT_PROGRESS",
+		16: "SUB_AGENT_COMPLETED",
+		17: "SUB_AGENT_FAILED",
+		18: "SUB_AGENT_CANCELLED",
 	}
 	PipelineEventType_value = map[string]int32{
 		"PIPELINE_EVENT_UNSPECIFIED": 0,
@@ -74,6 +84,11 @@ var (
 		"APPROVAL_NEEDED":            11,
 		"OTR_BLOCKED":                12,
 		"ERROR":                      13,
+		"SUB_AGENT_SPAWNED":          14,
+		"SUB_AGENT_PROGRESS":         15,
+		"SUB_AGENT_COMPLETED":        16,
+		"SUB_AGENT_FAILED":           17,
+		"SUB_AGENT_CANCELLED":        18,
 	}
 )
 
@@ -1613,6 +1628,531 @@ func (x *ShutdownResponse) GetClean() bool {
 	return false
 }
 
+// SubAgentRegisterRequest authenticates a sub-agent process.
+type SubAgentRegisterRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubAgentRegisterRequest) Reset() {
+	*x = SubAgentRegisterRequest{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentRegisterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentRegisterRequest) ProtoMessage() {}
+
+func (x *SubAgentRegisterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentRegisterRequest.ProtoReflect.Descriptor instead.
+func (*SubAgentRegisterRequest) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *SubAgentRegisterRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+// SubAgentToolDef describes a tool available to the sub-agent.
+type SubAgentToolDef struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Description    string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	ParametersJson string                 `protobuf:"bytes,3,opt,name=parameters_json,json=parametersJson,proto3" json:"parameters_json,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SubAgentToolDef) Reset() {
+	*x = SubAgentToolDef{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentToolDef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentToolDef) ProtoMessage() {}
+
+func (x *SubAgentToolDef) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentToolDef.ProtoReflect.Descriptor instead.
+func (*SubAgentToolDef) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *SubAgentToolDef) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SubAgentToolDef) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *SubAgentToolDef) GetParametersJson() string {
+	if x != nil {
+		return x.ParametersJson
+	}
+	return ""
+}
+
+// SubAgentRegisterResponse returns the sub-agent's task assignment.
+type SubAgentRegisterResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Task          string                 `protobuf:"bytes,2,opt,name=task,proto3" json:"task,omitempty"`
+	Tools         []*SubAgentToolDef     `protobuf:"bytes,3,rep,name=tools,proto3" json:"tools,omitempty"`
+	SystemPrompt  string                 `protobuf:"bytes,4,opt,name=system_prompt,json=systemPrompt,proto3" json:"system_prompt,omitempty"`
+	Model         string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`
+	Provider      string                 `protobuf:"bytes,6,opt,name=provider,proto3" json:"provider,omitempty"`
+	ApiKeyEnv     string                 `protobuf:"bytes,7,opt,name=api_key_env,json=apiKeyEnv,proto3" json:"api_key_env,omitempty"`
+	BaseUrl       string                 `protobuf:"bytes,8,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	MaxLlmCalls   int32                  `protobuf:"varint,9,opt,name=max_llm_calls,json=maxLlmCalls,proto3" json:"max_llm_calls,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubAgentRegisterResponse) Reset() {
+	*x = SubAgentRegisterResponse{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentRegisterResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentRegisterResponse) ProtoMessage() {}
+
+func (x *SubAgentRegisterResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentRegisterResponse.ProtoReflect.Descriptor instead.
+func (*SubAgentRegisterResponse) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *SubAgentRegisterResponse) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SubAgentRegisterResponse) GetTask() string {
+	if x != nil {
+		return x.Task
+	}
+	return ""
+}
+
+func (x *SubAgentRegisterResponse) GetTools() []*SubAgentToolDef {
+	if x != nil {
+		return x.Tools
+	}
+	return nil
+}
+
+func (x *SubAgentRegisterResponse) GetSystemPrompt() string {
+	if x != nil {
+		return x.SystemPrompt
+	}
+	return ""
+}
+
+func (x *SubAgentRegisterResponse) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *SubAgentRegisterResponse) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *SubAgentRegisterResponse) GetApiKeyEnv() string {
+	if x != nil {
+		return x.ApiKeyEnv
+	}
+	return ""
+}
+
+func (x *SubAgentRegisterResponse) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
+func (x *SubAgentRegisterResponse) GetMaxLlmCalls() int32 {
+	if x != nil {
+		return x.MaxLlmCalls
+	}
+	return 0
+}
+
+// SubAgentToolRequest forwards a tool call from a sub-agent to the engine.
+type SubAgentToolRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	CallId        string                 `protobuf:"bytes,2,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	ToolName      string                 `protobuf:"bytes,3,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	ArgumentsJson string                 `protobuf:"bytes,4,opt,name=arguments_json,json=argumentsJson,proto3" json:"arguments_json,omitempty"`
+	SessionId     string                 `protobuf:"bytes,5,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubAgentToolRequest) Reset() {
+	*x = SubAgentToolRequest{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentToolRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentToolRequest) ProtoMessage() {}
+
+func (x *SubAgentToolRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentToolRequest.ProtoReflect.Descriptor instead.
+func (*SubAgentToolRequest) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *SubAgentToolRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SubAgentToolRequest) GetCallId() string {
+	if x != nil {
+		return x.CallId
+	}
+	return ""
+}
+
+func (x *SubAgentToolRequest) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *SubAgentToolRequest) GetArgumentsJson() string {
+	if x != nil {
+		return x.ArgumentsJson
+	}
+	return ""
+}
+
+func (x *SubAgentToolRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+// SubAgentToolResponse returns the tool execution result.
+type SubAgentToolResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Content       string                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	IsError       bool                   `protobuf:"varint,2,opt,name=is_error,json=isError,proto3" json:"is_error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubAgentToolResponse) Reset() {
+	*x = SubAgentToolResponse{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentToolResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentToolResponse) ProtoMessage() {}
+
+func (x *SubAgentToolResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentToolResponse.ProtoReflect.Descriptor instead.
+func (*SubAgentToolResponse) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *SubAgentToolResponse) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *SubAgentToolResponse) GetIsError() bool {
+	if x != nil {
+		return x.IsError
+	}
+	return false
+}
+
+// SubAgentCompleteRequest reports task completion.
+type SubAgentCompleteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Result        string                 `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubAgentCompleteRequest) Reset() {
+	*x = SubAgentCompleteRequest{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentCompleteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentCompleteRequest) ProtoMessage() {}
+
+func (x *SubAgentCompleteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentCompleteRequest.ProtoReflect.Descriptor instead.
+func (*SubAgentCompleteRequest) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *SubAgentCompleteRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SubAgentCompleteRequest) GetResult() string {
+	if x != nil {
+		return x.Result
+	}
+	return ""
+}
+
+// SubAgentCompleteResponse acknowledges completion.
+type SubAgentCompleteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubAgentCompleteResponse) Reset() {
+	*x = SubAgentCompleteResponse{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentCompleteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentCompleteResponse) ProtoMessage() {}
+
+func (x *SubAgentCompleteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentCompleteResponse.ProtoReflect.Descriptor instead.
+func (*SubAgentCompleteResponse) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{31}
+}
+
+// SubAgentFailedRequest reports task failure.
+type SubAgentFailedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubAgentFailedRequest) Reset() {
+	*x = SubAgentFailedRequest{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentFailedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentFailedRequest) ProtoMessage() {}
+
+func (x *SubAgentFailedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentFailedRequest.ProtoReflect.Descriptor instead.
+func (*SubAgentFailedRequest) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *SubAgentFailedRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SubAgentFailedRequest) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+// SubAgentFailedResponse acknowledges failure.
+type SubAgentFailedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SubAgentFailedResponse) Reset() {
+	*x = SubAgentFailedResponse{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SubAgentFailedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubAgentFailedResponse) ProtoMessage() {}
+
+func (x *SubAgentFailedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubAgentFailedResponse.ProtoReflect.Descriptor instead.
+func (*SubAgentFailedResponse) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{33}
+}
+
 var File_openparallax_v1_pipeline_proto protoreflect.FileDescriptor
 
 const file_openparallax_v1_pipeline_proto_rawDesc = "" +
@@ -1736,7 +2276,41 @@ const file_openparallax_v1_pipeline_proto_rawDesc = "" +
 	"\ractions_today\x18\a \x01(\x05R\factionsToday\"\x11\n" +
 	"\x0fShutdownRequest\"(\n" +
 	"\x10ShutdownResponse\x12\x14\n" +
-	"\x05clean\x18\x01 \x01(\bR\x05clean*\xaa\x02\n" +
+	"\x05clean\x18\x01 \x01(\bR\x05clean\"/\n" +
+	"\x17SubAgentRegisterRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"p\n" +
+	"\x0fSubAgentToolDef\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12'\n" +
+	"\x0fparameters_json\x18\x03 \x01(\tR\x0eparametersJson\"\xb0\x02\n" +
+	"\x18SubAgentRegisterResponse\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04task\x18\x02 \x01(\tR\x04task\x126\n" +
+	"\x05tools\x18\x03 \x03(\v2 .openparallax.v1.SubAgentToolDefR\x05tools\x12#\n" +
+	"\rsystem_prompt\x18\x04 \x01(\tR\fsystemPrompt\x12\x14\n" +
+	"\x05model\x18\x05 \x01(\tR\x05model\x12\x1a\n" +
+	"\bprovider\x18\x06 \x01(\tR\bprovider\x12\x1e\n" +
+	"\vapi_key_env\x18\a \x01(\tR\tapiKeyEnv\x12\x19\n" +
+	"\bbase_url\x18\b \x01(\tR\abaseUrl\x12\"\n" +
+	"\rmax_llm_calls\x18\t \x01(\x05R\vmaxLlmCalls\"\xa5\x01\n" +
+	"\x13SubAgentToolRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x17\n" +
+	"\acall_id\x18\x02 \x01(\tR\x06callId\x12\x1b\n" +
+	"\ttool_name\x18\x03 \x01(\tR\btoolName\x12%\n" +
+	"\x0earguments_json\x18\x04 \x01(\tR\rargumentsJson\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x05 \x01(\tR\tsessionId\"K\n" +
+	"\x14SubAgentToolResponse\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\tR\acontent\x12\x19\n" +
+	"\bis_error\x18\x02 \x01(\bR\aisError\"E\n" +
+	"\x17SubAgentCompleteRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
+	"\x06result\x18\x02 \x01(\tR\x06result\"\x1a\n" +
+	"\x18SubAgentCompleteResponse\"A\n" +
+	"\x15SubAgentFailedRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\x18\n" +
+	"\x16SubAgentFailedResponse*\xa1\x03\n" +
 	"\x11PipelineEventType\x12\x1e\n" +
 	"\x1aPIPELINE_EVENT_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rINTENT_PARSED\x10\x01\x12\x13\n" +
@@ -1752,7 +2326,12 @@ const file_openparallax_v1_pipeline_proto_rawDesc = "" +
 	"\x12\x13\n" +
 	"\x0fAPPROVAL_NEEDED\x10\v\x12\x0f\n" +
 	"\vOTR_BLOCKED\x10\f\x12\t\n" +
-	"\x05ERROR\x10\r2\x94\x04\n" +
+	"\x05ERROR\x10\r\x12\x15\n" +
+	"\x11SUB_AGENT_SPAWNED\x10\x0e\x12\x16\n" +
+	"\x12SUB_AGENT_PROGRESS\x10\x0f\x12\x17\n" +
+	"\x13SUB_AGENT_COMPLETED\x10\x10\x12\x14\n" +
+	"\x10SUB_AGENT_FAILED\x10\x11\x12\x17\n" +
+	"\x13SUB_AGENT_CANCELLED\x10\x122\xad\a\n" +
 	"\x0fPipelineService\x12Z\n" +
 	"\x0eProcessMessage\x12&.openparallax.v1.ProcessMessageRequest\x1a\x1e.openparallax.v1.PipelineEvent0\x01\x12R\n" +
 	"\x0fResolveApproval\x12!.openparallax.v1.ApprovalResponse\x1a\x1c.openparallax.v1.ApprovalAck\x12U\n" +
@@ -1760,7 +2339,11 @@ const file_openparallax_v1_pipeline_proto_rawDesc = "" +
 	"ReadMemory\x12\".openparallax.v1.MemoryReadRequest\x1a#.openparallax.v1.MemoryReadResponse\x12[\n" +
 	"\fSearchMemory\x12$.openparallax.v1.MemorySearchRequest\x1a%.openparallax.v1.MemorySearchResponse\x12L\n" +
 	"\tGetStatus\x12\x1e.openparallax.v1.StatusRequest\x1a\x1f.openparallax.v1.StatusResponse\x12O\n" +
-	"\bShutdown\x12 .openparallax.v1.ShutdownRequest\x1a!.openparallax.v1.ShutdownResponseB8Z6github.com/openparallax/openparallax/internal/types/pbb\x06proto3"
+	"\bShutdown\x12 .openparallax.v1.ShutdownRequest\x1a!.openparallax.v1.ShutdownResponse\x12g\n" +
+	"\x10RegisterSubAgent\x12(.openparallax.v1.SubAgentRegisterRequest\x1a).openparallax.v1.SubAgentRegisterResponse\x12b\n" +
+	"\x13SubAgentExecuteTool\x12$.openparallax.v1.SubAgentToolRequest\x1a%.openparallax.v1.SubAgentToolResponse\x12g\n" +
+	"\x10SubAgentComplete\x12(.openparallax.v1.SubAgentCompleteRequest\x1a).openparallax.v1.SubAgentCompleteResponse\x12a\n" +
+	"\x0eSubAgentFailed\x12&.openparallax.v1.SubAgentFailedRequest\x1a'.openparallax.v1.SubAgentFailedResponseB8Z6github.com/openparallax/openparallax/internal/types/pbb\x06proto3"
 
 var (
 	file_openparallax_v1_pipeline_proto_rawDescOnce sync.Once
@@ -1775,44 +2358,53 @@ func file_openparallax_v1_pipeline_proto_rawDescGZIP() []byte {
 }
 
 var file_openparallax_v1_pipeline_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_openparallax_v1_pipeline_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_openparallax_v1_pipeline_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_openparallax_v1_pipeline_proto_goTypes = []any{
-	(PipelineEventType)(0),        // 0: openparallax.v1.PipelineEventType
-	(*ProcessMessageRequest)(nil), // 1: openparallax.v1.ProcessMessageRequest
-	(*PipelineEvent)(nil),         // 2: openparallax.v1.PipelineEvent
-	(*IntentParsed)(nil),          // 3: openparallax.v1.IntentParsed
-	(*ActionsPlanned)(nil),        // 4: openparallax.v1.ActionsPlanned
-	(*SelfEvalResult)(nil),        // 5: openparallax.v1.SelfEvalResult
-	(*ShieldVerdict)(nil),         // 6: openparallax.v1.ShieldVerdict
-	(*ActionStarted)(nil),         // 7: openparallax.v1.ActionStarted
-	(*ActionCompleted)(nil),       // 8: openparallax.v1.ActionCompleted
-	(*ActionArtifact)(nil),        // 9: openparallax.v1.ActionArtifact
-	(*LLMToken)(nil),              // 10: openparallax.v1.LLMToken
-	(*ResponseComplete)(nil),      // 11: openparallax.v1.ResponseComplete
-	(*ApprovalNeeded)(nil),        // 12: openparallax.v1.ApprovalNeeded
-	(*OTRBlocked)(nil),            // 13: openparallax.v1.OTRBlocked
-	(*PipelineError)(nil),         // 14: openparallax.v1.PipelineError
-	(*ApprovalResponse)(nil),      // 15: openparallax.v1.ApprovalResponse
-	(*ApprovalAck)(nil),           // 16: openparallax.v1.ApprovalAck
-	(*MemoryReadRequest)(nil),     // 17: openparallax.v1.MemoryReadRequest
-	(*MemoryReadResponse)(nil),    // 18: openparallax.v1.MemoryReadResponse
-	(*MemorySearchRequest)(nil),   // 19: openparallax.v1.MemorySearchRequest
-	(*MemorySearchResponse)(nil),  // 20: openparallax.v1.MemorySearchResponse
-	(*MemorySearchResult)(nil),    // 21: openparallax.v1.MemorySearchResult
-	(*StatusRequest)(nil),         // 22: openparallax.v1.StatusRequest
-	(*StatusResponse)(nil),        // 23: openparallax.v1.StatusResponse
-	(*ShutdownRequest)(nil),       // 24: openparallax.v1.ShutdownRequest
-	(*ShutdownResponse)(nil),      // 25: openparallax.v1.ShutdownResponse
-	(SessionMode)(0),              // 26: openparallax.v1.SessionMode
-	(GoalType)(0),                 // 27: openparallax.v1.GoalType
-	(ActionType)(0),               // 28: openparallax.v1.ActionType
-	(VerdictDecision)(0),          // 29: openparallax.v1.VerdictDecision
-	(*Artifact)(nil),              // 30: openparallax.v1.Artifact
-	(*ActionRequest)(nil),         // 31: openparallax.v1.ActionRequest
-	(*Verdict)(nil),               // 32: openparallax.v1.Verdict
+	(PipelineEventType)(0),           // 0: openparallax.v1.PipelineEventType
+	(*ProcessMessageRequest)(nil),    // 1: openparallax.v1.ProcessMessageRequest
+	(*PipelineEvent)(nil),            // 2: openparallax.v1.PipelineEvent
+	(*IntentParsed)(nil),             // 3: openparallax.v1.IntentParsed
+	(*ActionsPlanned)(nil),           // 4: openparallax.v1.ActionsPlanned
+	(*SelfEvalResult)(nil),           // 5: openparallax.v1.SelfEvalResult
+	(*ShieldVerdict)(nil),            // 6: openparallax.v1.ShieldVerdict
+	(*ActionStarted)(nil),            // 7: openparallax.v1.ActionStarted
+	(*ActionCompleted)(nil),          // 8: openparallax.v1.ActionCompleted
+	(*ActionArtifact)(nil),           // 9: openparallax.v1.ActionArtifact
+	(*LLMToken)(nil),                 // 10: openparallax.v1.LLMToken
+	(*ResponseComplete)(nil),         // 11: openparallax.v1.ResponseComplete
+	(*ApprovalNeeded)(nil),           // 12: openparallax.v1.ApprovalNeeded
+	(*OTRBlocked)(nil),               // 13: openparallax.v1.OTRBlocked
+	(*PipelineError)(nil),            // 14: openparallax.v1.PipelineError
+	(*ApprovalResponse)(nil),         // 15: openparallax.v1.ApprovalResponse
+	(*ApprovalAck)(nil),              // 16: openparallax.v1.ApprovalAck
+	(*MemoryReadRequest)(nil),        // 17: openparallax.v1.MemoryReadRequest
+	(*MemoryReadResponse)(nil),       // 18: openparallax.v1.MemoryReadResponse
+	(*MemorySearchRequest)(nil),      // 19: openparallax.v1.MemorySearchRequest
+	(*MemorySearchResponse)(nil),     // 20: openparallax.v1.MemorySearchResponse
+	(*MemorySearchResult)(nil),       // 21: openparallax.v1.MemorySearchResult
+	(*StatusRequest)(nil),            // 22: openparallax.v1.StatusRequest
+	(*StatusResponse)(nil),           // 23: openparallax.v1.StatusResponse
+	(*ShutdownRequest)(nil),          // 24: openparallax.v1.ShutdownRequest
+	(*ShutdownResponse)(nil),         // 25: openparallax.v1.ShutdownResponse
+	(*SubAgentRegisterRequest)(nil),  // 26: openparallax.v1.SubAgentRegisterRequest
+	(*SubAgentToolDef)(nil),          // 27: openparallax.v1.SubAgentToolDef
+	(*SubAgentRegisterResponse)(nil), // 28: openparallax.v1.SubAgentRegisterResponse
+	(*SubAgentToolRequest)(nil),      // 29: openparallax.v1.SubAgentToolRequest
+	(*SubAgentToolResponse)(nil),     // 30: openparallax.v1.SubAgentToolResponse
+	(*SubAgentCompleteRequest)(nil),  // 31: openparallax.v1.SubAgentCompleteRequest
+	(*SubAgentCompleteResponse)(nil), // 32: openparallax.v1.SubAgentCompleteResponse
+	(*SubAgentFailedRequest)(nil),    // 33: openparallax.v1.SubAgentFailedRequest
+	(*SubAgentFailedResponse)(nil),   // 34: openparallax.v1.SubAgentFailedResponse
+	(SessionMode)(0),                 // 35: openparallax.v1.SessionMode
+	(GoalType)(0),                    // 36: openparallax.v1.GoalType
+	(ActionType)(0),                  // 37: openparallax.v1.ActionType
+	(VerdictDecision)(0),             // 38: openparallax.v1.VerdictDecision
+	(*Artifact)(nil),                 // 39: openparallax.v1.Artifact
+	(*ActionRequest)(nil),            // 40: openparallax.v1.ActionRequest
+	(*Verdict)(nil),                  // 41: openparallax.v1.Verdict
 }
 var file_openparallax_v1_pipeline_proto_depIdxs = []int32{
-	26, // 0: openparallax.v1.ProcessMessageRequest.mode:type_name -> openparallax.v1.SessionMode
+	35, // 0: openparallax.v1.ProcessMessageRequest.mode:type_name -> openparallax.v1.SessionMode
 	0,  // 1: openparallax.v1.PipelineEvent.event_type:type_name -> openparallax.v1.PipelineEventType
 	3,  // 2: openparallax.v1.PipelineEvent.intent_parsed:type_name -> openparallax.v1.IntentParsed
 	4,  // 3: openparallax.v1.PipelineEvent.actions_planned:type_name -> openparallax.v1.ActionsPlanned
@@ -1826,35 +2418,44 @@ var file_openparallax_v1_pipeline_proto_depIdxs = []int32{
 	12, // 11: openparallax.v1.PipelineEvent.approval_needed:type_name -> openparallax.v1.ApprovalNeeded
 	13, // 12: openparallax.v1.PipelineEvent.otr_blocked:type_name -> openparallax.v1.OTRBlocked
 	14, // 13: openparallax.v1.PipelineEvent.pipeline_error:type_name -> openparallax.v1.PipelineError
-	27, // 14: openparallax.v1.IntentParsed.goal:type_name -> openparallax.v1.GoalType
-	28, // 15: openparallax.v1.IntentParsed.primary_action:type_name -> openparallax.v1.ActionType
-	28, // 16: openparallax.v1.ActionsPlanned.actions:type_name -> openparallax.v1.ActionType
-	29, // 17: openparallax.v1.ShieldVerdict.decision:type_name -> openparallax.v1.VerdictDecision
-	28, // 18: openparallax.v1.ShieldVerdict.action_type:type_name -> openparallax.v1.ActionType
-	28, // 19: openparallax.v1.ActionStarted.action_type:type_name -> openparallax.v1.ActionType
-	28, // 20: openparallax.v1.ActionCompleted.action_type:type_name -> openparallax.v1.ActionType
-	30, // 21: openparallax.v1.ActionArtifact.artifact:type_name -> openparallax.v1.Artifact
-	31, // 22: openparallax.v1.ApprovalNeeded.action:type_name -> openparallax.v1.ActionRequest
-	32, // 23: openparallax.v1.ApprovalNeeded.shield_assessment:type_name -> openparallax.v1.Verdict
-	28, // 24: openparallax.v1.OTRBlocked.action_type:type_name -> openparallax.v1.ActionType
+	36, // 14: openparallax.v1.IntentParsed.goal:type_name -> openparallax.v1.GoalType
+	37, // 15: openparallax.v1.IntentParsed.primary_action:type_name -> openparallax.v1.ActionType
+	37, // 16: openparallax.v1.ActionsPlanned.actions:type_name -> openparallax.v1.ActionType
+	38, // 17: openparallax.v1.ShieldVerdict.decision:type_name -> openparallax.v1.VerdictDecision
+	37, // 18: openparallax.v1.ShieldVerdict.action_type:type_name -> openparallax.v1.ActionType
+	37, // 19: openparallax.v1.ActionStarted.action_type:type_name -> openparallax.v1.ActionType
+	37, // 20: openparallax.v1.ActionCompleted.action_type:type_name -> openparallax.v1.ActionType
+	39, // 21: openparallax.v1.ActionArtifact.artifact:type_name -> openparallax.v1.Artifact
+	40, // 22: openparallax.v1.ApprovalNeeded.action:type_name -> openparallax.v1.ActionRequest
+	41, // 23: openparallax.v1.ApprovalNeeded.shield_assessment:type_name -> openparallax.v1.Verdict
+	37, // 24: openparallax.v1.OTRBlocked.action_type:type_name -> openparallax.v1.ActionType
 	21, // 25: openparallax.v1.MemorySearchResponse.results:type_name -> openparallax.v1.MemorySearchResult
-	1,  // 26: openparallax.v1.PipelineService.ProcessMessage:input_type -> openparallax.v1.ProcessMessageRequest
-	15, // 27: openparallax.v1.PipelineService.ResolveApproval:input_type -> openparallax.v1.ApprovalResponse
-	17, // 28: openparallax.v1.PipelineService.ReadMemory:input_type -> openparallax.v1.MemoryReadRequest
-	19, // 29: openparallax.v1.PipelineService.SearchMemory:input_type -> openparallax.v1.MemorySearchRequest
-	22, // 30: openparallax.v1.PipelineService.GetStatus:input_type -> openparallax.v1.StatusRequest
-	24, // 31: openparallax.v1.PipelineService.Shutdown:input_type -> openparallax.v1.ShutdownRequest
-	2,  // 32: openparallax.v1.PipelineService.ProcessMessage:output_type -> openparallax.v1.PipelineEvent
-	16, // 33: openparallax.v1.PipelineService.ResolveApproval:output_type -> openparallax.v1.ApprovalAck
-	18, // 34: openparallax.v1.PipelineService.ReadMemory:output_type -> openparallax.v1.MemoryReadResponse
-	20, // 35: openparallax.v1.PipelineService.SearchMemory:output_type -> openparallax.v1.MemorySearchResponse
-	23, // 36: openparallax.v1.PipelineService.GetStatus:output_type -> openparallax.v1.StatusResponse
-	25, // 37: openparallax.v1.PipelineService.Shutdown:output_type -> openparallax.v1.ShutdownResponse
-	32, // [32:38] is the sub-list for method output_type
-	26, // [26:32] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	27, // 26: openparallax.v1.SubAgentRegisterResponse.tools:type_name -> openparallax.v1.SubAgentToolDef
+	1,  // 27: openparallax.v1.PipelineService.ProcessMessage:input_type -> openparallax.v1.ProcessMessageRequest
+	15, // 28: openparallax.v1.PipelineService.ResolveApproval:input_type -> openparallax.v1.ApprovalResponse
+	17, // 29: openparallax.v1.PipelineService.ReadMemory:input_type -> openparallax.v1.MemoryReadRequest
+	19, // 30: openparallax.v1.PipelineService.SearchMemory:input_type -> openparallax.v1.MemorySearchRequest
+	22, // 31: openparallax.v1.PipelineService.GetStatus:input_type -> openparallax.v1.StatusRequest
+	24, // 32: openparallax.v1.PipelineService.Shutdown:input_type -> openparallax.v1.ShutdownRequest
+	26, // 33: openparallax.v1.PipelineService.RegisterSubAgent:input_type -> openparallax.v1.SubAgentRegisterRequest
+	29, // 34: openparallax.v1.PipelineService.SubAgentExecuteTool:input_type -> openparallax.v1.SubAgentToolRequest
+	31, // 35: openparallax.v1.PipelineService.SubAgentComplete:input_type -> openparallax.v1.SubAgentCompleteRequest
+	33, // 36: openparallax.v1.PipelineService.SubAgentFailed:input_type -> openparallax.v1.SubAgentFailedRequest
+	2,  // 37: openparallax.v1.PipelineService.ProcessMessage:output_type -> openparallax.v1.PipelineEvent
+	16, // 38: openparallax.v1.PipelineService.ResolveApproval:output_type -> openparallax.v1.ApprovalAck
+	18, // 39: openparallax.v1.PipelineService.ReadMemory:output_type -> openparallax.v1.MemoryReadResponse
+	20, // 40: openparallax.v1.PipelineService.SearchMemory:output_type -> openparallax.v1.MemorySearchResponse
+	23, // 41: openparallax.v1.PipelineService.GetStatus:output_type -> openparallax.v1.StatusResponse
+	25, // 42: openparallax.v1.PipelineService.Shutdown:output_type -> openparallax.v1.ShutdownResponse
+	28, // 43: openparallax.v1.PipelineService.RegisterSubAgent:output_type -> openparallax.v1.SubAgentRegisterResponse
+	30, // 44: openparallax.v1.PipelineService.SubAgentExecuteTool:output_type -> openparallax.v1.SubAgentToolResponse
+	32, // 45: openparallax.v1.PipelineService.SubAgentComplete:output_type -> openparallax.v1.SubAgentCompleteResponse
+	34, // 46: openparallax.v1.PipelineService.SubAgentFailed:output_type -> openparallax.v1.SubAgentFailedResponse
+	37, // [37:47] is the sub-list for method output_type
+	27, // [27:37] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_openparallax_v1_pipeline_proto_init() }
@@ -1869,7 +2470,7 @@ func file_openparallax_v1_pipeline_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_openparallax_v1_pipeline_proto_rawDesc), len(file_openparallax_v1_pipeline_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   25,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

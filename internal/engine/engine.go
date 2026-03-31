@@ -55,7 +55,8 @@ type Engine struct {
 	db         *storage.DB
 	mcpManager *mcp.Manager
 
-	tier3Manager *Tier3Manager
+	tier3Manager    *Tier3Manager
+	subAgentManager *SubAgentManager
 
 	server   *grpc.Server
 	listener net.Listener
@@ -235,6 +236,9 @@ func (e *Engine) Stop() {
 		e.log.Warn("background_tasks_timeout", "message", "in-flight background tasks did not finish within 5s")
 	}
 
+	if e.subAgentManager != nil {
+		e.subAgentManager.Shutdown()
+	}
 	if e.mcpManager != nil {
 		e.mcpManager.ShutdownAll()
 	}
@@ -985,6 +989,116 @@ func (e *Engine) Tier3() *Tier3Manager { return e.tier3Manager }
 func (e *Engine) ConfigPath() string {
 	return filepath.Join(e.cfg.Workspace, "config.yaml")
 }
+
+// SubAgentManager returns the sub-agent manager.
+func (e *Engine) SubAgentManager() *SubAgentManager { return e.subAgentManager }
+
+// SetupSubAgents creates the sub-agent manager and registers the executor.
+// Called from internal_engine.go after the gRPC port is known.
+func (e *Engine) SetupSubAgents(grpcAddr string) {
+	e.subAgentManager = NewSubAgentManager(e, grpcAddr, 5)
+	adapter := NewSubAgentManagerAdapter(e.subAgentManager)
+	e.executors.RegisterSubAgents(adapter)
+}
+
+// RegisterSubAgent implements the PipelineService gRPC method.
+func (e *Engine) RegisterSubAgent(_ context.Context, req *pb.SubAgentRegisterRequest) (*pb.SubAgentRegisterResponse, error) {
+	if e.subAgentManager == nil {
+		return nil, fmt.Errorf("sub-agent manager not initialized")
+	}
+	sa, err := e.subAgentManager.RegisterSubAgent(req.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Serialize tool definitions.
+	var toolDefs []*pb.SubAgentToolDef
+	for _, t := range sa.tools {
+		paramsJSON, _ := json.Marshal(t.Parameters)
+		toolDefs = append(toolDefs, &pb.SubAgentToolDef{
+			Name:           t.Name,
+			Description:    t.Description,
+			ParametersJson: string(paramsJSON),
+		})
+	}
+
+	return &pb.SubAgentRegisterResponse{
+		Name:         sa.Name,
+		Task:         sa.Task,
+		Tools:        toolDefs,
+		SystemPrompt: SubAgentSystemPrompt(sa.Task),
+		Model:        sa.Model,
+		Provider:     sa.provider,
+		ApiKeyEnv:    sa.apiKeyEnv,
+		BaseUrl:      sa.baseURL,
+		MaxLlmCalls:  20,
+	}, nil
+}
+
+// SubAgentExecuteTool implements the PipelineService gRPC method.
+func (e *Engine) SubAgentExecuteTool(ctx context.Context, req *pb.SubAgentToolRequest) (*pb.SubAgentToolResponse, error) {
+	if e.subAgentManager == nil {
+		return nil, fmt.Errorf("sub-agent manager not initialized")
+	}
+
+	// Parse arguments.
+	var args map[string]any
+	if req.ArgumentsJson != "" {
+		if err := json.Unmarshal([]byte(req.ArgumentsJson), &args); err != nil {
+			return &pb.SubAgentToolResponse{Content: "invalid arguments JSON: " + err.Error(), IsError: true}, nil
+		}
+	}
+
+	tc := &llm.ToolCall{
+		ID:        req.CallId,
+		Name:      req.ToolName,
+		Arguments: args,
+	}
+
+	// Determine session mode.
+	mode := types.SessionNormal
+	sid := req.SessionId
+	if sid == "" {
+		sid = "sub-agent-" + req.Name
+	}
+
+	// Create a no-op sender for sub-agent tool calls (events go through the manager).
+	sender := &noopEventSender{}
+
+	result := e.processToolCall(ctx, tc, mode, sid, "sub-"+req.Name, sender)
+	e.subAgentManager.IncrementToolCall(req.Name)
+
+	return &pb.SubAgentToolResponse{
+		Content: result.Content,
+		IsError: result.IsError,
+	}, nil
+}
+
+// SubAgentComplete implements the PipelineService gRPC method.
+func (e *Engine) SubAgentComplete(_ context.Context, req *pb.SubAgentCompleteRequest) (*pb.SubAgentCompleteResponse, error) {
+	if e.subAgentManager == nil {
+		return nil, fmt.Errorf("sub-agent manager not initialized")
+	}
+	e.subAgentManager.CompleteSubAgent(req.Name, req.Result)
+	e.log.Info("sub_agent_completed", "name", req.Name, "result_len", len(req.Result))
+	return &pb.SubAgentCompleteResponse{}, nil
+}
+
+// SubAgentFailed implements the PipelineService gRPC method.
+func (e *Engine) SubAgentFailed(_ context.Context, req *pb.SubAgentFailedRequest) (*pb.SubAgentFailedResponse, error) {
+	if e.subAgentManager == nil {
+		return nil, fmt.Errorf("sub-agent manager not initialized")
+	}
+	e.subAgentManager.FailSubAgent(req.Name, req.Error)
+	e.log.Warn("sub_agent_failed", "name", req.Name, "error", req.Error)
+	return &pb.SubAgentFailedResponse{}, nil
+}
+
+// noopEventSender discards events. Used for sub-agent tool calls where events
+// are managed by the SubAgentManager instead of a client connection.
+type noopEventSender struct{}
+
+func (n *noopEventSender) SendEvent(_ *PipelineEvent) error { return nil }
 
 // MCPServerStatus returns the status of all configured MCP servers.
 func (e *Engine) MCPServerStatus() []map[string]any {

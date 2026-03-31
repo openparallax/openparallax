@@ -19,12 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PipelineService_ProcessMessage_FullMethodName  = "/openparallax.v1.PipelineService/ProcessMessage"
-	PipelineService_ResolveApproval_FullMethodName = "/openparallax.v1.PipelineService/ResolveApproval"
-	PipelineService_ReadMemory_FullMethodName      = "/openparallax.v1.PipelineService/ReadMemory"
-	PipelineService_SearchMemory_FullMethodName    = "/openparallax.v1.PipelineService/SearchMemory"
-	PipelineService_GetStatus_FullMethodName       = "/openparallax.v1.PipelineService/GetStatus"
-	PipelineService_Shutdown_FullMethodName        = "/openparallax.v1.PipelineService/Shutdown"
+	PipelineService_ProcessMessage_FullMethodName      = "/openparallax.v1.PipelineService/ProcessMessage"
+	PipelineService_ResolveApproval_FullMethodName     = "/openparallax.v1.PipelineService/ResolveApproval"
+	PipelineService_ReadMemory_FullMethodName          = "/openparallax.v1.PipelineService/ReadMemory"
+	PipelineService_SearchMemory_FullMethodName        = "/openparallax.v1.PipelineService/SearchMemory"
+	PipelineService_GetStatus_FullMethodName           = "/openparallax.v1.PipelineService/GetStatus"
+	PipelineService_Shutdown_FullMethodName            = "/openparallax.v1.PipelineService/Shutdown"
+	PipelineService_RegisterSubAgent_FullMethodName    = "/openparallax.v1.PipelineService/RegisterSubAgent"
+	PipelineService_SubAgentExecuteTool_FullMethodName = "/openparallax.v1.PipelineService/SubAgentExecuteTool"
+	PipelineService_SubAgentComplete_FullMethodName    = "/openparallax.v1.PipelineService/SubAgentComplete"
+	PipelineService_SubAgentFailed_FullMethodName      = "/openparallax.v1.PipelineService/SubAgentFailed"
 )
 
 // PipelineServiceClient is the client API for PipelineService service.
@@ -45,6 +49,15 @@ type PipelineServiceClient interface {
 	GetStatus(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 	// Shutdown initiates graceful shutdown.
 	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
+	// RegisterSubAgent authenticates a sub-agent process and returns its task assignment.
+	RegisterSubAgent(ctx context.Context, in *SubAgentRegisterRequest, opts ...grpc.CallOption) (*SubAgentRegisterResponse, error)
+	// SubAgentExecuteTool forwards a tool call from a sub-agent to the engine for
+	// Shield evaluation and execution.
+	SubAgentExecuteTool(ctx context.Context, in *SubAgentToolRequest, opts ...grpc.CallOption) (*SubAgentToolResponse, error)
+	// SubAgentComplete reports that a sub-agent has finished its task.
+	SubAgentComplete(ctx context.Context, in *SubAgentCompleteRequest, opts ...grpc.CallOption) (*SubAgentCompleteResponse, error)
+	// SubAgentFailed reports that a sub-agent encountered an error.
+	SubAgentFailed(ctx context.Context, in *SubAgentFailedRequest, opts ...grpc.CallOption) (*SubAgentFailedResponse, error)
 }
 
 type pipelineServiceClient struct {
@@ -124,6 +137,46 @@ func (c *pipelineServiceClient) Shutdown(ctx context.Context, in *ShutdownReques
 	return out, nil
 }
 
+func (c *pipelineServiceClient) RegisterSubAgent(ctx context.Context, in *SubAgentRegisterRequest, opts ...grpc.CallOption) (*SubAgentRegisterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentRegisterResponse)
+	err := c.cc.Invoke(ctx, PipelineService_RegisterSubAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pipelineServiceClient) SubAgentExecuteTool(ctx context.Context, in *SubAgentToolRequest, opts ...grpc.CallOption) (*SubAgentToolResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentToolResponse)
+	err := c.cc.Invoke(ctx, PipelineService_SubAgentExecuteTool_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pipelineServiceClient) SubAgentComplete(ctx context.Context, in *SubAgentCompleteRequest, opts ...grpc.CallOption) (*SubAgentCompleteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentCompleteResponse)
+	err := c.cc.Invoke(ctx, PipelineService_SubAgentComplete_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pipelineServiceClient) SubAgentFailed(ctx context.Context, in *SubAgentFailedRequest, opts ...grpc.CallOption) (*SubAgentFailedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentFailedResponse)
+	err := c.cc.Invoke(ctx, PipelineService_SubAgentFailed_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PipelineServiceServer is the server API for PipelineService service.
 // All implementations must embed UnimplementedPipelineServiceServer
 // for forward compatibility.
@@ -142,6 +195,15 @@ type PipelineServiceServer interface {
 	GetStatus(context.Context, *StatusRequest) (*StatusResponse, error)
 	// Shutdown initiates graceful shutdown.
 	Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error)
+	// RegisterSubAgent authenticates a sub-agent process and returns its task assignment.
+	RegisterSubAgent(context.Context, *SubAgentRegisterRequest) (*SubAgentRegisterResponse, error)
+	// SubAgentExecuteTool forwards a tool call from a sub-agent to the engine for
+	// Shield evaluation and execution.
+	SubAgentExecuteTool(context.Context, *SubAgentToolRequest) (*SubAgentToolResponse, error)
+	// SubAgentComplete reports that a sub-agent has finished its task.
+	SubAgentComplete(context.Context, *SubAgentCompleteRequest) (*SubAgentCompleteResponse, error)
+	// SubAgentFailed reports that a sub-agent encountered an error.
+	SubAgentFailed(context.Context, *SubAgentFailedRequest) (*SubAgentFailedResponse, error)
 	mustEmbedUnimplementedPipelineServiceServer()
 }
 
@@ -169,6 +231,18 @@ func (UnimplementedPipelineServiceServer) GetStatus(context.Context, *StatusRequ
 }
 func (UnimplementedPipelineServiceServer) Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Shutdown not implemented")
+}
+func (UnimplementedPipelineServiceServer) RegisterSubAgent(context.Context, *SubAgentRegisterRequest) (*SubAgentRegisterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterSubAgent not implemented")
+}
+func (UnimplementedPipelineServiceServer) SubAgentExecuteTool(context.Context, *SubAgentToolRequest) (*SubAgentToolResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubAgentExecuteTool not implemented")
+}
+func (UnimplementedPipelineServiceServer) SubAgentComplete(context.Context, *SubAgentCompleteRequest) (*SubAgentCompleteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubAgentComplete not implemented")
+}
+func (UnimplementedPipelineServiceServer) SubAgentFailed(context.Context, *SubAgentFailedRequest) (*SubAgentFailedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubAgentFailed not implemented")
 }
 func (UnimplementedPipelineServiceServer) mustEmbedUnimplementedPipelineServiceServer() {}
 func (UnimplementedPipelineServiceServer) testEmbeddedByValue()                         {}
@@ -292,6 +366,78 @@ func _PipelineService_Shutdown_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PipelineService_RegisterSubAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubAgentRegisterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PipelineServiceServer).RegisterSubAgent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PipelineService_RegisterSubAgent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PipelineServiceServer).RegisterSubAgent(ctx, req.(*SubAgentRegisterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PipelineService_SubAgentExecuteTool_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubAgentToolRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PipelineServiceServer).SubAgentExecuteTool(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PipelineService_SubAgentExecuteTool_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PipelineServiceServer).SubAgentExecuteTool(ctx, req.(*SubAgentToolRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PipelineService_SubAgentComplete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubAgentCompleteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PipelineServiceServer).SubAgentComplete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PipelineService_SubAgentComplete_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PipelineServiceServer).SubAgentComplete(ctx, req.(*SubAgentCompleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PipelineService_SubAgentFailed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubAgentFailedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PipelineServiceServer).SubAgentFailed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PipelineService_SubAgentFailed_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PipelineServiceServer).SubAgentFailed(ctx, req.(*SubAgentFailedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PipelineService_ServiceDesc is the grpc.ServiceDesc for PipelineService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -318,6 +464,22 @@ var PipelineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Shutdown",
 			Handler:    _PipelineService_Shutdown_Handler,
+		},
+		{
+			MethodName: "RegisterSubAgent",
+			Handler:    _PipelineService_RegisterSubAgent_Handler,
+		},
+		{
+			MethodName: "SubAgentExecuteTool",
+			Handler:    _PipelineService_SubAgentExecuteTool_Handler,
+		},
+		{
+			MethodName: "SubAgentComplete",
+			Handler:    _PipelineService_SubAgentComplete_Handler,
+		},
+		{
+			MethodName: "SubAgentFailed",
+			Handler:    _PipelineService_SubAgentFailed_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

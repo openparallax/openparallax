@@ -66,6 +66,19 @@ func NewRegistry(workspacePath string, cfg *types.AgentConfig, log *logging.Logg
 	return r
 }
 
+// RegisterSubAgents adds the sub-agent executor and rebuilds tool groups.
+func (r *Registry) RegisterSubAgents(manager SubAgentManagerInterface) {
+	executor := NewSubAgentExecutor(manager)
+	for _, action := range executor.SupportedActions() {
+		r.executors[action] = executor
+	}
+	// Rebuild groups to include agent tools.
+	r.Groups = NewGroupRegistry()
+	for _, g := range DefaultGroups(r.AllToolSchemas()) {
+		r.Groups.Register(g)
+	}
+}
+
 // RegisterMemory adds the memory executor to the registry.
 // Called after the memory.Manager is initialized.
 func (r *Registry) RegisterMemory(manager *memory.Manager) {
