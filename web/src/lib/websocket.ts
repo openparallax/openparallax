@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { connected, reconnecting } from '../stores/connection';
 import { currentSessionId } from '../stores/session';
-import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream, clearStreamingText } from '../stores/messages';
+import { appendToken, addToolCall, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream, clearStreamingText, addTier3Request } from '../stores/messages';
 import { addLogEntry } from '../stores/console';
 import type { WSEvent } from './types';
 
@@ -115,6 +115,18 @@ function handleEvent(event: WSEvent) {
       }
       break;
 
+    case 'tier3_approval_required':
+      if ((event as any).action_id) {
+        addTier3Request({
+          actionId: (event as any).action_id,
+          toolName: (event as any).tool_name || '',
+          target: (event as any).target || '',
+          reasoning: (event as any).reasoning || '',
+          timeoutSecs: (event as any).timeout_secs || 300,
+        });
+      }
+      break;
+
     case 'otr_blocked':
     case 'error':
       setStreaming(false);
@@ -142,4 +154,13 @@ export function sendMessage(sessionId: string, content: string, mode: string = '
 export function sendPing() {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify({ type: 'ping' }));
+}
+
+export function sendTier3Decision(actionId: string, decision: 'approve' | 'deny') {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({
+    type: 'tier3_decision',
+    action_id: actionId,
+    decision,
+  }));
 }

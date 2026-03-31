@@ -1,11 +1,12 @@
 <script lang="ts">
   import { afterUpdate, onMount } from 'svelte';
   import { ChevronDown } from 'lucide-svelte';
-  import { messages, pendingToolCalls, streaming, streamingText } from '../stores/messages';
+  import { messages, pendingToolCalls, streaming, streamingText, pendingApprovals, removeTier3Request } from '../stores/messages';
   import { logEntries } from '../stores/console';
   import { getStatus } from '../lib/api';
   import Message from './Message.svelte';
   import ToolCallEnvelope from './ToolCallEnvelope.svelte';
+  import Tier3Approval from './Tier3Approval.svelte';
   import InputArea from './InputArea.svelte';
 
   let agentName = 'Atlas';
@@ -77,6 +78,16 @@
       {#if $pendingToolCalls.length > 0}
         <ToolCallEnvelope toolCalls={$pendingToolCalls} live={true} />
       {/if}
+
+      {#each $pendingApprovals as approval (approval.actionId)}
+        <Tier3Approval
+          actionId={approval.actionId}
+          toolName={approval.toolName}
+          target={approval.target}
+          reasoning={approval.reasoning}
+          timeoutSecs={approval.timeoutSecs}
+        />
+      {/each}
 
       {#if $streaming && $streamingText}
         <Message message={{ id: 'streaming', session_id: '', role: 'assistant', content: $streamingText, timestamp: new Date().toISOString() }} isStreaming={true} {agentName} />

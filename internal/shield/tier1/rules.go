@@ -37,5 +37,10 @@ func CrossPlatformDetectionRules() []platform.HeuristicRule {
 
 		// Self-protection (1 rule)
 		{ID: "SP-001", Name: "shell_writes_protected_file", Pattern: `(?i)(>{1,2}\s*|tee\s+|cp\s+.*|mv\s+.*|rm\s+|del\s+|erase\s+|Set-Content\s+|Out-File\s+|Remove-Item\s+).*(SOUL\.md|IDENTITY\.md|TOOLS\.md|BOOT\.md)`, Category: "self_protection", Severity: "critical", Description: "Shell command writes to or deletes a protected identity file"},
+
+		// Generation safety (3 rules)
+		{ID: "GEN-001", Name: "gen_real_person_explicit", Pattern: `(?i)(nude|naked|explicit|nsfw|undress)\s.*(photo|image|picture|video)\s.*(of|with|featuring)\s`, Category: "generation_safety", Severity: "critical", Description: "Generation prompt requests explicit content of real person"},
+		{ID: "GEN-002", Name: "gen_csam_adjacent", Pattern: `(?i)(child|minor|underage|teen|kid|boy|girl)\s.*(nude|naked|explicit|sexual|bath)`, Category: "generation_safety", Severity: "critical", Description: "Generation prompt contains CSAM-adjacent content"},
+		{ID: "GEN-003", Name: "gen_weapons_visual", Pattern: `(?i)(how to (make|build|assemble)|blueprint|schematic|diagram).*(bomb|explosive|weapon|firearm|gun)`, Category: "generation_safety", Severity: "critical", Description: "Generation prompt requests weapons manufacturing visuals"},
 	}
 }

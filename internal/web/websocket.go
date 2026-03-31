@@ -17,6 +17,8 @@ type wsClientMessage struct {
 	SessionID string `json:"session_id"`
 	Content   string `json:"content"`
 	Mode      string `json:"mode"`
+	ActionID  string `json:"action_id,omitempty"`
+	Decision  string `json:"decision,omitempty"`
 }
 
 // handleWebSocket upgrades an HTTP connection to WebSocket and handles
@@ -60,6 +62,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		switch msg.Type {
 		case "message":
 			s.handleWSMessage(ctx, conn, msg)
+		case "tier3_decision":
+			s.handleTier3Decision(msg)
 		case "ping":
 			s.writeWSJSON(ctx, conn, map[string]string{"type": "pong"})
 		default:
@@ -97,6 +101,20 @@ func (s *Server) handleWSMessage(ctx context.Context, conn *websocket.Conn, msg 
 		s.log.Error("ws_process_failed", "session", sid, "error", err)
 		s.writeWSError(ctx, conn, sid, mid, "PIPELINE_FAILED", err.Error())
 	}
+}
+
+// handleTier3Decision resolves a pending human-in-the-loop approval.
+func (s *Server) handleTier3Decision(msg wsClientMessage) {
+	approved := msg.Decision == "approve"
+	if err := s.engine.Tier3().Decide(msg.ActionID, approved); err != nil {
+		s.log.Warn("tier3_decision_failed", "action_id", msg.ActionID, "error", err)
+		return
+	}
+	decision := "denied"
+	if approved {
+		decision = "approved"
+	}
+	s.log.Info("tier3_event", "action_id", msg.ActionID, "status", decision)
 }
 
 func (s *Server) writeWSJSON(ctx context.Context, conn *websocket.Conn, data any) {

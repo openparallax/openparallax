@@ -40,6 +40,33 @@ type AgentConfig struct {
 
 	// Calendar configures the calendar executor.
 	Calendar CalendarConfig `yaml:"calendar,omitempty" json:"calendar,omitempty"`
+
+	// Generation configures image and video generation providers.
+	Generation GenerationConfig `yaml:"generation,omitempty" json:"generation,omitempty"`
+}
+
+// GenerationConfig configures media generation providers.
+type GenerationConfig struct {
+	// Image configures the image generation provider.
+	Image GenProviderConfig `yaml:"image,omitempty" json:"image,omitempty"`
+
+	// Video configures the video generation provider.
+	Video GenProviderConfig `yaml:"video,omitempty" json:"video,omitempty"`
+}
+
+// GenProviderConfig configures a single generation provider.
+type GenProviderConfig struct {
+	// Provider is the provider name: "openai", "google", "stability", "none".
+	Provider string `yaml:"provider,omitempty" json:"provider,omitempty"`
+
+	// Model is the provider-specific model string.
+	Model string `yaml:"model,omitempty" json:"model,omitempty"`
+
+	// APIKeyEnv is the environment variable holding the API key.
+	APIKeyEnv string `yaml:"api_key_env,omitempty" json:"api_key_env,omitempty"`
+
+	// BaseURL overrides the provider's default API endpoint.
+	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
 }
 
 // EmailConfig configures email sending.
@@ -127,6 +154,18 @@ type ShieldConfig struct {
 
 	// ClassifierAddr is the address of the ONNX classifier sidecar (e.g., "localhost:8090").
 	ClassifierAddr string `yaml:"classifier_addr,omitempty" json:"classifier_addr,omitempty"`
+
+	// Tier3 configures human-in-the-loop approval for uncertain verdicts.
+	Tier3 Tier3Config `yaml:"tier3,omitempty" json:"tier3,omitempty"`
+}
+
+// Tier3Config configures the human-in-the-loop approval tier.
+type Tier3Config struct {
+	// MaxPerHour is the maximum number of Tier 3 prompts per hour (default 10).
+	MaxPerHour int `yaml:"max_per_hour,omitempty" json:"max_per_hour,omitempty"`
+
+	// TimeoutSeconds is how long to wait for user response before auto-deny (default 300).
+	TimeoutSeconds int `yaml:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
 }
 
 // EvaluatorConfig configures the Tier 2 LLM evaluator.

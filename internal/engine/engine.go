@@ -54,6 +54,8 @@ type Engine struct {
 	db         *storage.DB
 	mcpManager *mcp.Manager
 
+	tier3Manager *Tier3Manager
+
 	server   *grpc.Server
 	listener net.Listener
 
@@ -151,19 +153,20 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	return &Engine{
-		cfg:        cfg,
-		llm:        provider,
-		log:        log,
-		agent:      ag,
-		executors:  registry,
-		shield:     shieldPipeline,
-		enricher:   shield.NewMetadataEnricher(),
-		chronicle:  chron,
-		memory:     mem,
-		audit:      auditLogger,
-		verifier:   NewVerifier(),
-		db:         db,
-		mcpManager: mcpMgr,
+		cfg:          cfg,
+		llm:          provider,
+		log:          log,
+		agent:        ag,
+		executors:    registry,
+		shield:       shieldPipeline,
+		enricher:     shield.NewMetadataEnricher(),
+		chronicle:    chron,
+		memory:       mem,
+		audit:        auditLogger,
+		verifier:     NewVerifier(),
+		db:           db,
+		mcpManager:   mcpMgr,
+		tier3Manager: NewTier3Manager(cfg.Shield.Tier3.MaxPerHour, cfg.Shield.Tier3.TimeoutSeconds),
 	}, nil
 }
 
@@ -865,6 +868,9 @@ func (e *Engine) SetSandboxStatus(active bool, mode string, version int, filesys
 		Reason:     reason,
 	}
 }
+
+// Tier3 returns the Tier 3 human-in-the-loop manager.
+func (e *Engine) Tier3() *Tier3Manager { return e.tier3Manager }
 
 // ConfigPath returns the path to the config.yaml file.
 func (e *Engine) ConfigPath() string {

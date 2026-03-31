@@ -46,6 +46,14 @@ func NewRegistry(workspacePath string, cfg *types.AgentConfig, log *logging.Logg
 				log.Info("executor_registered", "executor", "calendar")
 			}
 		}
+
+		if image := NewImageExecutor(cfg.Generation.Image, workspacePath, log); image != nil {
+			r.register(image)
+		}
+
+		if video := NewVideoExecutor(cfg.Generation.Video, workspacePath, log); video != nil {
+			r.register(video)
+		}
 	}
 
 	return r

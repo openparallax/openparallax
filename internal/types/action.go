@@ -91,6 +91,13 @@ const (
 	ActionCanvasPreview ActionType = "canvas_preview"
 	// ActionGitClone clones a git repository.
 	ActionGitClone ActionType = "git_clone"
+
+	// ActionGenerateImage generates an image from a text prompt.
+	ActionGenerateImage ActionType = "generate_image"
+	// ActionEditImage edits an existing image based on a prompt.
+	ActionEditImage ActionType = "edit_image"
+	// ActionGenerateVideo generates a short video from a text prompt.
+	ActionGenerateVideo ActionType = "generate_video"
 )
 
 // AllActionTypes contains every defined action type for enumeration and validation.
@@ -106,6 +113,7 @@ var AllActionTypes = []ActionType{
 	ActionGitPull, ActionGitLog, ActionGitBranch, ActionGitCheckout,
 	ActionMemoryWrite, ActionMemorySearch, ActionCanvasCreate, ActionCanvasUpdate,
 	ActionCanvasProject, ActionCanvasPreview, ActionGitClone,
+	ActionGenerateImage, ActionEditImage, ActionGenerateVideo,
 }
 
 // ActionRequest represents a proposed action from the agent.

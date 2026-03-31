@@ -174,6 +174,16 @@
               src={`/api/artifacts/${encodeURIComponent($activeTab.artifact.path)}`}
               alt={$activeTab.artifact.title}
             />
+          {:else if $activeTab.artifact.preview_type === 'video'}
+            <video
+              class="artifact-video"
+              controls
+              autoplay
+              loop
+              muted
+            >
+              <source src={`/api/artifacts/${encodeURIComponent($activeTab.artifact.path)}`} type="video/mp4" />
+            </video>
           {:else}
             <pre class="artifact-code"><code>{$activeTab.artifact.content}</code></pre>
           {/if}
@@ -354,6 +364,13 @@
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+  }
+
+  .artifact-video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
   }
 
   .artifact-code {

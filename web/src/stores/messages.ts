@@ -9,6 +9,23 @@ export const shieldLog = writable<ShieldVerdict[]>([]);
 export const streaming = writable(false);
 export const streamingText = writable('');
 
+export interface Tier3Request {
+  actionId: string;
+  toolName: string;
+  target: string;
+  reasoning: string;
+  timeoutSecs: number;
+}
+export const pendingApprovals = writable<Tier3Request[]>([]);
+
+export function addTier3Request(req: Tier3Request) {
+  pendingApprovals.update(list => [...list, req]);
+}
+
+export function removeTier3Request(actionId: string) {
+  pendingApprovals.update(list => list.filter(r => r.actionId !== actionId));
+}
+
 export function setStreaming(value: boolean) {
   streaming.set(value);
 }

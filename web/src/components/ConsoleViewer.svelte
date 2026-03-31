@@ -175,6 +175,19 @@
       const after = d.after_tokens || 0;
       return before ? `${before}\u2192${after} tokens` : '';
     }
+    if (evt.includes('generation')) {
+      const type = d.type || '';
+      const provider = d.provider || '';
+      const ms = d.duration_ms !== undefined ? `${d.duration_ms}ms` : '';
+      const bytes = d.output_bytes ? `${(d.output_bytes / 1024).toFixed(0)}KB` : '';
+      return [type, provider, ms, bytes].filter(Boolean).join(' \u00B7 ');
+    }
+    if (evt.includes('tier3')) {
+      const status = d.status || '';
+      const tool = d.tool || '';
+      const ms = d.response_time_ms ? `${d.response_time_ms}ms` : '';
+      return [status, tool, ms].filter(Boolean).join(' \u00B7 ');
+    }
     if (evt.includes('sandbox')) {
       const mode = d.mode || '';
       const ver = d.version ? `V${d.version}` : '';
