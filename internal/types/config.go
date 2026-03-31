@@ -93,10 +93,35 @@ type GenProviderConfig struct {
 	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
 }
 
-// EmailConfig configures email sending.
+// EmailConfig configures email sending and reading.
 type EmailConfig struct {
 	Provider string     `yaml:"provider,omitempty" json:"provider,omitempty"` // "smtp" for now; "gmail", "outlook" future
 	SMTP     SMTPConfig `yaml:"smtp,omitempty" json:"smtp,omitempty"`
+	IMAP     IMAPConfig `yaml:"imap,omitempty" json:"imap,omitempty"`
+}
+
+// IMAPConfig configures IMAP email reading.
+type IMAPConfig struct {
+	// Host is the IMAP server hostname (e.g. "imap.gmail.com").
+	Host string `yaml:"host" json:"host"`
+
+	// Port is the IMAP server port (typically 993 for TLS).
+	Port int `yaml:"port" json:"port"`
+
+	// TLS enables TLS encryption (default true).
+	TLS bool `yaml:"tls" json:"tls"`
+
+	// Username is the IMAP login username (for password auth).
+	Username string `yaml:"username,omitempty" json:"username,omitempty"`
+
+	// Password is the IMAP login password or app password (for password auth).
+	Password string `yaml:"password,omitempty" json:"password,omitempty"`
+
+	// AuthMode is the authentication mode: "password" or "oauth2".
+	AuthMode string `yaml:"auth_mode" json:"auth_mode"`
+
+	// Account is the email address used for OAuth2 token lookup.
+	Account string `yaml:"account,omitempty" json:"account,omitempty"`
 }
 
 // SMTPConfig holds SMTP connection settings.

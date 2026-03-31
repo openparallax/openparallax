@@ -42,5 +42,9 @@ func CrossPlatformDetectionRules() []platform.HeuristicRule {
 		{ID: "GEN-001", Name: "gen_real_person_explicit", Pattern: `(?i)(nude|naked|explicit|nsfw|undress)\s.*(photo|image|picture|video)\s.*(of|with|featuring)\s`, Category: "generation_safety", Severity: "critical", Description: "Generation prompt requests explicit content of real person"},
 		{ID: "GEN-002", Name: "gen_csam_adjacent", Pattern: `(?i)(child|minor|underage|teen|kid|boy|girl)\s.*(nude|naked|explicit|sexual|bath)`, Category: "generation_safety", Severity: "critical", Description: "Generation prompt contains CSAM-adjacent content"},
 		{ID: "GEN-003", Name: "gen_weapons_visual", Pattern: `(?i)(how to (make|build|assemble)|blueprint|schematic|diagram).*(bomb|explosive|weapon|firearm|gun)`, Category: "generation_safety", Severity: "critical", Description: "Generation prompt requests weapons manufacturing visuals"},
+
+		// Email safety (2 rules)
+		{ID: "EM-001", Name: "email_move_to_trash", Pattern: `(?i)email_move.*trash`, Category: "email_safety", Severity: "high", Description: "Moving email to trash is destructive"},
+		{ID: "EM-002", Name: "email_bulk_mark", Pattern: `(?i)email_mark.*(read|unread|flagged)`, Category: "email_safety", Severity: "medium", Description: "Bulk email flag modification"},
 	}
 }

@@ -124,12 +124,12 @@ func TestEmailSendProviderError(t *testing.T) {
 }
 
 func TestNewEmailExecutorNilWhenUnconfigured(t *testing.T) {
-	exec := NewEmailExecutor(types.EmailConfig{})
+	exec := NewEmailExecutor(types.EmailConfig{}, nil)
 	assert.Nil(t, exec)
 }
 
 func TestNewEmailExecutorNilWhenNoHost(t *testing.T) {
-	exec := NewEmailExecutor(types.EmailConfig{SMTP: types.SMTPConfig{Port: 587}})
+	exec := NewEmailExecutor(types.EmailConfig{SMTP: types.SMTPConfig{Port: 587}}, nil)
 	assert.Nil(t, exec)
 }
 

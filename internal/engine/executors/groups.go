@@ -149,6 +149,7 @@ var otrWriteTools = map[string]bool{
 	"canvas_create": true, "canvas_update": true, "canvas_project": true,
 	"generate_image": true, "edit_image": true, "generate_video": true,
 	"create_agent": true,
+	"email_move":   true, "email_mark": true,
 }
 
 func filterOTRTools(tools []llm.ToolDefinition) []llm.ToolDefinition {
@@ -168,7 +169,7 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		"shell":            {Name: "shell", Description: "Execute shell commands on the system"},
 		"git":              {Name: "git", Description: "Git version control — status, diff, log, commit, push, pull, branch, clone"},
 		"browser":          {Name: "browser", Description: "Browse the web — navigate, click, type, extract, screenshot"},
-		"email":            {Name: "email", Description: "Send emails via SMTP"},
+		"email":            {Name: "email", Description: "Send and read emails — list inbox, search, read, move, mark, and send"},
 		"calendar":         {Name: "calendar", Description: "Manage calendar events — list, create, update, delete"},
 		"memory":           {Name: "memory", Description: "Write structured memories and search past conversations"},
 		"schedule":         {Name: "schedule", Description: "Manage recurring tasks via HEARTBEAT.md cron entries"},
@@ -193,8 +194,10 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		types.ActionGitClone:   "git",
 		types.ActionBrowserNav: "browser", types.ActionBrowserClick: "browser",
 		types.ActionBrowserType: "browser", types.ActionBrowserExtract: "browser",
-		types.ActionBrowserShot:  "browser",
-		types.ActionSendEmail:    "email",
+		types.ActionBrowserShot: "browser",
+		types.ActionSendEmail:   "email", types.ActionEmailList: "email",
+		types.ActionEmailRead: "email", types.ActionEmailSearch: "email",
+		types.ActionEmailMove: "email", types.ActionEmailMark: "email",
 		types.ActionReadCalendar: "calendar", types.ActionCreateEvent: "calendar",
 		types.ActionUpdateEvent: "calendar", types.ActionDeleteEvent: "calendar",
 		types.ActionMemoryWrite: "memory", types.ActionMemorySearch: "memory",

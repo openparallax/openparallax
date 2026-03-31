@@ -99,6 +99,17 @@ const (
 	// ActionGenerateVideo generates a short video from a text prompt.
 	ActionGenerateVideo ActionType = "generate_video"
 
+	// ActionEmailList lists emails in a mailbox folder.
+	ActionEmailList ActionType = "email_list"
+	// ActionEmailRead reads a specific email by UID.
+	ActionEmailRead ActionType = "email_read"
+	// ActionEmailSearch searches emails by query.
+	ActionEmailSearch ActionType = "email_search"
+	// ActionEmailMove moves an email to a different folder.
+	ActionEmailMove ActionType = "email_move"
+	// ActionEmailMark marks an email as read/unread/flagged.
+	ActionEmailMark ActionType = "email_mark"
+
 	// ActionCreateAgent spawns a sub-agent to work on a task.
 	ActionCreateAgent ActionType = "create_agent"
 	// ActionAgentStatus checks the status of a sub-agent.
@@ -127,6 +138,8 @@ var AllActionTypes = []ActionType{
 	ActionMemoryWrite, ActionMemorySearch, ActionCanvasCreate, ActionCanvasUpdate,
 	ActionCanvasProject, ActionCanvasPreview, ActionGitClone,
 	ActionGenerateImage, ActionEditImage, ActionGenerateVideo,
+	ActionEmailList, ActionEmailRead, ActionEmailSearch,
+	ActionEmailMove, ActionEmailMark,
 	ActionCreateAgent, ActionAgentStatus, ActionAgentResult,
 	ActionAgentMessage, ActionDeleteAgent, ActionListAgents,
 }

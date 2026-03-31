@@ -36,7 +36,7 @@ func NewRegistry(workspacePath string, cfg *types.AgentConfig, oauthMgr *oauth.M
 	}
 
 	if cfg != nil {
-		if email := NewEmailExecutor(cfg.Email); email != nil {
+		if email := NewEmailExecutor(cfg.Email, oauthMgr); email != nil {
 			r.register(email)
 			if log != nil {
 				log.Info("executor_registered", "executor", "email")
