@@ -6,15 +6,17 @@ import (
 	"path/filepath"
 
 	"github.com/openparallax/openparallax/internal/config"
+	"github.com/openparallax/openparallax/internal/registry"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/spf13/cobra"
 )
 
 var statusCmd = &cobra.Command{
-	Use:          "status",
+	Use:          "status [name]",
 	Short:        "Show workspace status",
-	Long:         "Displays workspace path, memory file sizes, snapshot count, session count, and audit entry count.",
+	Long:         "Displays workspace path, memory file sizes, snapshot count, session count, and audit entry count.\nPass an agent name to show a specific agent, or omit for the default agent.",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE:         runStatus,
 }
@@ -26,13 +28,10 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
-func runStatus(cmd *cobra.Command, args []string) error {
-	cfgPath := statusConfigPath
-	if cfgPath == "" {
-		cfgPath = findConfig()
-	}
-	if cfgPath == "" {
-		return fmt.Errorf("workspace not found: run 'openparallax init' first, or use --config to specify a config file")
+func runStatus(_ *cobra.Command, args []string) error {
+	cfgPath, err := resolveStatusConfig(args)
+	if err != nil {
+		return err
 	}
 
 	cfg, err := config.Load(cfgPath)
@@ -40,14 +39,35 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	fmt.Printf("Workspace: %s\n\n", cfg.Workspace)
+	agentName := cfg.Identity.Name
+	if agentName == "" {
+		agentName = "Atlas"
+	}
+
+	running := registry.IsRunning(cfg.Workspace)
+	statusText := "stopped"
+	if running {
+		statusText = "running"
+	}
+
+	fmt.Printf("Agent:     %s (%s)\n", agentName, statusText)
+	fmt.Printf("Workspace: %s\n", cfg.Workspace)
+	fmt.Printf("Provider:  %s / %s\n", cfg.LLM.Provider, cfg.LLM.Model)
+	if cfg.Web.Enabled {
+		webPort := cfg.Web.Port
+		if webPort == 0 {
+			webPort = 3000
+		}
+		fmt.Printf("Web UI:    http://127.0.0.1:%d\n", webPort)
+	}
+	fmt.Println()
 
 	// Memory files
 	fmt.Println("Memory files:")
 	for _, ft := range types.AllMemoryFiles {
 		path := filepath.Join(cfg.Workspace, string(ft))
-		info, err := os.Stat(path)
-		if err != nil {
+		info, statErr := os.Stat(path)
+		if statErr != nil {
 			fmt.Printf("  %-16s  (not found)\n", ft)
 		} else {
 			fmt.Printf("  %-16s  %s\n", ft, formatBytes(info.Size()))
@@ -57,9 +77,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Database stats
 	dbPath := filepath.Join(cfg.Workspace, ".openparallax", "openparallax.db")
-	db, err := storage.Open(dbPath)
-	if err != nil {
-		fmt.Printf("Database: error opening (%s)\n", err)
+	db, dbErr := storage.Open(dbPath)
+	if dbErr != nil {
+		fmt.Printf("Database: error opening (%s)\n", dbErr)
 		return nil
 	}
 	defer func() { _ = db.Close() }()
@@ -92,4 +112,32 @@ func formatBytes(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+// resolveStatusConfig finds the config path from args, flags, or auto-detection.
+func resolveStatusConfig(args []string) (string, error) {
+	if len(args) > 0 {
+		regPath, err := registry.DefaultPath()
+		if err != nil {
+			return "", err
+		}
+		reg, err := registry.Load(regPath)
+		if err != nil {
+			return "", fmt.Errorf("load registry: %w", err)
+		}
+		rec, ok := reg.Lookup(args[0])
+		if !ok {
+			return "", fmt.Errorf("agent %q not found", args[0])
+		}
+		return rec.ConfigPath, nil
+	}
+
+	cfgPath := statusConfigPath
+	if cfgPath == "" {
+		cfgPath = findConfig()
+	}
+	if cfgPath == "" {
+		return "", fmt.Errorf("workspace not found: run 'openparallax init' first, or use --config to specify a config file")
+	}
+	return cfgPath, nil
 }

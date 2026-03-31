@@ -177,11 +177,24 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	return eng, nil
 }
 
-// Start begins the gRPC server on a dynamic port.
-func (e *Engine) Start() (int, error) {
-	lis, err := net.Listen("tcp", "localhost:0")
+// Start begins the gRPC server. If a non-zero port is provided, the server
+// binds to that port; otherwise a dynamic port is allocated by the OS.
+func (e *Engine) Start(listenPort ...int) (int, error) {
+	addr := "localhost:0"
+	if len(listenPort) > 0 && listenPort[0] > 0 {
+		addr = fmt.Sprintf("localhost:%d", listenPort[0])
+	}
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		return 0, fmt.Errorf("failed to listen: %w", err)
+		// Fall back to dynamic port if the requested port is in use.
+		if addr != "localhost:0" {
+			lis, err = net.Listen("tcp", "localhost:0")
+			if err != nil {
+				return 0, fmt.Errorf("failed to listen: %w", err)
+			}
+		} else {
+			return 0, fmt.Errorf("failed to listen: %w", err)
+		}
 	}
 	e.listener = lis
 

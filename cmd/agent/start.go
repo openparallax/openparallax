@@ -15,17 +15,21 @@ import (
 	"time"
 
 	"github.com/openparallax/openparallax/internal/config"
+	"github.com/openparallax/openparallax/internal/registry"
 	"github.com/spf13/cobra"
 )
 
 var (
 	startConfigPath string
 	startVerbose    bool
+	startDaemon     bool
+	startPort       int
 )
 
 var startCmd = &cobra.Command{
-	Use:          "start",
+	Use:          "start [name]",
 	Short:        "Start the agent and all configured channels",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE:         runStart,
 }
@@ -33,11 +37,32 @@ var startCmd = &cobra.Command{
 func init() {
 	startCmd.Flags().StringVarP(&startConfigPath, "config", "c", "", "path to config.yaml")
 	startCmd.Flags().BoolVarP(&startVerbose, "verbose", "v", false, "enable verbose pipeline logging")
+	startCmd.Flags().BoolVarP(&startDaemon, "daemon", "d", false, "start in background (daemon mode)")
+	startCmd.Flags().IntVar(&startPort, "port", 0, "override web UI port")
 	rootCmd.AddCommand(startCmd)
 }
 
-func runStart(_ *cobra.Command, _ []string) error {
+func runStart(_ *cobra.Command, args []string) error {
 	cfgPath := startConfigPath
+	var workspace string
+
+	// Resolve config path from agent name, --config flag, or registry.
+	if cfgPath == "" && len(args) > 0 {
+		regPath, err := registry.DefaultPath()
+		if err != nil {
+			return err
+		}
+		reg, err := registry.Load(regPath)
+		if err != nil {
+			return fmt.Errorf("load registry: %w", err)
+		}
+		rec, ok := reg.Lookup(args[0])
+		if !ok {
+			return fmt.Errorf("agent %q not found — run 'openparallax list' to see available agents", args[0])
+		}
+		cfgPath = rec.ConfigPath
+		workspace = rec.Workspace
+	}
 	if cfgPath == "" {
 		cfgPath = findConfig()
 	}
@@ -49,6 +74,19 @@ func runStart(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
+	if workspace == "" {
+		workspace = cfg.Workspace
+	}
+
+	// Check if already running.
+	if registry.IsRunning(workspace) {
+		pid, _ := registry.ReadPID(workspace)
+		webPort := cfg.Web.Port
+		if webPort == 0 {
+			webPort = 3000
+		}
+		return fmt.Errorf("agent is already running (PID %d) on port %d", pid, webPort)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -57,13 +95,15 @@ func runStart(_ *cobra.Command, _ []string) error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	// Spawn the engine process. The engine spawns the sandboxed agent as
-	// its own child, and serves the web UI. This process manager handles
-	// engine restarts (exit code 75) and crash recovery.
 	pm := newProcessManager(cfgPath, startVerbose)
 	port, err := pm.startEngine(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start engine: %w", err)
+	}
+
+	// Write PID file for the engine process.
+	if pm.cmd != nil && pm.cmd.Process != nil {
+		_ = registry.WritePID(workspace, pm.cmd.Process.Pid)
 	}
 
 	grpcAddr := fmt.Sprintf("localhost:%d", port)
@@ -73,6 +113,9 @@ func runStart(_ *cobra.Command, _ []string) error {
 		if webPort == 0 {
 			webPort = 3000
 		}
+		if startPort > 0 {
+			webPort = startPort
+		}
 		fmt.Printf("Web UI available at http://127.0.0.1:%d\n", webPort)
 	}
 	if startVerbose {
@@ -80,18 +123,22 @@ func runStart(_ *cobra.Command, _ []string) error {
 		fmt.Printf("Verbose log: %s\n", logPath)
 	}
 
-	// Wait for engine to exit or signal. The engine manages the sandboxed
-	// agent child process internally. When the user quits the CLI (/quit),
-	// the agent exits, the engine detects it and also exits, and we get
-	// here.
+	// Daemon mode: print info and exit immediately.
+	if startDaemon {
+		fmt.Println("Running in background.")
+		return nil
+	}
+
+	// Foreground mode: wait for engine to exit or signal.
 	select {
 	case <-pm.done:
-		// Engine exited (clean agent exit, or crash budget exhausted).
+		_ = registry.RemovePID(workspace)
 		return nil
 	case <-sigCh:
 		fmt.Println("\nShutting down...")
 		cancel()
 		pm.stopEngine()
+		_ = registry.RemovePID(workspace)
 		return nil
 	}
 }
@@ -144,6 +191,12 @@ func (pm *processManager) spawnEngine(ctx context.Context) (int, error) {
 		cmdArgs = append(cmdArgs, "--verbose")
 	}
 	pm.cmd = exec.CommandContext(ctx, executable, cmdArgs...)
+
+	// Daemon mode: detach from terminal.
+	if startDaemon {
+		pm.cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	}
+
 	if pm.verbose {
 		logPath := filepath.Join(filepath.Dir(pm.configPath), ".openparallax", "engine.log")
 		logFile, logErr := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)

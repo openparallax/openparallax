@@ -12,6 +12,7 @@ import (
 
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/engine/executors"
+	"github.com/openparallax/openparallax/internal/registry"
 	"github.com/openparallax/openparallax/internal/sandbox"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/internal/web"
@@ -51,13 +52,17 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("engine init failed: %w", err)
 	}
 
-	port, err := eng.Start()
+	cfg := eng.Config()
+	port, err := eng.Start(cfg.Web.GRPCPort)
 	if err != nil {
 		return fmt.Errorf("engine start failed: %w", err)
 	}
 
 	grpcAddr := fmt.Sprintf("localhost:%d", port)
 	_, _ = fmt.Fprintf(os.Stdout, "PORT:%d\n", port)
+
+	// Write PID file so stop/list commands can find us.
+	_ = registry.WritePID(cfg.Workspace, os.Getpid())
 
 	// Probe and record sandbox status for API reporting.
 	sbStatus := sandbox.Probe()
@@ -75,7 +80,6 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 
 	// Start web server if configured.
 	var webServer *web.Server
-	cfg := eng.Config()
 	if cfg.Web.Enabled {
 		webPort := cfg.Web.Port
 		if webPort == 0 {
@@ -126,6 +130,7 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		webServer.Stop()
 	}
 	eng.Stop()
+	_ = registry.RemovePID(cfg.Workspace)
 	return nil
 }
 
