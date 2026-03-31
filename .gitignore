@@ -7,7 +7,7 @@
 openparallax
 openparallax-shield
 openparallax-classifier
-agent
+/agent
 dist/
 !internal/web/dist/
 

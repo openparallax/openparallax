@@ -12,6 +12,7 @@ import (
 // Registry maps action types to executors.
 type Registry struct {
 	executors map[types.ActionType]Executor
+	Groups    *GroupRegistry
 }
 
 // NewRegistry creates a Registry with all always-available executors registered.
@@ -54,6 +55,12 @@ func NewRegistry(workspacePath string, cfg *types.AgentConfig, log *logging.Logg
 		if video := NewVideoExecutor(cfg.Generation.Video, workspacePath, log); video != nil {
 			r.register(video)
 		}
+	}
+
+	// Build group registry from all registered tool schemas.
+	r.Groups = NewGroupRegistry()
+	for _, g := range DefaultGroups(r.AllToolSchemas()) {
+		r.Groups.Register(g)
 	}
 
 	return r

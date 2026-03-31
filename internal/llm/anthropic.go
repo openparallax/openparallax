@@ -185,6 +185,7 @@ type anthropicToolStreamReader struct {
 	mu        sync.Mutex
 	buf       string
 	done      bool
+	usage     TokenUsage
 }
 
 func (r *anthropicToolStreamReader) Next() (StreamEvent, error) {
@@ -205,6 +206,14 @@ func (r *anthropicToolStreamReader) Next() (StreamEvent, error) {
 		event := r.stream.Current()
 
 		switch event.Type {
+		case "message_start":
+			msg := event.AsMessageStart()
+			r.usage.InputTokens = int(msg.Message.Usage.InputTokens)
+			r.usage.OutputTokens = int(msg.Message.Usage.OutputTokens)
+			r.usage.CacheCreationTokens = int(msg.Message.Usage.CacheCreationInputTokens)
+			r.usage.CacheReadTokens = int(msg.Message.Usage.CacheReadInputTokens)
+			continue
+
 		case "content_block_start":
 			block := event.AsContentBlockStart()
 			if block.ContentBlock.Type == "tool_use" {
@@ -243,6 +252,9 @@ func (r *anthropicToolStreamReader) Next() (StreamEvent, error) {
 
 		case "message_delta":
 			md := event.AsMessageDelta()
+			if md.Usage.OutputTokens > 0 {
+				r.usage.OutputTokens = int(md.Usage.OutputTokens)
+			}
 			if md.Delta.StopReason == "end_turn" || md.Delta.StopReason == "stop_sequence" {
 				r.done = true
 				return StreamEvent{Type: EventDone}, nil
@@ -348,6 +360,13 @@ func (r *anthropicToolStreamReader) FullText() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.buf
+}
+
+// Usage returns the token usage captured from the stream.
+func (r *anthropicToolStreamReader) Usage() TokenUsage {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.usage
 }
 
 // --- Helpers ---

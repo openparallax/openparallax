@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -60,6 +61,10 @@ type Engine struct {
 	listener net.Listener
 
 	sandboxStatus sandboxInfo
+
+	backgroundCtx    context.Context
+	backgroundCancel context.CancelFunc
+	backgroundWG     sync.WaitGroup
 
 	mu       sync.Mutex
 	shutdown bool
@@ -152,7 +157,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		mcpMgr = mcp.NewManager(cfg.MCP.Servers, log)
 	}
 
-	return &Engine{
+	eng := &Engine{
 		cfg:          cfg,
 		llm:          provider,
 		log:          log,
@@ -167,7 +172,9 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		db:           db,
 		mcpManager:   mcpMgr,
 		tier3Manager: NewTier3Manager(cfg.Shield.Tier3.MaxPerHour, cfg.Shield.Tier3.TimeoutSeconds),
-	}, nil
+	}
+	eng.backgroundCtx, eng.backgroundCancel = context.WithCancel(context.Background())
+	return eng, nil
 }
 
 // Start begins the gRPC server on a dynamic port.
@@ -193,11 +200,27 @@ func (e *Engine) Start() (int, error) {
 	return tcpAddr.Port, nil
 }
 
-// Stop gracefully shuts down the engine.
+// Stop gracefully shuts down the engine. Background tasks (session
+// summarization) get a 5-second grace period before forced cancellation.
 func (e *Engine) Stop() {
 	e.mu.Lock()
 	e.shutdown = true
 	e.mu.Unlock()
+
+	// Cancel background tasks and wait up to 5 seconds for in-flight work.
+	if e.backgroundCancel != nil {
+		e.backgroundCancel()
+	}
+	done := make(chan struct{})
+	go func() {
+		e.backgroundWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		e.log.Warn("background_tasks_timeout", "message", "in-flight background tasks did not finish within 5s")
+	}
 
 	if e.mcpManager != nil {
 		e.mcpManager.ShutdownAll()
@@ -265,20 +288,54 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 		return e.sendErrorEvent(sender, sid, mid, "CONTEXT_FAILED", err.Error())
 	}
 
-	// Compact history if approaching context limits.
-	contextBudget := e.llm.EstimateTokens(systemPrompt) + 4096
-	history, _ = e.agent.CompactHistory(ctx, history, contextBudget)
+	// Summarize stale tool results before compaction check.
+	turnCount := 0
+	for _, m := range history {
+		if m.Role == "user" {
+			turnCount++
+		}
+	}
+	history = agent.SummarizeStaleToolResults(history, turnCount, 4)
 
-	// Load tool definitions (filtered for OTR).
-	allTools := agent.GenerateToolDefinitions(e.executors.AllToolSchemas())
-	if e.mcpManager != nil {
-		mcpTools := e.mcpManager.DiscoverTools(ctx)
-		allTools = append(allTools, mcpTools...)
+	// Compact history if approaching context limits.
+	// Budget = model context window minus system prompt and tool definition overhead.
+	systemTokens := e.llm.EstimateTokens(systemPrompt)
+	contextWindow := 128000 // conservative default; most models support this
+	contextBudget := contextWindow - systemTokens - 4096
+	if contextBudget < 4096 {
+		contextBudget = 4096
 	}
-	tools := allTools
-	if isOTR {
-		tools = agent.FilterToolsForOTR(allTools)
+
+	historyTokens := 0
+	for _, m := range history {
+		historyTokens += e.llm.EstimateTokens(m.Content)
 	}
+	usagePercent := float64(historyTokens) / float64(contextBudget) * 100
+
+	e.log.Debug("compaction_check",
+		"history_tokens", historyTokens, "context_budget", contextBudget,
+		"usage_percent", int(usagePercent), "threshold_percent", 70,
+		"triggered", usagePercent >= 70, "history_msgs", len(history))
+
+	if usagePercent >= 70 {
+		before := len(history)
+		history, _ = e.agent.CompactHistory(ctx, history, contextBudget)
+		after := len(history)
+		if after < before {
+			afterTokens := 0
+			for _, m := range history {
+				afterTokens += e.llm.EstimateTokens(m.Content)
+			}
+			e.log.Info("compaction_executed",
+				"messages_before", before, "messages_after", after,
+				"tokens_before", historyTokens, "tokens_after", afterTokens)
+		}
+	}
+
+	// Start with only load_tools. The LLM requests groups as needed.
+	loadToolsDef := e.executors.Groups.LoadToolsDefinition()
+	tools := []llm.ToolDefinition{loadToolsDef}
+	var loadedGroupTools []llm.ToolDefinition
 
 	// Build messages: history + current user message.
 	messages := make([]llm.ChatMessage, 0, len(history)+1)
@@ -363,6 +420,29 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 
 			e.log.Info("tool_call_received", "session", sid, "tool", tc.Name, "call_id", tc.ID)
 
+			// Handle load_tools meta-tool: expand tool set for the current turn.
+			if tc.Name == "load_tools" {
+				groupNames, _ := tc.Arguments["groups"].([]any)
+				names := make([]string, 0, len(groupNames))
+				for _, g := range groupNames {
+					if s, ok := g.(string); ok {
+						names = append(names, s)
+					}
+				}
+				newTools, summary := e.executors.Groups.ResolveGroups(names, isOTR)
+				loadedGroupTools = append(loadedGroupTools, newTools...)
+				tools = append([]llm.ToolDefinition{loadToolsDef}, loadedGroupTools...)
+				e.log.Info("tools_loaded", "groups", strings.Join(names, ","),
+					"tools_count", len(newTools), "tool_def_tokens", len(summary)/4)
+				toolResults = append(toolResults, llm.ToolResult{CallID: tc.ID, Content: summary})
+				thoughts = append(thoughts, types.Thought{
+					Stage:   "tool_call",
+					Summary: fmt.Sprintf("load_tools(%s)", strings.Join(names, ", ")),
+					Detail:  map[string]any{"tool_name": "load_tools", "success": true},
+				})
+				continue
+			}
+
 			result := e.processToolCall(ctx, tc, mode, sid, mid, sender)
 			e.log.Debug("tool_result", "call_id", result.CallID, "is_error", result.IsError, "content_len", len(result.Content))
 			toolResults = append(toolResults, result)
@@ -421,19 +501,28 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 		}
 	}
 
-	// Estimate token usage for telemetry.
-	inputTokens := 0
-	for _, m := range messages {
-		inputTokens += e.llm.EstimateTokens(m.Content)
+	// Capture token usage from the provider (real metrics when available).
+	usage := toolStream.Usage()
+	if usage.InputTokens == 0 {
+		// Fallback to estimation if provider didn't report.
+		for _, m := range messages {
+			usage.InputTokens += e.llm.EstimateTokens(m.Content)
+		}
 	}
-	outputTokens := e.llm.EstimateTokens(fullResponse)
-	toolTokens := len(tools) * 120 // ~120 tokens per tool definition estimate
+	if usage.OutputTokens == 0 {
+		usage.OutputTokens = e.llm.EstimateTokens(fullResponse)
+	}
+	// Estimate tool definition tokens from serialized size.
+	toolJSON, _ := json.Marshal(tools)
+	usage.ToolDefinitionTokens = len(toolJSON) / 4
 
 	e.log.Info("message_complete", "session", sid,
 		"response_length", len(fullResponse), "rounds", rounds,
-		"input_tokens", inputTokens, "output_tokens", outputTokens,
-		"tool_def_tokens", toolTokens, "history_msgs", len(messages),
-		"tools_sent", len(tools))
+		"input_tokens", usage.InputTokens, "output_tokens", usage.OutputTokens,
+		"cache_creation_tokens", usage.CacheCreationTokens,
+		"cache_read_tokens", usage.CacheReadTokens,
+		"tool_def_tokens", usage.ToolDefinitionTokens,
+		"history_msgs", len(messages), "tools_sent", len(tools))
 	return nil
 }
 
@@ -662,12 +751,8 @@ func (e *Engine) Shutdown(ctx context.Context, _ *pb.ShutdownRequest) (*pb.Shutd
 }
 
 // summarizeActiveSessions generates summaries for sessions with sufficient history.
-// Uses a dedicated context to avoid cancellation when the caller's context ends.
+// Runs on the engine's background context so it survives session switches.
 func (e *Engine) summarizeActiveSessions(_ context.Context) {
-	// Detached context with 30s timeout — survives session switches and shutdown.
-	sumCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	sessions, err := e.db.ListSessions()
 	if err != nil {
 		e.log.Warn("summarize_sessions_failed", "error", err)
@@ -678,11 +763,22 @@ func (e *Engine) summarizeActiveSessions(_ context.Context) {
 		if len(history) < 4 {
 			continue
 		}
-		if err := e.memory.SummarizeSession(sumCtx, "", history); err != nil {
-			e.log.Warn("session_summarize_failed", "session", sess.ID, "error", err)
-		} else {
-			e.log.Info("session_summarized", "session", sess.ID)
-		}
+		// Copy history so the goroutine has its own slice.
+		histCopy := make([]llm.ChatMessage, len(history))
+		copy(histCopy, history)
+		sid := sess.ID
+
+		e.backgroundWG.Add(1)
+		go func() {
+			defer e.backgroundWG.Done()
+			sumCtx, cancel := context.WithTimeout(e.backgroundCtx, 30*time.Second)
+			defer cancel()
+			if sumErr := e.memory.SummarizeSession(sumCtx, "", histCopy); sumErr != nil {
+				e.log.Warn("session_summarize_failed", "session", sid, "error", sumErr)
+			} else {
+				e.log.Info("session_summarized", "session", sid)
+			}
+		}()
 	}
 }
 

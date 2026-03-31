@@ -65,6 +65,9 @@ type ToolStreamReader interface {
 
 	// FullText returns all text tokens accumulated so far.
 	FullText() string
+
+	// Usage returns the token usage metrics from the completed stream.
+	Usage() TokenUsage
 }
 
 // StreamEvent is a single event from the tool-use stream.
@@ -129,6 +132,24 @@ type ToolResult struct {
 
 	// IsError indicates the tool call failed or was blocked.
 	IsError bool `json:"is_error"`
+}
+
+// TokenUsage holds token consumption metrics from an LLM call.
+type TokenUsage struct {
+	// InputTokens is the total input tokens billed.
+	InputTokens int
+
+	// OutputTokens is the total output tokens generated.
+	OutputTokens int
+
+	// CacheCreationTokens is the tokens written to cache (Anthropic).
+	CacheCreationTokens int
+
+	// CacheReadTokens is the tokens read from cache (Anthropic, OpenAI).
+	CacheReadTokens int
+
+	// ToolDefinitionTokens is the estimated tokens for tool definitions sent.
+	ToolDefinitionTokens int
 }
 
 // ChatMessage is a single message in a conversation.

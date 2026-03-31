@@ -369,6 +369,9 @@ func (r *ollamaToolStreamReader) FullText() string {
 	return r.buf
 }
 
+// Usage returns token usage. Ollama does not expose cache metrics.
+func (r *ollamaToolStreamReader) Usage() TokenUsage { return TokenUsage{} }
+
 // ollamaToolCall represents a tool call in Ollama's response format.
 type ollamaToolCall struct {
 	Function struct {

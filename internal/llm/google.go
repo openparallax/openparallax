@@ -296,6 +296,9 @@ func (r *geminiToolStreamReader) FullText() string {
 	return r.buf
 }
 
+// Usage returns token usage. Gemini streaming does not expose per-stream usage.
+func (r *geminiToolStreamReader) Usage() TokenUsage { return TokenUsage{} }
+
 var _ ToolStreamReader = (*geminiToolStreamReader)(nil)
 
 // extractGeminiText extracts text from a Gemini response.

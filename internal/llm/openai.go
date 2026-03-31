@@ -243,6 +243,7 @@ type openaiToolStreamReader struct {
 	mu        sync.Mutex
 	buf       string
 	done      bool
+	usage     TokenUsage
 }
 
 // Next returns the next event from the tool-use stream.
@@ -263,6 +264,13 @@ func (r *openaiToolStreamReader) Next() (StreamEvent, error) {
 
 	for r.stream.Next() {
 		chunk := r.stream.Current()
+
+		// Capture usage from final chunk (OpenAI sends it when stream_options include_usage is set).
+		if chunk.Usage.TotalTokens > 0 {
+			r.usage.InputTokens = int(chunk.Usage.PromptTokens)
+			r.usage.OutputTokens = int(chunk.Usage.CompletionTokens)
+		}
+
 		if len(chunk.Choices) == 0 {
 			continue
 		}
@@ -395,6 +403,13 @@ func (r *openaiToolStreamReader) FullText() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.buf
+}
+
+// Usage returns the token usage captured from the stream.
+func (r *openaiToolStreamReader) Usage() TokenUsage {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.usage
 }
 
 // Compile-time check that openaiToolStreamReader satisfies ToolStreamReader.
