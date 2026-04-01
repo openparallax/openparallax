@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"github.com/openparallax/openparallax/internal/channels"
+	"github.com/openparallax/openparallax/internal/channels/discord"
+	signalch "github.com/openparallax/openparallax/internal/channels/signal"
 	"github.com/openparallax/openparallax/internal/channels/telegram"
+	"github.com/openparallax/openparallax/internal/channels/whatsapp"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/registry"
@@ -122,6 +125,15 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	channelMgr := channels.NewManager(eng, eng.Log())
 	if tgAdapter := telegram.New(cfg.Channels.Telegram, channelMgr, eng.Log()); tgAdapter != nil {
 		channelMgr.Register(tgAdapter)
+	}
+	if waAdapter := whatsapp.New(cfg.Channels.WhatsApp, channelMgr, eng.Log()); waAdapter != nil {
+		channelMgr.Register(waAdapter)
+	}
+	if dcAdapter := discord.New(cfg.Channels.Discord, channelMgr, eng.Log()); dcAdapter != nil {
+		channelMgr.Register(dcAdapter)
+	}
+	if sgAdapter := signalch.New(cfg.Channels.Signal, channelMgr, eng.Log()); sgAdapter != nil {
+		channelMgr.Register(sgAdapter)
 	}
 	channelMgr.StartAll(channelCtx)
 
