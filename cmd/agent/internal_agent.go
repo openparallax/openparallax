@@ -56,6 +56,21 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Canary probe: verify the sandbox is actually active by attempting
+	// an operation that should be blocked. Runs before gRPC connection.
+	canary := sandbox.VerifyCanary()
+	switch canary.Status {
+	case "sandboxed":
+		fmt.Fprintf(os.Stderr, "sandbox: verified (canary probe blocked on %s)\n", canary.CanaryPath)
+	case "unsandboxed":
+		fmt.Fprintf(os.Stderr, "sandbox: NOT active (canary probe succeeded on %s)\n", canary.CanaryPath)
+	default:
+		fmt.Fprintf(os.Stderr, "sandbox: verification inconclusive: %s\n", canary.Error)
+	}
+	if agentWorkspace != "" {
+		_ = sandbox.WriteCanaryResult(agentWorkspace, canary)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

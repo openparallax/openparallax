@@ -73,7 +73,7 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	// Initialize sub-agent orchestration.
 	eng.SetupSubAgents(grpcAddr)
 
-	// Probe and record sandbox status for API reporting.
+	// Probe sandbox capability (what the kernel supports).
 	sbStatus := sandbox.Probe()
 	eng.SetSandboxStatus(sbStatus.Active, sbStatus.Mode, sbStatus.Version,
 		sbStatus.Filesystem, sbStatus.Network, sbStatus.Reason)
@@ -147,6 +147,36 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		eng.Log().Error("agent_spawn_failed", "error", amErr)
 		// Fall through — the engine still serves the web UI even without the CLI agent.
 	}
+
+	// Read canary verification result from the Agent process. The agent
+	// writes sandbox.status after applying the sandbox and running the
+	// canary probe. Wait briefly for it to appear.
+	go func() {
+		time.Sleep(2 * time.Second)
+		canary := sandbox.ReadCanaryResult(cfg.Workspace)
+		switch {
+		case canary.Verified:
+			eng.SetSandboxStatus(true, canary.Mechanism, sbStatus.Version,
+				sbStatus.Filesystem, sbStatus.Network, "")
+			eng.Log().Info("sandbox_verified",
+				"status", canary.Status,
+				"canary_path", canary.CanaryPath,
+				"canary_blocked", canary.CanaryBlocked,
+				"mechanism", canary.Mechanism,
+				"platform", canary.Platform)
+		case canary.Status == "unsandboxed":
+			eng.SetSandboxStatus(false, canary.Mechanism, 0,
+				false, false, "canary probe succeeded — sandbox not active")
+			eng.Log().Warn("sandbox_not_verified",
+				"status", canary.Status,
+				"canary_path", canary.CanaryPath,
+				"platform", canary.Platform)
+		case canary.Status != "unknown":
+			eng.Log().Warn("sandbox_inconclusive",
+				"status", canary.Status,
+				"error", canary.Error)
+		}
+	}()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
