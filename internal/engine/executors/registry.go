@@ -30,6 +30,7 @@ func NewRegistry(workspacePath string, cfg *types.AgentConfig, oauthMgr *oauth.M
 	r.register(NewScheduleExecutor(workspacePath))
 	r.register(NewCanvasExecutor(workspacePath))
 	r.register(NewSystemExecutor(workspacePath))
+	r.register(NewCalculateExecutor())
 
 	// Conditionally available.
 	if browser := NewBrowserExecutor(log); browser != nil {
