@@ -124,6 +124,7 @@ func runInit(_ *cobra.Command, args []string) error {
 		apiKeyInput    string
 		embProvider    string
 		embAPIKey      string
+		baseURLInput   string
 		workspacePath  string
 		confirmLaunch  bool
 	)
@@ -210,7 +211,7 @@ func runInit(_ *cobra.Command, args []string) error {
 
 	providerOpts := []huh.Option[string]{
 		huh.NewOption("Anthropic  (Claude)", "anthropic"),
-		huh.NewOption("OpenAI     (GPT)", "openai"),
+		huh.NewOption("OpenAI     (GPT, or any OpenAI-compatible API)", "openai"),
 		huh.NewOption("Google     (Gemini)", "google"),
 		huh.NewOption("Ollama     (Local)", "ollama"),
 	}
@@ -285,12 +286,29 @@ func runInit(_ *cobra.Command, args []string) error {
 			}
 		}
 
+		// For OpenAI-compatible providers, ask for base URL.
+		if llmProvider == "openai" {
+			err = huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title("Custom API base URL (optional):").
+						Description("Leave empty for OpenAI. For compatible providers (LM Studio, Together AI, Groq, etc.), enter their API URL.").
+						Value(&baseURLInput).
+						Placeholder("https://api.openai.com/v1"),
+				),
+			).Run()
+			if err != nil {
+				return err
+			}
+			baseURLInput = strings.TrimSpace(baseURLInput)
+		}
+
 		// Connection test.
 		fmt.Printf("  Testing connection to %s...\n", info.label)
 		testCfg := types.LLMConfig{
 			Provider: llmProvider,
 			Model:    info.model,
-			BaseURL:  "",
+			BaseURL:  baseURLInput,
 		}
 		if testErr := llm.TestConnection(testCfg, strings.TrimSpace(apiKeyInput)); testErr != nil {
 			fmt.Printf("  ✗ Connection failed: %s\n", testErr)
@@ -477,7 +495,7 @@ func runInit(_ *cobra.Command, args []string) error {
 	// Write config.yaml.
 	configPath := filepath.Join(workspacePath, "config.yaml")
 	if err := writeConfig(configPath, workspacePath, agentNameInput, avatarChoice,
-		llmProvider, info,
+		llmProvider, info, baseURLInput,
 		embProvider, embModel, embAPIKeyEnv,
 		webPort); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
@@ -650,7 +668,7 @@ func copyTemplates(workspacePath, agentName string) error {
 
 // writeConfig generates config.yaml from wizard inputs.
 func writeConfig(path, workspace, agentName, avatar string,
-	llmProvider string, info providerInfo,
+	llmProvider string, info providerInfo, baseURL string,
 	embProvider, embModel, embAPIKeyEnv string,
 	webPort int) error {
 
@@ -680,6 +698,9 @@ func writeConfig(path, workspace, agentName, avatar string,
 	fmt.Fprintf(&sb, "  model: %s\n", info.model)
 	if info.apiKeyEnv != "" {
 		fmt.Fprintf(&sb, "  api_key_env: %s\n", info.apiKeyEnv)
+	}
+	if baseURL != "" {
+		fmt.Fprintf(&sb, "  base_url: %s\n", baseURL)
 	}
 	sb.WriteString("\n")
 

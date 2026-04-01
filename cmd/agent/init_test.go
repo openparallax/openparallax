@@ -54,7 +54,7 @@ func TestWriteConfigCreatesFile(t *testing.T) {
 	}
 
 	err := writeConfig(configPath, tmpDir, "Nova", "⚡",
-		"anthropic", info,
+		"anthropic", info, "",
 		"openai", "text-embedding-3-small", "OPENAI_API_KEY",
 		3100)
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestWriteConfigDoesNotOverwrite(t *testing.T) {
 
 	info := providerInfo{model: "test", shieldModel: "test"}
 	err = writeConfig(configPath, tmpDir, "Atlas", "",
-		"anthropic", info, "", "", "", 3100)
+		"anthropic", info, "", "", "", "", 3100)
 	require.NoError(t, err)
 
 	// File should not be overwritten.
