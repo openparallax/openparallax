@@ -55,7 +55,9 @@ func TestWriteConfigCreatesFile(t *testing.T) {
 
 	err := writeConfig(configPath, tmpDir, "Nova", "⚡",
 		"anthropic", info, "",
-		"openai", "text-embedding-3-small", "OPENAI_API_KEY",
+		"claude-sonnet-4-20250514",
+		"anthropic", "claude-haiku-4-5-20251001", "",
+		"openai", "text-embedding-3-small", "OPENAI_API_KEY", "",
 		3100)
 	require.NoError(t, err)
 
@@ -73,6 +75,39 @@ func TestWriteConfigCreatesFile(t *testing.T) {
 	assert.Contains(t, content, "port: 3100")
 }
 
+func TestWriteConfigSeparateShieldProvider(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	info := providerInfo{
+		label:     "OpenAI",
+		model:     "gpt-4o",
+		apiKeyEnv: "OPENAI_API_KEY",
+	}
+
+	err := writeConfig(configPath, tmpDir, "Atlas", "⬡",
+		"openai", info, "https://custom.api/v1",
+		"my-custom-model",
+		"anthropic", "claude-haiku-4-5-20251001", "",
+		"", "", "", "",
+		3100)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	content := string(data)
+
+	// Chat section uses openai with custom model and base URL.
+	assert.Contains(t, content, "provider: openai")
+	assert.Contains(t, content, "model: my-custom-model")
+	assert.Contains(t, content, "base_url: https://custom.api/v1")
+
+	// Shield section uses anthropic with its own model.
+	assert.Contains(t, content, "provider: anthropic")
+	assert.Contains(t, content, "model: claude-haiku-4-5-20251001")
+	assert.Contains(t, content, "api_key_env: ANTHROPIC_API_KEY")
+}
+
 func TestWriteConfigDoesNotOverwrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
@@ -83,7 +118,9 @@ func TestWriteConfigDoesNotOverwrite(t *testing.T) {
 
 	info := providerInfo{model: "test", shieldModel: "test"}
 	err = writeConfig(configPath, tmpDir, "Atlas", "",
-		"anthropic", info, "", "", "", "", 3100)
+		"anthropic", info, "", "test",
+		"anthropic", "test", "",
+		"", "", "", "", 3100)
 	require.NoError(t, err)
 
 	// File should not be overwritten.

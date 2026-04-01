@@ -183,7 +183,15 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 
 	select {
 	case <-am.done:
-		// Agent exited (user typed /quit or final crash).
+		// Agent exited. If it was a clean exit (/quit), shut everything
+		// down. If the agent crashed, keep the web server running so the
+		// user can access Settings, Logs, and Doctor from the UI.
+		if !am.cleanExit && webServer != nil {
+			eng.Log().Warn("agent_crashed",
+				"message", "CLI agent exited — web UI remains available for diagnostics")
+			// Wait for a signal before shutting down.
+			<-sigCh
+		}
 	case <-sigCh:
 		am.stopAgent()
 	}
@@ -204,10 +212,11 @@ type agentManager struct {
 	agentName string
 	workspace string
 
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	done    chan struct{}
-	crashes []time.Time
+	mu        sync.Mutex
+	cmd       *exec.Cmd
+	done      chan struct{}
+	crashes   []time.Time
+	cleanExit bool // true when agent exited with code 0 (e.g. /quit)
 }
 
 func newAgentManager(grpcAddr, agentName, workspace string) *agentManager {
@@ -277,6 +286,9 @@ func (am *agentManager) monitor() {
 
 		err := cmd.Wait()
 		if err == nil {
+			am.mu.Lock()
+			am.cleanExit = true
+			am.mu.Unlock()
 			return // Clean exit (user typed /quit).
 		}
 

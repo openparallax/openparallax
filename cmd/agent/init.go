@@ -38,47 +38,36 @@ func init() {
 
 // providerInfo holds smart defaults for each LLM provider.
 type providerInfo struct {
-	label        string
-	model        string
-	shieldModel  string
-	apiKeyEnv    string
-	embModel     string
-	embProvider  string
-	hasEmbedding bool
+	label       string
+	model       string
+	shieldModel string
+	apiKeyEnv   string
 }
 
 var providers = map[string]providerInfo{
 	"anthropic": {
-		label:        "Anthropic",
-		model:        "claude-sonnet-4-20250514",
-		shieldModel:  "claude-haiku-4-5-20251001",
-		apiKeyEnv:    "ANTHROPIC_API_KEY",
-		hasEmbedding: false,
+		label:       "Anthropic",
+		model:       "claude-sonnet-4-20250514",
+		shieldModel: "claude-haiku-4-5-20251001",
+		apiKeyEnv:   "ANTHROPIC_API_KEY",
 	},
 	"openai": {
-		label:        "OpenAI",
-		model:        "gpt-4o",
-		shieldModel:  "gpt-4o-mini",
-		apiKeyEnv:    "OPENAI_API_KEY",
-		embModel:     "text-embedding-3-small",
-		embProvider:  "openai",
-		hasEmbedding: true,
+		label:       "OpenAI",
+		model:       "gpt-4o",
+		shieldModel: "gpt-4o-mini",
+		apiKeyEnv:   "OPENAI_API_KEY",
 	},
 	"google": {
-		label:        "Google",
-		model:        "gemini-2.0-flash",
-		shieldModel:  "gemini-2.0-flash",
-		apiKeyEnv:    "GOOGLE_API_KEY",
-		embModel:     "text-embedding-004",
-		embProvider:  "google",
-		hasEmbedding: true,
+		label:       "Google",
+		model:       "gemini-2.0-flash",
+		shieldModel: "gemini-2.0-flash",
+		apiKeyEnv:   "GOOGLE_API_KEY",
 	},
 	"ollama": {
-		label:        "Ollama",
-		model:        "llama3.2",
-		shieldModel:  "llama3.2",
-		apiKeyEnv:    "",
-		hasEmbedding: false,
+		label:       "Ollama",
+		model:       "llama3.2",
+		shieldModel: "llama3.2",
+		apiKeyEnv:   "",
 	},
 }
 
@@ -122,9 +111,14 @@ func runInit(_ *cobra.Command, args []string) error {
 		avatarChoice   string
 		llmProvider    string
 		apiKeyInput    string
+		modelInput     string
+		baseURLInput   string
+		shieldProvider string
+		shieldAPIKey   string
+		shieldModel    string
+		shieldBaseURL  string
 		embProvider    string
 		embAPIKey      string
-		baseURLInput   string
 		workspacePath  string
 		confirmLaunch  bool
 	)
@@ -303,90 +297,240 @@ func runInit(_ *cobra.Command, args []string) error {
 			baseURLInput = strings.TrimSpace(baseURLInput)
 		}
 
-		// Connection test.
-		fmt.Printf("  Testing connection to %s...\n", info.label)
-		testCfg := types.LLMConfig{
-			Provider: llmProvider,
-			Model:    info.model,
-			BaseURL:  baseURLInput,
-		}
-		if testErr := llm.TestConnection(testCfg, strings.TrimSpace(apiKeyInput)); testErr != nil {
-			fmt.Printf("  ✗ Connection failed: %s\n", testErr)
-			fmt.Println("  Check your API key and try again.")
-			// Let them re-enter.
-			err = huh.NewForm(
-				huh.NewGroup(
-					huh.NewInput().
-						Title("Re-enter API key:").
-						Value(&apiKeyInput).
-						EchoMode(huh.EchoModePassword),
-				),
-			).Run()
-			if err != nil {
-				return err
-			}
-			if testErr2 := llm.TestConnection(testCfg, strings.TrimSpace(apiKeyInput)); testErr2 != nil {
-				return fmt.Errorf("connection to %s failed: %w", info.label, testErr2)
-			}
-		}
-		fmt.Printf("  ✓ Connected to %s. Using %s.\n\n", info.label, info.model)
 	}
 
 	apiKeyInput = strings.TrimSpace(apiKeyInput)
 
-	// ─── Step 4: Model Defaults (auto) ──────────────────────
+	// ─── Step 4: Chat Model ─────────────────────────────────
 
-	fmt.Println("  Model configuration:")
-	fmt.Printf("    Chat model:    %s\n", info.model)
-	fmt.Printf("    Shield model:  %s  (for security evaluations)\n", info.shieldModel)
-	if info.hasEmbedding {
-		fmt.Printf("    Embedding:     %s / %s\n", info.embProvider, info.embModel)
-	} else if llmProvider == "anthropic" {
-		fmt.Println("    Embedding:     (separate provider needed)")
+	modelInput = info.model
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Chat model:").
+				Description("The primary model for conversations and tool use.").
+				Value(&modelInput).
+				Placeholder(info.model),
+		),
+	).Run()
+	if err != nil {
+		return err
 	}
-	fmt.Println()
+	if modelInput == "" {
+		modelInput = info.model
+	}
 
-	// ─── Step 5: Embedding (Anthropic only) ─────────────────
+	// Connection test for chat provider.
+	fmt.Printf("  Testing connection to %s...\n", info.label)
+	testCfg := types.LLMConfig{
+		Provider: llmProvider,
+		Model:    modelInput,
+		BaseURL:  baseURLInput,
+	}
+	if testErr := llm.TestConnection(testCfg, apiKeyInput); testErr != nil {
+		fmt.Printf("  ✗ Connection failed: %s\n", testErr)
+		fmt.Println("  Review your settings and try again.")
+
+		retryFields := []huh.Field{
+			huh.NewInput().
+				Title("Model:").
+				Value(&modelInput),
+		}
+		if llmProvider == "openai" {
+			retryFields = append(retryFields,
+				huh.NewInput().
+					Title("Base URL:").
+					Value(&baseURLInput).
+					Placeholder("https://api.openai.com/v1"),
+			)
+		}
+		if llmProvider != "ollama" {
+			retryFields = append(retryFields,
+				huh.NewInput().
+					Title("API key:").
+					Value(&apiKeyInput).
+					EchoMode(huh.EchoModePassword),
+			)
+		}
+
+		err = huh.NewForm(huh.NewGroup(retryFields...)).Run()
+		if err != nil {
+			return err
+		}
+		apiKeyInput = strings.TrimSpace(apiKeyInput)
+		baseURLInput = strings.TrimSpace(baseURLInput)
+
+		testCfg.Model = modelInput
+		testCfg.BaseURL = baseURLInput
+		if testErr2 := llm.TestConnection(testCfg, apiKeyInput); testErr2 != nil {
+			return fmt.Errorf("connection to %s failed: %w", info.label, testErr2)
+		}
+	}
+	fmt.Printf("  ✓ Connected to %s. Using %s.\n\n", info.label, modelInput)
+
+	// ─── Step 5: Shield Provider + Model ────────────────────
+
+	shieldProviderOpts := []huh.Option[string]{
+		huh.NewOption(fmt.Sprintf("Same as chat  (%s)", info.label), llmProvider).Selected(true),
+	}
+	for key, p := range providers {
+		if key != llmProvider {
+			shieldProviderOpts = append(shieldProviderOpts, huh.NewOption(p.label, key))
+		}
+	}
+
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Shield Provider").
+				Description("Shield evaluates every tool call for safety. A cheaper/faster model from any provider works well.").
+				Options(shieldProviderOpts...).
+				Value(&shieldProvider),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	shieldInfo := providers[shieldProvider]
+
+	// If shield uses a different provider, collect its API key + base URL.
+	if shieldProvider != llmProvider {
+		if shieldProvider != "ollama" {
+			// Check if key is in environment.
+			if envKey := os.Getenv(shieldInfo.apiKeyEnv); envKey != "" {
+				shieldAPIKey = envKey
+				fmt.Printf("  ✓ Using %s API key from environment for Shield.\n", shieldInfo.label)
+			} else {
+				keyURL := apiKeyURL(shieldProvider)
+				err = huh.NewForm(
+					huh.NewGroup(
+						huh.NewInput().
+							Title(fmt.Sprintf("Enter your %s API key for Shield:", shieldInfo.label)).
+							Description(fmt.Sprintf("Get one at %s", keyURL)).
+							Value(&shieldAPIKey).
+							EchoMode(huh.EchoModePassword).
+							Validate(func(s string) error {
+								if strings.TrimSpace(s) == "" {
+									return fmt.Errorf("API key is required")
+								}
+								return nil
+							}),
+					),
+				).Run()
+				if err != nil {
+					return err
+				}
+				shieldAPIKey = strings.TrimSpace(shieldAPIKey)
+			}
+
+			if shieldProvider == "openai" {
+				err = huh.NewForm(
+					huh.NewGroup(
+						huh.NewInput().
+							Title("Shield API base URL (optional):").
+							Description("Leave empty for OpenAI. For compatible providers, enter their API URL.").
+							Value(&shieldBaseURL).
+							Placeholder("https://api.openai.com/v1"),
+					),
+				).Run()
+				if err != nil {
+					return err
+				}
+				shieldBaseURL = strings.TrimSpace(shieldBaseURL)
+			}
+		}
+	} else {
+		shieldAPIKey = apiKeyInput
+		shieldBaseURL = baseURLInput
+	}
+
+	shieldModel = shieldInfo.shieldModel
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Shield model:").
+				Description("A smaller/cheaper model used for security evaluations.").
+				Value(&shieldModel).
+				Placeholder(shieldInfo.shieldModel),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+	if shieldModel == "" {
+		shieldModel = shieldInfo.shieldModel
+	}
+
+	// ─── Step 6: Embedding ─────────────────────────────────
 
 	embAPIKeyEnv := ""
 	embModel := ""
 
-	if info.hasEmbedding {
-		// Same provider handles embeddings automatically.
-		embProvider = info.embProvider
-		embModel = info.embModel
-		embAPIKeyEnv = info.apiKeyEnv
-	} else if llmProvider == "anthropic" {
-		embOpts := []huh.Option[string]{
-			huh.NewOption("OpenAI  (recommended — text-embedding-3-small)", "openai"),
-			huh.NewOption("Google  (text-embedding-004)", "google"),
-			huh.NewOption("Ollama  (local embedding model)", "ollama"),
-			huh.NewOption("Skip    (keyword search only)", ""),
+	embOpts := []huh.Option[string]{
+		huh.NewOption("OpenAI  (text-embedding-3-small)", "openai"),
+		huh.NewOption("Google  (text-embedding-004)", "google"),
+		huh.NewOption("Ollama  (local embedding model)", "ollama"),
+		huh.NewOption("Skip    (keyword search only)", ""),
+	}
+
+	// Pre-select and annotate detected keys.
+	if os.Getenv("OPENAI_API_KEY") != "" {
+		embOpts[0] = huh.NewOption("OpenAI  (text-embedding-3-small — ✓ key detected)", "openai").Selected(true)
+	}
+	if os.Getenv("GOOGLE_API_KEY") != "" {
+		embOpts[1] = huh.NewOption("Google  (text-embedding-004 — ✓ key detected)", "google")
+	}
+
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Embedding Provider").
+				Description("Embeddings enable semantic memory search. Choose a provider, or skip for keyword-only search.").
+				Options(embOpts...).
+				Value(&embProvider),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
+
+	embBaseURL := ""
+	if embProvider != "" {
+		defaultEmb := defaultEmbeddingModels[embProvider]
+		if defaultEmb == "" {
+			defaultEmb = "embedding-model"
+		}
+		embModel = defaultEmb
+
+		embFields := []huh.Field{
+			huh.NewInput().
+				Title("Embedding model:").
+				Value(&embModel).
+				Placeholder(defaultEmb),
+		}
+		if embProvider == "openai" {
+			embFields = append(embFields,
+				huh.NewInput().
+					Title("Embedding API base URL (optional):").
+					Description("Leave empty for OpenAI. For compatible providers, enter their API URL.").
+					Value(&embBaseURL).
+					Placeholder("https://api.openai.com/v1"),
+			)
 		}
 
-		// If OpenAI key exists in env, pre-select it.
-		if os.Getenv("OPENAI_API_KEY") != "" {
-			embOpts[0] = huh.NewOption("OpenAI  (recommended — ✓ key detected)", "openai").Selected(true)
-		}
-
-		err = huh.NewForm(
-			huh.NewGroup(
-				huh.NewSelect[string]().
-					Title("Embedding Provider").
-					Description("Anthropic doesn't offer embeddings. Choose a provider for semantic memory search:").
-					Options(embOpts...).
-					Value(&embProvider),
-			),
-		).Run()
+		err = huh.NewForm(huh.NewGroup(embFields...)).Run()
 		if err != nil {
 			return err
 		}
+		if embModel == "" {
+			embModel = defaultEmb
+		}
+		embBaseURL = strings.TrimSpace(embBaseURL)
 
-		if embProvider != "" && embProvider != "ollama" {
-			embModel = defaultEmbeddingModels[embProvider]
+		if embProvider != "ollama" {
 			embAPIKeyEnv = defaultEmbeddingKeyEnvs[embProvider]
 
-			// Check if key already exists in environment.
 			if envKey := os.Getenv(embAPIKeyEnv); envKey != "" {
 				embAPIKey = envKey
 				fmt.Printf("  ✓ Using %s API key from environment for embeddings.\n\n", embProvider)
@@ -403,8 +547,6 @@ func runInit(_ *cobra.Command, args []string) error {
 					return err
 				}
 			}
-		} else if embProvider == "ollama" {
-			embModel = "nomic-embed-text"
 		}
 	}
 
@@ -453,10 +595,10 @@ func runInit(_ *cobra.Command, args []string) error {
 	fmt.Println("  │           Ready to go!               │")
 	fmt.Println("  │                                      │")
 	fmt.Printf("  │  Agent:       %-22s│\n", fmt.Sprintf("%s %s", agentNameInput, avatarChoice))
-	fmt.Printf("  │  Provider:    %-22s│\n", info.label)
-	fmt.Printf("  │  Model:       %-22s│\n", info.model)
+	fmt.Printf("  │  Chat:        %-22s│\n", truncate(fmt.Sprintf("%s / %s", info.label, modelInput), 22))
+	shieldInfo2 := providers[shieldProvider]
+	fmt.Printf("  │  Shield:      %-22s│\n", truncate(fmt.Sprintf("%s / %s", shieldInfo2.label, shieldModel), 22))
 	fmt.Printf("  │  Embedding:   %-22s│\n", truncate(embDisplay, 22))
-	fmt.Println("  │  Shield:      default policy         │")
 	fmt.Printf("  │  Workspace:   %-22s│\n", truncate(workspacePath, 22))
 	fmt.Printf("  │  Web UI:      http://127.0.0.1:%-5d │\n", webPort)
 	fmt.Println("  │                                      │")
@@ -495,8 +637,9 @@ func runInit(_ *cobra.Command, args []string) error {
 	// Write config.yaml.
 	configPath := filepath.Join(workspacePath, "config.yaml")
 	if err := writeConfig(configPath, workspacePath, agentNameInput, avatarChoice,
-		llmProvider, info, baseURLInput,
-		embProvider, embModel, embAPIKeyEnv,
+		llmProvider, info, baseURLInput, modelInput,
+		shieldProvider, shieldModel, shieldBaseURL,
+		embProvider, embModel, embAPIKeyEnv, embBaseURL,
 		webPort); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
@@ -669,7 +812,9 @@ func copyTemplates(workspacePath, agentName string) error {
 // writeConfig generates config.yaml from wizard inputs.
 func writeConfig(path, workspace, agentName, avatar string,
 	llmProvider string, info providerInfo, baseURL string,
-	embProvider, embModel, embAPIKeyEnv string,
+	model string,
+	shieldProv, shieldModel, shieldBaseURL string,
+	embProvider, embModel, embAPIKeyEnv, embBaseURL string,
 	webPort int) error {
 
 	// Do not overwrite existing config.
@@ -695,7 +840,7 @@ func writeConfig(path, workspace, agentName, avatar string,
 	// LLM
 	sb.WriteString("llm:\n")
 	fmt.Fprintf(&sb, "  provider: %s\n", llmProvider)
-	fmt.Fprintf(&sb, "  model: %s\n", info.model)
+	fmt.Fprintf(&sb, "  model: %s\n", model)
 	if info.apiKeyEnv != "" {
 		fmt.Fprintf(&sb, "  api_key_env: %s\n", info.apiKeyEnv)
 	}
@@ -704,13 +849,17 @@ func writeConfig(path, workspace, agentName, avatar string,
 	}
 	sb.WriteString("\n")
 
-	// Shield (auto-configured from provider)
+	// Shield
+	shieldInfo := providers[shieldProv]
 	sb.WriteString("shield:\n")
 	sb.WriteString("  evaluator:\n")
-	fmt.Fprintf(&sb, "    provider: %s\n", llmProvider)
-	fmt.Fprintf(&sb, "    model: %s\n", info.shieldModel)
-	if info.apiKeyEnv != "" {
-		fmt.Fprintf(&sb, "    api_key_env: %s\n", info.apiKeyEnv)
+	fmt.Fprintf(&sb, "    provider: %s\n", shieldProv)
+	fmt.Fprintf(&sb, "    model: %s\n", shieldModel)
+	if shieldInfo.apiKeyEnv != "" {
+		fmt.Fprintf(&sb, "    api_key_env: %s\n", shieldInfo.apiKeyEnv)
+	}
+	if shieldBaseURL != "" {
+		fmt.Fprintf(&sb, "    base_url: %s\n", shieldBaseURL)
 	}
 	sb.WriteString("  policy_file: policies/default.yaml\n")
 	sb.WriteString("  heuristic_enabled: true\n\n")
@@ -723,6 +872,9 @@ func writeConfig(path, workspace, agentName, avatar string,
 		fmt.Fprintf(&sb, "    model: %s\n", embModel)
 		if embAPIKeyEnv != "" {
 			fmt.Fprintf(&sb, "    api_key_env: %s\n", embAPIKeyEnv)
+		}
+		if embBaseURL != "" {
+			fmt.Fprintf(&sb, "    base_url: %s\n", embBaseURL)
 		}
 		sb.WriteString("\n")
 	}
