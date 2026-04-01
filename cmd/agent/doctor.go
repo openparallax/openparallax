@@ -17,8 +17,9 @@ import (
 var doctorConfigPath string
 
 var doctorCmd = &cobra.Command{
-	Use:          "doctor",
+	Use:          "doctor [name]",
 	Short:        "System health check",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE:         runDoctor,
 }
@@ -28,13 +29,10 @@ func init() {
 	rootCmd.AddCommand(doctorCmd)
 }
 
-func runDoctor(_ *cobra.Command, _ []string) error {
-	cfgPath := doctorConfigPath
-	if cfgPath == "" {
-		cfgPath = findConfig()
-	}
-	if cfgPath == "" {
-		return fmt.Errorf("workspace not found: use --config")
+func runDoctor(_ *cobra.Command, args []string) error {
+	cfgPath, err := resolveConfig(args, doctorConfigPath)
+	if err != nil {
+		return err
 	}
 
 	passed, warned, failed := 0, 0, 0

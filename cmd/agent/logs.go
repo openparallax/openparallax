@@ -20,8 +20,9 @@ var (
 )
 
 var logsCmd = &cobra.Command{
-	Use:          "logs",
+	Use:          "logs [name]",
 	Short:        "Tail the engine log",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE:         runLogs,
 }
@@ -34,13 +35,10 @@ func init() {
 	rootCmd.AddCommand(logsCmd)
 }
 
-func runLogs(_ *cobra.Command, _ []string) error {
-	cfgPath := logsConfigPath
-	if cfgPath == "" {
-		cfgPath = findConfig()
-	}
-	if cfgPath == "" {
-		return fmt.Errorf("workspace not found: use --config")
+func runLogs(_ *cobra.Command, args []string) error {
+	cfgPath, err := resolveConfig(args, logsConfigPath)
+	if err != nil {
+		return err
 	}
 
 	cfg, err := config.Load(cfgPath)

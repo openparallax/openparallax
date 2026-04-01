@@ -37,12 +37,9 @@ func init() {
 }
 
 func runSessionDelete(_ *cobra.Command, args []string) error {
-	cfgPath := sessionConfigPath
-	if cfgPath == "" {
-		cfgPath = findConfig()
-	}
-	if cfgPath == "" {
-		return fmt.Errorf("workspace not found: use --config")
+	cfgPath, err := resolveConfig(nil, sessionConfigPath)
+	if err != nil {
+		return err
 	}
 
 	cfg, err := config.Load(cfgPath)

@@ -19,8 +19,9 @@ var (
 )
 
 var auditCmd = &cobra.Command{
-	Use:          "audit",
+	Use:          "audit [name]",
 	Short:        "Query and verify the audit log",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE:         runAudit,
 }
@@ -33,13 +34,10 @@ func init() {
 	rootCmd.AddCommand(auditCmd)
 }
 
-func runAudit(cmd *cobra.Command, args []string) error {
-	cfgPath := auditConfigPath
-	if cfgPath == "" {
-		cfgPath = findConfig()
-	}
-	if cfgPath == "" {
-		return fmt.Errorf("workspace not found: run 'openparallax init' first, or use --config")
+func runAudit(_ *cobra.Command, args []string) error {
+	cfgPath, err := resolveConfig(args, auditConfigPath)
+	if err != nil {
+		return err
 	}
 
 	cfg, err := config.Load(cfgPath)

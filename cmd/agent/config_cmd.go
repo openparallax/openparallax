@@ -12,8 +12,9 @@ import (
 var configCmdPath string
 
 var configCmd = &cobra.Command{
-	Use:          "config",
+	Use:          "config [name]",
 	Short:        "Show current configuration (secrets masked)",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE:         runConfig,
 }
@@ -23,13 +24,10 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
-func runConfig(_ *cobra.Command, _ []string) error {
-	cfgPath := configCmdPath
-	if cfgPath == "" {
-		cfgPath = findConfig()
-	}
-	if cfgPath == "" {
-		return fmt.Errorf("workspace not found: use --config")
+func runConfig(_ *cobra.Command, args []string) error {
+	cfgPath, err := resolveConfig(args, configCmdPath)
+	if err != nil {
+		return err
 	}
 
 	data, err := os.ReadFile(cfgPath)

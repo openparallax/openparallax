@@ -11,8 +11,9 @@ import (
 var restartConfigPath string
 
 var restartCmd = &cobra.Command{
-	Use:          "restart",
+	Use:          "restart [name]",
 	Short:        "Restart the engine (stop then start)",
+	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE:         runRestart,
 }
@@ -22,13 +23,10 @@ func init() {
 	rootCmd.AddCommand(restartCmd)
 }
 
-func runRestart(_ *cobra.Command, _ []string) error {
-	cfgPath := restartConfigPath
-	if cfgPath == "" {
-		cfgPath = findConfig()
-	}
-	if cfgPath == "" {
-		return fmt.Errorf("workspace not found: run 'openparallax init' first, or use --config to specify a config file")
+func runRestart(_ *cobra.Command, args []string) error {
+	cfgPath, err := resolveConfig(args, restartConfigPath)
+	if err != nil {
+		return err
 	}
 
 	// Stop existing engine if running.

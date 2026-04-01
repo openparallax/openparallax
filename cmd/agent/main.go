@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -24,6 +25,35 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+// resolveConfig finds the config path from an optional agent name arg and a
+// --config flag value. Use this in all commands that need a workspace.
+// Priority: explicit --config flag > positional name arg > auto-detect.
+func resolveConfig(args []string, flagPath string) (string, error) {
+	if flagPath != "" {
+		return flagPath, nil
+	}
+	if len(args) > 0 {
+		regPath, err := registry.DefaultPath()
+		if err != nil {
+			return "", err
+		}
+		reg, err := registry.Load(regPath)
+		if err != nil {
+			return "", err
+		}
+		rec, ok := reg.Lookup(args[0])
+		if !ok {
+			return "", fmt.Errorf("agent %q not found — run 'openparallax list' to see available agents", args[0])
+		}
+		return rec.ConfigPath, nil
+	}
+	cfgPath := findConfig()
+	if cfgPath == "" {
+		return "", fmt.Errorf("workspace not found: run 'openparallax init' first, or specify an agent name")
+	}
+	return cfgPath, nil
 }
 
 // findConfig looks for config.yaml in common locations. It checks the global

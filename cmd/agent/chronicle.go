@@ -43,10 +43,11 @@ func init() {
 
 func openChronicle(cfgPath string) (*chronicle.Chronicle, error) {
 	if cfgPath == "" {
-		cfgPath = findConfig()
-	}
-	if cfgPath == "" {
-		return nil, fmt.Errorf("workspace not found: run 'openparallax init' first")
+		resolved, err := resolveConfig(nil, "")
+		if err != nil {
+			return nil, err
+		}
+		cfgPath = resolved
 	}
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
