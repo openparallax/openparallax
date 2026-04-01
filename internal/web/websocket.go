@@ -41,7 +41,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	s.log.Info("ws_connected", "remote", r.RemoteAddr)
 
-	// Read loop: process client messages.
+	// Read loop: process client messages. Message handling runs in a
+	// goroutine so the read loop stays responsive for pings and control
+	// frames. Without this, long-running pipeline calls block the read
+	// loop and the WebSocket connection can go stale.
 	for {
 		_, data, readErr := conn.Read(ctx)
 		if readErr != nil {
@@ -61,7 +64,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		switch msg.Type {
 		case "message":
-			s.handleWSMessage(ctx, conn, msg)
+			go s.handleWSMessage(ctx, conn, msg)
 		case "tier3_decision":
 			s.handleTier3Decision(msg)
 		case "ping":

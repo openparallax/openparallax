@@ -149,14 +149,15 @@ func (r *Registry) Remove(slug string) error {
 }
 
 // Lookup finds an agent by name or slug (case-insensitive).
-func (r *Registry) Lookup(nameOrSlug string) (*AgentRecord, bool) {
-	for i := range r.Agents {
-		if strings.EqualFold(r.Agents[i].Name, nameOrSlug) ||
-			strings.EqualFold(r.Agents[i].Slug, nameOrSlug) {
-			return &r.Agents[i], true
+// Returns a copy so callers are not affected by slice mutations.
+func (r *Registry) Lookup(nameOrSlug string) (AgentRecord, bool) {
+	for _, a := range r.Agents {
+		if strings.EqualFold(a.Name, nameOrSlug) ||
+			strings.EqualFold(a.Slug, nameOrSlug) {
+			return a, true
 		}
 	}
-	return nil, false
+	return AgentRecord{}, false
 }
 
 // List returns all registered agents.

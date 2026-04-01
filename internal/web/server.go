@@ -139,11 +139,11 @@ func (s *Server) Start() error {
 
 	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
 	s.server = &http.Server{
-		Addr:         addr,
-		Handler:      withCORS(mux),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 0, // WebSocket needs unlimited write time.
-		IdleTimeout:  60 * time.Second,
+		Addr:              addr,
+		Handler:           withCORS(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      0, // WebSocket needs unlimited write time.
+		IdleTimeout:       120 * time.Second,
 	}
 
 	listener, err := net.Listen("tcp", addr)
