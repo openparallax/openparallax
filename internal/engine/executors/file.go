@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/openparallax/openparallax/internal/crypto"
 	"github.com/openparallax/openparallax/internal/types"
@@ -29,6 +31,7 @@ func (f *FileExecutor) SupportedActions() []types.ActionType {
 		types.ActionMoveFile, types.ActionCopyFile, types.ActionCreateDir,
 		types.ActionListDir, types.ActionSearchFiles,
 		types.ActionCopyDir, types.ActionMoveDir, types.ActionDeleteDir,
+		types.ActionGrepFiles,
 	}
 }
 
@@ -47,6 +50,7 @@ func (f *FileExecutor) ToolSchemas() []ToolSchema {
 		{ActionType: types.ActionCopyDir, Name: "copy_directory", Description: "Copy an entire directory recursively to a new location. Use for copying folders with all their contents.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"source": map[string]any{"type": "string", "description": "Source directory path."}, "destination": map[string]any{"type": "string", "description": "Destination directory path."}}, "required": []string{"source", "destination"}}},
 		{ActionType: types.ActionMoveDir, Name: "move_directory", Description: "Move or rename an entire directory.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"source": map[string]any{"type": "string", "description": "Source directory path."}, "destination": map[string]any{"type": "string", "description": "Destination directory path."}}, "required": []string{"source", "destination"}}},
 		{ActionType: types.ActionDeleteDir, Name: "delete_directory", Description: "Delete a directory and all its contents recursively. Use with caution.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"path": pathParam}, "required": []string{"path"}}},
+		{ActionType: types.ActionGrepFiles, Name: "grep_files", Description: "Search for text patterns across file contents. Returns matching lines with file paths and line numbers.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"pattern": map[string]any{"type": "string", "description": "Search pattern. Supports literal strings and basic regex."}, "path": map[string]any{"type": "string", "description": "Directory to search. Default: workspace root."}, "include": map[string]any{"type": "string", "description": "File glob pattern to include. Example: '*.go', '*.md'"}, "exclude": map[string]any{"type": "string", "description": "File glob pattern to exclude. Example: 'vendor/*', 'node_modules/*'"}, "max_results": map[string]any{"type": "integer", "description": "Maximum matches. Default: 50, max: 200."}, "case_sensitive": map[string]any{"type": "boolean", "description": "Case-sensitive search. Default: true."}}, "required": []string{"pattern"}}},
 	}
 }
 
@@ -75,6 +79,8 @@ func (f *FileExecutor) Execute(ctx context.Context, action *types.ActionRequest)
 		return f.moveDir(action)
 	case types.ActionDeleteDir:
 		return f.deleteDir(action)
+	case types.ActionGrepFiles:
+		return f.grepFiles(ctx, action)
 	default:
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "unknown file action"}
 	}
@@ -411,4 +417,201 @@ func detectPreviewType(path string) string {
 	default:
 		return "code"
 	}
+}
+
+// defaultGrepExcludes are directories always excluded from content search.
+var defaultGrepExcludes = []string{
+	".git", "node_modules", "vendor", ".openparallax", "__pycache__",
+	".svn", ".hg", "dist", "build",
+}
+
+func (f *FileExecutor) grepFiles(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
+	pattern, _ := action.Payload["pattern"].(string)
+	if pattern == "" {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "pattern is required"}
+	}
+
+	searchPath := f.workspacePath
+	if p, ok := action.Payload["path"].(string); ok && p != "" {
+		searchPath = f.resolvePath(p)
+	}
+
+	maxResults := 50
+	if m, ok := action.Payload["max_results"].(float64); ok && m > 0 {
+		maxResults = int(m)
+		if maxResults > 200 {
+			maxResults = 200
+		}
+	}
+
+	caseSensitive := true
+	if cs, ok := action.Payload["case_sensitive"].(bool); ok {
+		caseSensitive = cs
+	}
+
+	includeGlob, _ := action.Payload["include"].(string)
+	excludeGlob, _ := action.Payload["exclude"].(string)
+
+	// Compile regex.
+	flags := ""
+	if !caseSensitive {
+		flags = "(?i)"
+	}
+	re, err := regexp.Compile(flags + pattern)
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: fmt.Sprintf("invalid pattern: %s", err)}
+	}
+
+	type match struct {
+		file string
+		line int
+		text string
+	}
+
+	var matches []match
+	fileCount := 0
+	timedOut := false
+
+	deadline := time.After(10 * time.Second)
+
+	walkErr := filepath.WalkDir(searchPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip inaccessible files
+		}
+
+		// Check timeout.
+		select {
+		case <-deadline:
+			timedOut = true
+			return filepath.SkipAll
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// Skip excluded directories.
+		if d.IsDir() {
+			name := d.Name()
+			for _, excl := range defaultGrepExcludes {
+				if name == excl {
+					return filepath.SkipDir
+				}
+			}
+			if excludeGlob != "" {
+				if matched, _ := filepath.Match(excludeGlob, name); matched {
+					return filepath.SkipDir
+				}
+			}
+			return nil
+		}
+
+		// Check include glob.
+		if includeGlob != "" {
+			if matched, _ := filepath.Match(includeGlob, d.Name()); !matched {
+				return nil
+			}
+		}
+
+		// Check exclude glob on filename.
+		if excludeGlob != "" {
+			if matched, _ := filepath.Match(excludeGlob, d.Name()); matched {
+				return nil
+			}
+		}
+
+		// Skip binary files (check first 512 bytes for null bytes).
+		if isBinaryFile(path) {
+			return nil
+		}
+
+		// Stop if we have enough results.
+		if len(matches) >= maxResults {
+			return filepath.SkipAll
+		}
+
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return nil
+		}
+
+		relPath, _ := filepath.Rel(searchPath, path)
+		if relPath == "" {
+			relPath = path
+		}
+
+		found := false
+		lines := strings.Split(string(data), "\n")
+		for i, line := range lines {
+			if len(matches) >= maxResults {
+				break
+			}
+			if re.MatchString(line) {
+				matches = append(matches, match{file: relPath, line: i + 1, text: strings.TrimRight(line, "\r")})
+				found = true
+			}
+		}
+		if found {
+			fileCount++
+		}
+		return nil
+	})
+
+	if walkErr != nil && !timedOut {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: walkErr.Error()}
+	}
+
+	if len(matches) == 0 {
+		return &types.ActionResult{RequestID: action.RequestID, Success: true, Output: "No matches found.", Summary: "0 matches"}
+	}
+
+	// Group by file.
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Found %d matches across %d files:\n\n", len(matches), fileCount)
+
+	currentFile := ""
+	for _, m := range matches {
+		if m.file != currentFile {
+			if currentFile != "" {
+				sb.WriteString("\n")
+			}
+			fmt.Fprintf(&sb, "%s:\n", m.file)
+			currentFile = m.file
+		}
+		text := m.text
+		if len(text) > 200 {
+			text = text[:200] + "..."
+		}
+		fmt.Fprintf(&sb, "  L%d: %s\n", m.line, text)
+	}
+
+	if timedOut {
+		sb.WriteString("\n[Search timed out after 10s. Narrow your search with include/exclude patterns.]")
+	}
+
+	return &types.ActionResult{
+		RequestID: action.RequestID, Success: true,
+		Output:  sb.String(),
+		Summary: fmt.Sprintf("%d matches in %d files", len(matches), fileCount),
+	}
+}
+
+// isBinaryFile checks if a file appears to be binary by looking for null bytes.
+func isBinaryFile(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+
+	buf := make([]byte, 512)
+	n, err := f.Read(buf)
+	if err != nil {
+		return false
+	}
+	for i := range n {
+		if buf[i] == 0 {
+			return true
+		}
+	}
+	return false
 }

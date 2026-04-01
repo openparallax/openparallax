@@ -150,6 +150,9 @@ var otrWriteTools = map[string]bool{
 	"generate_image": true, "edit_image": true, "generate_video": true,
 	"create_agent": true,
 	"email_move":   true, "email_mark": true,
+	"clipboard_write":   true,
+	"archive_create":    true,
+	"spreadsheet_write": true,
 }
 
 func filterOTRTools(tools []llm.ToolDefinition) []llm.ToolDefinition {
@@ -177,6 +180,8 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		"image_generation": {Name: "image_generation", Description: "Generate images using AI (DALL-E, Imagen, Stability AI)"},
 		"video_generation": {Name: "video_generation", Description: "Generate videos using AI (Sora)"},
 		"agents":           {Name: "agents", Description: "Spawn and manage sub-agents for parallel task execution"},
+		"system":           {Name: "system", Description: "Clipboard access, launch files/URLs, OS notifications, system info, screenshots"},
+		"utilities":        {Name: "utilities", Description: "Math calculations, archive zip/extract, PDF text extraction, spreadsheet read/write"},
 	}
 
 	actionToGroup := map[types.ActionType]string{
@@ -210,6 +215,14 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		types.ActionCreateAgent:   "agents", types.ActionAgentStatus: "agents",
 		types.ActionAgentResult: "agents", types.ActionAgentMessage: "agents",
 		types.ActionDeleteAgent: "agents", types.ActionListAgents: "agents",
+		types.ActionGrepFiles:     "files",
+		types.ActionClipboardRead: "system", types.ActionClipboardWrite: "system",
+		types.ActionOpen: "system", types.ActionNotify: "system",
+		types.ActionSystemInfo: "system", types.ActionScreenshot: "system",
+		types.ActionCalculate:     "utilities",
+		types.ActionArchiveCreate: "utilities", types.ActionArchiveExtract: "utilities",
+		types.ActionPDFRead:         "utilities",
+		types.ActionSpreadsheetRead: "utilities", types.ActionSpreadsheetWrite: "utilities",
 	}
 
 	for _, s := range schemas {

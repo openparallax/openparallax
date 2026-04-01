@@ -110,6 +110,33 @@ const (
 	// ActionEmailMark marks an email as read/unread/flagged.
 	ActionEmailMark ActionType = "email_mark"
 
+	// ActionGrepFiles searches file contents for a text pattern.
+	ActionGrepFiles ActionType = "grep_files"
+	// ActionClipboardRead reads from the system clipboard.
+	ActionClipboardRead ActionType = "clipboard_read"
+	// ActionClipboardWrite writes to the system clipboard.
+	ActionClipboardWrite ActionType = "clipboard_write"
+	// ActionOpen launches a file or URL in the default application.
+	ActionOpen ActionType = "open"
+	// ActionNotify sends an OS notification.
+	ActionNotify ActionType = "notify"
+	// ActionSystemInfo returns system information (disk, memory, CPU, etc.).
+	ActionSystemInfo ActionType = "system_info"
+	// ActionScreenshot captures the desktop screen.
+	ActionScreenshot ActionType = "screenshot"
+	// ActionCalculate evaluates a mathematical expression.
+	ActionCalculate ActionType = "calculate"
+	// ActionArchiveCreate creates a zip or tar.gz archive.
+	ActionArchiveCreate ActionType = "archive_create"
+	// ActionArchiveExtract extracts a zip or tar.gz archive.
+	ActionArchiveExtract ActionType = "archive_extract"
+	// ActionPDFRead extracts text from a PDF file.
+	ActionPDFRead ActionType = "pdf_read"
+	// ActionSpreadsheetRead reads data from a CSV or Excel file.
+	ActionSpreadsheetRead ActionType = "spreadsheet_read"
+	// ActionSpreadsheetWrite writes data to a CSV or Excel file.
+	ActionSpreadsheetWrite ActionType = "spreadsheet_write"
+
 	// ActionCreateAgent spawns a sub-agent to work on a task.
 	ActionCreateAgent ActionType = "create_agent"
 	// ActionAgentStatus checks the status of a sub-agent.
@@ -142,6 +169,12 @@ var AllActionTypes = []ActionType{
 	ActionEmailMove, ActionEmailMark,
 	ActionCreateAgent, ActionAgentStatus, ActionAgentResult,
 	ActionAgentMessage, ActionDeleteAgent, ActionListAgents,
+	ActionGrepFiles,
+	ActionClipboardRead, ActionClipboardWrite, ActionOpen,
+	ActionNotify, ActionSystemInfo, ActionScreenshot,
+	ActionCalculate,
+	ActionArchiveCreate, ActionArchiveExtract,
+	ActionPDFRead, ActionSpreadsheetRead, ActionSpreadsheetWrite,
 }
 
 // ActionRequest represents a proposed action from the agent.
