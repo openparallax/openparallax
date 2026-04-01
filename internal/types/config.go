@@ -254,20 +254,29 @@ type ChannelsConfig struct {
 
 // WhatsAppConfig configures the WhatsApp channel adapter.
 type WhatsAppConfig struct {
-	Enabled bool   `yaml:"enabled" json:"enabled"`
-	DataDir string `yaml:"data_dir" json:"data_dir"`
+	Enabled        bool     `yaml:"enabled" json:"enabled"`
+	PhoneNumberID  string   `yaml:"phone_number_id,omitempty" json:"phone_number_id,omitempty"`
+	AccessTokenEnv string   `yaml:"access_token_env,omitempty" json:"access_token_env,omitempty"`
+	VerifyToken    string   `yaml:"verify_token,omitempty" json:"verify_token,omitempty"`
+	WebhookPort    int      `yaml:"webhook_port,omitempty" json:"webhook_port,omitempty"`
+	AllowedNumbers []string `yaml:"allowed_numbers,omitempty" json:"allowed_numbers,omitempty"`
 }
 
 // TelegramConfig configures the Telegram channel adapter.
 type TelegramConfig struct {
-	Enabled  bool   `yaml:"enabled" json:"enabled"`
-	TokenEnv string `yaml:"token_env" json:"token_env"`
+	Enabled         bool    `yaml:"enabled" json:"enabled"`
+	TokenEnv        string  `yaml:"token_env" json:"token_env"`
+	AllowedUsers    []int64 `yaml:"allowed_users,omitempty" json:"allowed_users,omitempty"`
+	PollingInterval int     `yaml:"polling_interval,omitempty" json:"polling_interval,omitempty"`
 }
 
 // DiscordConfig configures the Discord channel adapter.
 type DiscordConfig struct {
-	Enabled  bool   `yaml:"enabled" json:"enabled"`
-	TokenEnv string `yaml:"token_env" json:"token_env"`
+	Enabled           bool     `yaml:"enabled" json:"enabled"`
+	TokenEnv          string   `yaml:"token_env" json:"token_env"`
+	AllowedChannels   []string `yaml:"allowed_channels,omitempty" json:"allowed_channels,omitempty"`
+	AllowedUsers      []string `yaml:"allowed_users,omitempty" json:"allowed_users,omitempty"`
+	RespondToMentions bool     `yaml:"respond_to_mentions" json:"respond_to_mentions"`
 }
 
 // SlackConfig configures the Slack channel adapter.
@@ -279,9 +288,10 @@ type SlackConfig struct {
 
 // SignalConfig configures the Signal channel adapter.
 type SignalConfig struct {
-	Enabled bool   `yaml:"enabled" json:"enabled"`
-	CLIPath string `yaml:"cli_path" json:"cli_path"`
-	Account string `yaml:"account" json:"account"`
+	Enabled        bool     `yaml:"enabled" json:"enabled"`
+	CLIPath        string   `yaml:"cli_path" json:"cli_path"`
+	Account        string   `yaml:"account" json:"account"`
+	AllowedNumbers []string `yaml:"allowed_numbers,omitempty" json:"allowed_numbers,omitempty"`
 }
 
 // TeamsConfig configures the Microsoft Teams channel adapter.

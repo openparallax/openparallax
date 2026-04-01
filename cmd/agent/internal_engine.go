@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/openparallax/openparallax/internal/channels"
+	"github.com/openparallax/openparallax/internal/channels/telegram"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/registry"
@@ -113,6 +116,15 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		eng.SubAgentManager().SetEventBroadcaster(webServer.BroadcastEvent)
 	}
 
+	// Start channel adapters (Telegram, etc.).
+	channelCtx, channelCancel := context.WithCancel(context.Background())
+	defer channelCancel()
+	channelMgr := channels.NewManager(eng, eng.Log())
+	if tgAdapter := telegram.New(cfg.Channels.Telegram, channelMgr, eng.Log()); tgAdapter != nil {
+		channelMgr.Register(tgAdapter)
+	}
+	channelMgr.StartAll(channelCtx)
+
 	// Spawn the sandboxed Agent child process.
 	agentName := cfg.Identity.Name
 	if agentName == "" {
@@ -134,6 +146,8 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		am.stopAgent()
 	}
 
+	channelCancel()
+	channelMgr.StopAll()
 	if webServer != nil {
 		webServer.Stop()
 	}
