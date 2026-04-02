@@ -98,6 +98,9 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 		case err == nil && t1Result.Decision == types.VerdictBlock:
 			g.cfg.Log.Info("shield_tier1_block", "action", action.Type, "reason", t1Result.Reason)
 			return g.blockResult(action, 1, t1Result.Confidence, t1Result.Reason)
+		case err == nil && t1Result.Decision == types.VerdictEscalate:
+			g.cfg.Log.Info("shield_tier1_escalate", "action", action.Type, "reason", t1Result.Reason)
+			// Fall through to Tier 2.
 		case err == nil && minTier < 2:
 			g.cfg.Log.Info("shield_tier1_allow", "action", action.Type, "confidence", t1Result.Confidence)
 			return g.allow(action, 1, t1Result.Confidence, "classifier approved")

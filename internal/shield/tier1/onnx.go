@@ -78,9 +78,16 @@ func (c *HTTPOnnxClient) Classify(ctx context.Context, action *types.ActionReque
 		return nil, err
 	}
 
-	decision := types.VerdictAllow
-	if result.Label == "INJECTION" && result.Confidence >= 0.85 {
+	var decision types.VerdictDecision
+	switch {
+	case result.Label == "INJECTION" && result.Confidence >= 0.85:
 		decision = types.VerdictBlock
+	case result.Label == "INJECTION":
+		// Below threshold but model suspects injection — escalate to Tier 2
+		// rather than allowing a potentially dangerous action through.
+		decision = types.VerdictEscalate
+	default:
+		decision = types.VerdictAllow
 	}
 
 	return &ClassifierResult{

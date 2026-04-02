@@ -68,6 +68,18 @@ func (d *DualClassifier) Classify(ctx context.Context, action *types.ActionReque
 	return combine(onnxResult, heuristicResult), nil
 }
 
+// decisionSeverity maps a verdict decision to a numeric severity for ranking.
+func decisionSeverity(d types.VerdictDecision) int {
+	switch d {
+	case types.VerdictBlock:
+		return 2
+	case types.VerdictEscalate:
+		return 1
+	default:
+		return 0
+	}
+}
+
 // combine merges two classifier results, choosing the most severe.
 func combine(onnx, heuristic *ClassifierResult) *ClassifierResult {
 	if onnx == nil && heuristic == nil {
@@ -86,22 +98,20 @@ func combine(onnx, heuristic *ClassifierResult) *ClassifierResult {
 		return onnx
 	}
 
-	// BLOCK beats ALLOW.
-	if onnx.Decision == types.VerdictBlock || heuristic.Decision == types.VerdictBlock {
-		if onnx.Decision == types.VerdictBlock && heuristic.Decision == types.VerdictBlock {
-			if onnx.Confidence > heuristic.Confidence {
-				return onnx
-			}
-			return heuristic
-		}
-		if onnx.Decision == types.VerdictBlock {
+	// Severity ranking: BLOCK > ESCALATE > ALLOW.
+	oSev := decisionSeverity(onnx.Decision)
+	hSev := decisionSeverity(heuristic.Decision)
+
+	switch {
+	case oSev > hSev:
+		return onnx
+	case hSev > oSev:
+		return heuristic
+	default:
+		// Same severity — return the higher-confidence result.
+		if onnx.Confidence > heuristic.Confidence {
 			return onnx
 		}
 		return heuristic
 	}
-
-	if onnx.Confidence > heuristic.Confidence {
-		return onnx
-	}
-	return heuristic
 }

@@ -19,10 +19,11 @@ import (
 // It serves the embedded Svelte application, REST API endpoints,
 // and a WebSocket connection for real-time chat.
 type Server struct {
-	engine *engine.Engine
-	log    *logging.Logger
-	port   int
-	server *http.Server
+	engine   *engine.Engine
+	log      *logging.Logger
+	port     int
+	server   *http.Server
+	listener net.Listener
 
 	connsMu sync.Mutex
 	conns   map[*websocket.Conn]context.Context
@@ -101,9 +102,10 @@ func (s *Server) BroadcastEvent(event *engine.PipelineEvent) {
 	}
 }
 
-// Start begins serving HTTP on the configured port.
-// This method blocks until the server is stopped.
-func (s *Server) Start() error {
+// Listen binds the web server port and prepares routes. Call Serve to
+// start accepting connections. Splitting listen from serve lets callers
+// confirm the port is bound before opening a browser.
+func (s *Server) Listen() error {
 	mux := http.NewServeMux()
 
 	// Static files — embedded Svelte build.
@@ -148,11 +150,19 @@ func (s *Server) Start() error {
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("web server listen: %w", err)
+		return fmt.Errorf("web server listen on %s: %w", addr, err)
 	}
+	s.listener = listener
+	s.log.Info("web_server_listening", "addr", addr)
+	return nil
+}
 
-	s.log.Info("web_server_started", "addr", addr)
-	return s.server.Serve(listener)
+// Serve starts accepting connections. Must be called after Listen.
+func (s *Server) Serve() error {
+	if s.listener == nil {
+		return fmt.Errorf("web server: Listen must be called before Serve")
+	}
+	return s.server.Serve(s.listener)
 }
 
 // Stop gracefully shuts down the web server.

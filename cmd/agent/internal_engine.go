@@ -89,27 +89,52 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 
 	// Start web server if configured.
 	var webServer *web.Server
-	if cfg.Web.Enabled {
+	if !cfg.Web.Enabled {
+		_, _ = fmt.Fprintln(os.Stdout, "WEB_DISABLED")
+	} else {
 		webPort := cfg.Web.Port
 		if webPort == 0 {
 			webPort = 3000
 		}
 		webServer = web.NewServer(eng, eng.Log(), webPort)
-		go func() {
-			if webErr := webServer.Start(); webErr != nil {
-				eng.Log().Error("web_server_failed", "error", webErr)
-			}
-		}()
 
-		url := fmt.Sprintf("http://127.0.0.1:%d", webPort)
-		eng.Log().Info("web_ui_available", "url", url)
+		// Bind the port first so we know it works before opening the browser.
+		if listenErr := webServer.Listen(); listenErr != nil {
+			eng.Log().Error("web_server_listen_failed", "error", listenErr, "port", webPort)
+			// Report via stdout so the parent process can display the error
+			// (stderr is hidden under bubbletea alt screen).
+			_, _ = fmt.Fprintf(os.Stdout, "WEB_FAILED:%d:%s\n", webPort, listenErr)
+			webServer = nil
+		} else {
+			go func() {
+				if serveErr := webServer.Serve(); serveErr != nil {
+					eng.Log().Error("web_server_failed", "error", serveErr)
+				}
+			}()
 
-		if browserPath := executors.DetectBrowser(); browserPath != "" {
-			parts := strings.Fields(browserPath)
-			if len(parts) > 1 {
-				_ = exec.Command(parts[0], append(parts[1:], url)...).Start()
-			} else {
-				_ = exec.Command(browserPath, url).Start()
+			// Give Serve() a moment to start the accept loop before
+			// opening the browser and signaling the parent.
+			time.Sleep(100 * time.Millisecond)
+
+			_, _ = fmt.Fprintf(os.Stdout, "WEB:%d\n", webPort)
+
+			url := fmt.Sprintf("http://127.0.0.1:%d", webPort)
+			eng.Log().Info("web_ui_available", "url", url)
+
+			if browserPath := executors.DetectBrowser(); browserPath != "" {
+				parts := strings.Fields(browserPath)
+				var browserCmd *exec.Cmd
+				if len(parts) > 1 {
+					browserCmd = exec.Command(parts[0], append(parts[1:], url)...)
+				} else {
+					browserCmd = exec.Command(browserPath, url)
+				}
+				// Prevent browser from inheriting the engine's stdout pipe.
+				if dn, e := os.OpenFile(os.DevNull, os.O_WRONLY, 0); e == nil {
+					browserCmd.Stdout = dn
+					browserCmd.Stderr = dn
+				}
+				_ = browserCmd.Start()
 			}
 		}
 	}
@@ -244,8 +269,8 @@ func (am *agentManager) spawnAgent() error {
 		"--workspace", am.workspace)
 
 	// Agent opens /dev/tty directly for bubbletea TUI, so stdout
-	// is not needed. Send it to devnull to avoid pipe buffer issues.
-	devNull, openErr := os.Open(os.DevNull)
+	// is not needed. Discard it to avoid pipe buffer issues.
+	devNull, openErr := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if openErr == nil {
 		am.cmd.Stdout = devNull
 	}

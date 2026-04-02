@@ -96,7 +96,7 @@ func runStart(_ *cobra.Command, args []string) error {
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
 	pm := newProcessManager(cfgPath, startVerbose)
-	port, err := pm.startEngine(ctx)
+	port, webStatus, err := pm.startEngine(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start engine: %w", err)
 	}
@@ -108,15 +108,10 @@ func runStart(_ *cobra.Command, args []string) error {
 
 	grpcAddr := fmt.Sprintf("localhost:%d", port)
 	fmt.Printf("Engine started on %s (LLM: %s/%s)\n", grpcAddr, cfg.LLM.Provider, cfg.LLM.Model)
-	if cfg.Web.Enabled {
-		webPort := cfg.Web.Port
-		if webPort == 0 {
-			webPort = 3000
-		}
-		if startPort > 0 {
-			webPort = startPort
-		}
-		fmt.Printf("Web UI available at http://127.0.0.1:%d\n", webPort)
+	if webStatus.ok {
+		fmt.Printf("Web UI available at http://127.0.0.1:%d\n", webStatus.port)
+	} else if webStatus.err != "" {
+		fmt.Printf("Warning: Web UI failed to start on port %d: %s\n", webStatus.port, webStatus.err)
 	}
 	if startVerbose {
 		logPath := filepath.Join(cfg.Workspace, ".openparallax", "engine.log")
@@ -162,28 +157,43 @@ func newProcessManager(configPath string, verbose bool) *processManager {
 	}
 }
 
-// startEngine spawns the engine process and returns the port it's listening on.
-// If the engine crashes, it is restarted (max 5 times in 60 seconds).
-func (pm *processManager) startEngine(ctx context.Context) (int, error) {
-	port, err := pm.spawnEngine(ctx)
+// webStatus holds the web server startup result reported by the engine.
+type webStatus struct {
+	ok   bool
+	port int
+	err  string
+}
+
+// startEngine spawns the engine process and returns the gRPC port and web
+// server status. If the engine crashes, it is restarted (max 5 in 60s).
+func (pm *processManager) startEngine(ctx context.Context) (int, webStatus, error) {
+	port, ws, err := pm.spawnEngine(ctx)
 	if err != nil {
-		return 0, err
+		return 0, webStatus{}, err
 	}
 
 	// Monitor for crashes in the background.
 	go pm.monitor(ctx)
 
-	return port, nil
+	return port, ws, nil
 }
 
-// spawnEngine starts one engine process and reads the port from its stdout.
-func (pm *processManager) spawnEngine(ctx context.Context) (int, error) {
+// engineStartResult carries both gRPC port and web server status from stdout.
+type engineStartResult struct {
+	grpcPort int
+	web      webStatus
+}
+
+// spawnEngine starts one engine process and reads status from its stdout.
+// The engine writes "PORT:<grpc_port>\n" followed by "WEB:<port>\n" or
+// "WEB_FAILED:<port>:<error>\n".
+func (pm *processManager) spawnEngine(ctx context.Context) (int, webStatus, error) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
 	executable, err := os.Executable()
 	if err != nil {
-		return 0, fmt.Errorf("cannot find own executable: %w", err)
+		return 0, webStatus{}, fmt.Errorf("cannot find own executable: %w", err)
 	}
 
 	cmdArgs := []string{"internal-engine", "--config", pm.configPath}
@@ -208,42 +218,69 @@ func (pm *processManager) spawnEngine(ctx context.Context) (int, error) {
 
 	stdout, err := pm.cmd.StdoutPipe()
 	if err != nil {
-		return 0, fmt.Errorf("stdout pipe: %w", err)
+		return 0, webStatus{}, fmt.Errorf("stdout pipe: %w", err)
 	}
 
 	if err := pm.cmd.Start(); err != nil {
-		return 0, fmt.Errorf("engine spawn: %w", err)
+		return 0, webStatus{}, fmt.Errorf("engine spawn: %w", err)
 	}
 
-	// Read the port from stdout. The engine writes "PORT:<port>\n".
+	// Read startup status from stdout. The engine writes:
+	//   PORT:<grpc_port>
+	//   WEB:<web_port>       (success)
+	//   WEB_FAILED:<port>:<error>  (failure)
 	scanner := bufio.NewScanner(stdout)
-	portCh := make(chan int, 1)
+	resultCh := make(chan engineStartResult, 1)
 	errCh := make(chan error, 1)
 	go func() {
+		var result engineStartResult
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.HasPrefix(line, "PORT:") {
+			switch {
+			case strings.HasPrefix(line, "PORT:"):
 				p, parseErr := strconv.Atoi(strings.TrimPrefix(line, "PORT:"))
 				if parseErr != nil {
 					errCh <- fmt.Errorf("invalid port from engine: %s", line)
 					return
 				}
-				portCh <- p
+				result.grpcPort = p
+			case strings.HasPrefix(line, "WEB:"):
+				p, _ := strconv.Atoi(strings.TrimPrefix(line, "WEB:"))
+				result.web = webStatus{ok: true, port: p}
+				resultCh <- result
+				return
+			case strings.HasPrefix(line, "WEB_FAILED:"):
+				parts := strings.SplitN(strings.TrimPrefix(line, "WEB_FAILED:"), ":", 2)
+				p, _ := strconv.Atoi(parts[0])
+				msg := ""
+				if len(parts) > 1 {
+					msg = parts[1]
+				}
+				result.web = webStatus{ok: false, port: p, err: msg}
+				resultCh <- result
+				return
+			case strings.HasPrefix(line, "WEB_DISABLED"):
+				resultCh <- result
 				return
 			}
 		}
-		errCh <- fmt.Errorf("engine process exited without reporting port")
+		// Engine exited before reporting web status.
+		if result.grpcPort > 0 {
+			resultCh <- result
+		} else {
+			errCh <- fmt.Errorf("engine process exited without reporting port")
+		}
 	}()
 
 	select {
-	case port := <-portCh:
-		return port, nil
+	case r := <-resultCh:
+		return r.grpcPort, r.web, nil
 	case err := <-errCh:
 		_ = pm.cmd.Process.Kill()
-		return 0, err
+		return 0, webStatus{}, err
 	case <-time.After(30 * time.Second):
 		_ = pm.cmd.Process.Kill()
-		return 0, fmt.Errorf("engine did not start within 30 seconds")
+		return 0, webStatus{}, fmt.Errorf("engine did not start within 30 seconds")
 	}
 }
 
@@ -271,7 +308,7 @@ func (pm *processManager) monitor(ctx context.Context) {
 		// Exit code 75 = restart requested (not a crash).
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 75 {
 			fmt.Fprintln(os.Stderr, "Engine restart requested. Restarting...")
-			if _, spawnErr := pm.spawnEngine(ctx); spawnErr != nil {
+			if _, _, spawnErr := pm.spawnEngine(ctx); spawnErr != nil {
 				fmt.Fprintf(os.Stderr, "Failed to restart engine: %s\n", spawnErr)
 				return
 			}
@@ -301,7 +338,7 @@ func (pm *processManager) monitor(ctx context.Context) {
 		fmt.Fprintf(os.Stderr, "Engine crashed (%s). Restarting in 1 second...\n", err)
 		time.Sleep(time.Second)
 
-		if _, spawnErr := pm.spawnEngine(ctx); spawnErr != nil {
+		if _, _, spawnErr := pm.spawnEngine(ctx); spawnErr != nil {
 			fmt.Fprintf(os.Stderr, "Failed to restart engine: %s\n", spawnErr)
 			return
 		}
