@@ -12,34 +12,31 @@ import (
 const profileTemplate = `(version 1)
 (deny default)
 
-; Allow reading the agent binary and system shared libraries
+; Allow reading the agent binary, system libraries, and TLS certs
 (allow file-read*
     (subpath "/usr/lib")
     (subpath "/System/Library")
     (subpath "/Library/Frameworks")
     (subpath "/private/etc/hosts")
     (subpath "/private/etc/resolv.conf")
-    (literal "/dev/tty")
+    (subpath "/private/etc/ssl")
     (literal "/dev/null")
     (literal "/dev/urandom")
     (literal "/dev/stdin")
     (literal "/dev/stdout")
     (literal "/dev/stderr")
-    (subpath "/usr/share/terminfo")
-    (subpath "/usr/lib/terminfo")
     %EXTRA_READ%)
 
-; Allow writing to tty and stdio
+; Allow writing to stdio only (agent is headless, no TTY)
 (allow file-write*
-    (literal "/dev/tty")
     (literal "/dev/null")
     (literal "/dev/stdin")
     (literal "/dev/stdout")
     (literal "/dev/stderr"))
 
-; Allow network connection to engine only
+; Allow network connections to engine and LLM API
 (allow network-outbound
-    (remote tcp "%CONNECT_ADDR%"))
+    %CONNECT_RULES%)
 
 ; Allow basic process operations
 (allow process-exec (literal "%AGENT_BINARY%"))
@@ -101,13 +98,14 @@ func generateProfile(binaryPath string, cfg Config) string {
 	// Agent binary
 	profile = strings.ReplaceAll(profile, "%AGENT_BINARY%", binaryPath)
 
-	// Network connect address
-	connectAddr := "localhost:0"
-	if len(cfg.AllowedTCPConnect) > 0 {
-		connectAddr = cfg.AllowedTCPConnect[0]
+	// Network connect rules — one per allowed address.
+	var connectRules strings.Builder
+	for _, addr := range cfg.AllowedTCPConnect {
+		if addr != "" {
+			fmt.Fprintf(&connectRules, "\n    (remote tcp %q)", addr)
+		}
 	}
-	// sandbox-exec needs "host:port" format with numeric port
-	profile = strings.ReplaceAll(profile, "%CONNECT_ADDR%", connectAddr)
+	profile = strings.ReplaceAll(profile, "%CONNECT_RULES%", connectRules.String())
 
 	// Extra read paths
 	var extraRead strings.Builder
@@ -139,4 +137,3 @@ func probeStatus(_ Sandbox) Status {
 		Network:    true,
 	}
 }
-
