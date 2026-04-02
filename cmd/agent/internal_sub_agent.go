@@ -66,7 +66,7 @@ func runInternalSubAgent(_ *cobra.Command, _ []string) error {
 	}
 	defer func() { _ = conn.Close() }()
 
-	client := pb.NewPipelineServiceClient(conn)
+	client := pb.NewSubAgentServiceClient(conn)
 
 	// Register with engine.
 	regResp, err := client.RegisterSubAgent(ctx, &pb.SubAgentRegisterRequest{Token: token})
@@ -197,7 +197,7 @@ func runInternalSubAgent(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func reportFailure(ctx context.Context, client pb.PipelineServiceClient, name, errMsg string) {
+func reportFailure(ctx context.Context, client pb.SubAgentServiceClient, name, errMsg string) {
 	_, _ = client.SubAgentFailed(ctx, &pb.SubAgentFailedRequest{
 		Name:  name,
 		Error: errMsg,

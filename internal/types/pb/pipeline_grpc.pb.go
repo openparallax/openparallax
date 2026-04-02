@@ -19,62 +19,162 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PipelineService_ProcessMessage_FullMethodName      = "/openparallax.v1.PipelineService/ProcessMessage"
-	PipelineService_ResolveApproval_FullMethodName     = "/openparallax.v1.PipelineService/ResolveApproval"
-	PipelineService_ReadMemory_FullMethodName          = "/openparallax.v1.PipelineService/ReadMemory"
-	PipelineService_SearchMemory_FullMethodName        = "/openparallax.v1.PipelineService/SearchMemory"
-	PipelineService_GetStatus_FullMethodName           = "/openparallax.v1.PipelineService/GetStatus"
-	PipelineService_Shutdown_FullMethodName            = "/openparallax.v1.PipelineService/Shutdown"
-	PipelineService_RegisterSubAgent_FullMethodName    = "/openparallax.v1.PipelineService/RegisterSubAgent"
-	PipelineService_SubAgentExecuteTool_FullMethodName = "/openparallax.v1.PipelineService/SubAgentExecuteTool"
-	PipelineService_SubAgentComplete_FullMethodName    = "/openparallax.v1.PipelineService/SubAgentComplete"
-	PipelineService_SubAgentFailed_FullMethodName      = "/openparallax.v1.PipelineService/SubAgentFailed"
+	AgentService_RunSession_FullMethodName = "/openparallax.v1.AgentService/RunSession"
 )
 
-// PipelineServiceClient is the client API for PipelineService service.
+// AgentServiceClient is the client API for AgentService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PipelineService handles Agent-to-Engine communication.
-type PipelineServiceClient interface {
-	// ProcessMessage runs a user message through the full pipeline.
-	ProcessMessage(ctx context.Context, in *ProcessMessageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[PipelineEvent], error)
-	// ResolveApproval responds to a Tier 3 approval request.
-	ResolveApproval(ctx context.Context, in *ApprovalResponse, opts ...grpc.CallOption) (*ApprovalAck, error)
-	// ReadMemory reads a memory file.
-	ReadMemory(ctx context.Context, in *MemoryReadRequest, opts ...grpc.CallOption) (*MemoryReadResponse, error)
-	// SearchMemory searches memory via FTS5.
-	SearchMemory(ctx context.Context, in *MemorySearchRequest, opts ...grpc.CallOption) (*MemorySearchResponse, error)
-	// GetStatus returns agent status.
-	GetStatus(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
-	// Shutdown initiates graceful shutdown.
-	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
-	// RegisterSubAgent authenticates a sub-agent process and returns its task assignment.
-	RegisterSubAgent(ctx context.Context, in *SubAgentRegisterRequest, opts ...grpc.CallOption) (*SubAgentRegisterResponse, error)
-	// SubAgentExecuteTool forwards a tool call from a sub-agent to the engine for
-	// Shield evaluation and execution.
-	SubAgentExecuteTool(ctx context.Context, in *SubAgentToolRequest, opts ...grpc.CallOption) (*SubAgentToolResponse, error)
-	// SubAgentComplete reports that a sub-agent has finished its task.
-	SubAgentComplete(ctx context.Context, in *SubAgentCompleteRequest, opts ...grpc.CallOption) (*SubAgentCompleteResponse, error)
-	// SubAgentFailed reports that a sub-agent encountered an error.
-	SubAgentFailed(ctx context.Context, in *SubAgentFailedRequest, opts ...grpc.CallOption) (*SubAgentFailedResponse, error)
+// AgentService handles the bidirectional stream between the sandboxed Agent
+// process and the Engine. The Agent calls the LLM and proposes tool calls;
+// the Engine evaluates them through Shield and executes allowed tools.
+type AgentServiceClient interface {
+	// RunSession establishes a persistent bidirectional stream for the Agent's
+	// lifetime. The Engine sends directives (process a message, deliver tool
+	// results, shut down). The Agent sends events (tokens, tool proposals,
+	// response completions).
+	RunSession(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentEvent, EngineDirective], error)
 }
 
-type pipelineServiceClient struct {
+type agentServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewPipelineServiceClient(cc grpc.ClientConnInterface) PipelineServiceClient {
-	return &pipelineServiceClient{cc}
+func NewAgentServiceClient(cc grpc.ClientConnInterface) AgentServiceClient {
+	return &agentServiceClient{cc}
 }
 
-func (c *pipelineServiceClient) ProcessMessage(ctx context.Context, in *ProcessMessageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[PipelineEvent], error) {
+func (c *agentServiceClient) RunSession(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentEvent, EngineDirective], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &PipelineService_ServiceDesc.Streams[0], PipelineService_ProcessMessage_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[0], AgentService_RunSession_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[ProcessMessageRequest, PipelineEvent]{ClientStream: stream}
+	x := &grpc.GenericClientStream[AgentEvent, EngineDirective]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_RunSessionClient = grpc.BidiStreamingClient[AgentEvent, EngineDirective]
+
+// AgentServiceServer is the server API for AgentService service.
+// All implementations must embed UnimplementedAgentServiceServer
+// for forward compatibility.
+//
+// AgentService handles the bidirectional stream between the sandboxed Agent
+// process and the Engine. The Agent calls the LLM and proposes tool calls;
+// the Engine evaluates them through Shield and executes allowed tools.
+type AgentServiceServer interface {
+	// RunSession establishes a persistent bidirectional stream for the Agent's
+	// lifetime. The Engine sends directives (process a message, deliver tool
+	// results, shut down). The Agent sends events (tokens, tool proposals,
+	// response completions).
+	RunSession(grpc.BidiStreamingServer[AgentEvent, EngineDirective]) error
+	mustEmbedUnimplementedAgentServiceServer()
+}
+
+// UnimplementedAgentServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAgentServiceServer struct{}
+
+func (UnimplementedAgentServiceServer) RunSession(grpc.BidiStreamingServer[AgentEvent, EngineDirective]) error {
+	return status.Error(codes.Unimplemented, "method RunSession not implemented")
+}
+func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
+func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
+
+// UnsafeAgentServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AgentServiceServer will
+// result in compilation errors.
+type UnsafeAgentServiceServer interface {
+	mustEmbedUnimplementedAgentServiceServer()
+}
+
+func RegisterAgentServiceServer(s grpc.ServiceRegistrar, srv AgentServiceServer) {
+	// If the following call panics, it indicates UnimplementedAgentServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&AgentService_ServiceDesc, srv)
+}
+
+func _AgentService_RunSession_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AgentServiceServer).RunSession(&grpc.GenericServerStream[AgentEvent, EngineDirective]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_RunSessionServer = grpc.BidiStreamingServer[AgentEvent, EngineDirective]
+
+// AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AgentService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "openparallax.v1.AgentService",
+	HandlerType: (*AgentServiceServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "RunSession",
+			Handler:       _AgentService_RunSession_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "openparallax/v1/pipeline.proto",
+}
+
+const (
+	ClientService_SendMessage_FullMethodName     = "/openparallax.v1.ClientService/SendMessage"
+	ClientService_ResolveApproval_FullMethodName = "/openparallax.v1.ClientService/ResolveApproval"
+	ClientService_GetStatus_FullMethodName       = "/openparallax.v1.ClientService/GetStatus"
+	ClientService_ListSessions_FullMethodName    = "/openparallax.v1.ClientService/ListSessions"
+	ClientService_GetHistory_FullMethodName      = "/openparallax.v1.ClientService/GetHistory"
+	ClientService_Shutdown_FullMethodName        = "/openparallax.v1.ClientService/Shutdown"
+)
+
+// ClientServiceClient is the client API for ClientService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ClientService handles external client connections (TUI, Web UI via gRPC,
+// channel adapters). Clients send messages and receive streamed pipeline events.
+type ClientServiceClient interface {
+	// SendMessage submits a user message and streams back pipeline events.
+	SendMessage(ctx context.Context, in *ClientMessageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[PipelineEvent], error)
+	// ResolveApproval responds to a Tier 3 approval request.
+	ResolveApproval(ctx context.Context, in *ApprovalResponse, opts ...grpc.CallOption) (*ApprovalAck, error)
+	// GetStatus returns engine and agent status.
+	GetStatus(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
+	// ListSessions returns available sessions.
+	ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error)
+	// GetHistory returns conversation history for a session.
+	GetHistory(ctx context.Context, in *GetHistoryRequest, opts ...grpc.CallOption) (*GetHistoryResponse, error)
+	// Shutdown initiates graceful shutdown.
+	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
+}
+
+type clientServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewClientServiceClient(cc grpc.ClientConnInterface) ClientServiceClient {
+	return &clientServiceClient{cc}
+}
+
+func (c *clientServiceClient) SendMessage(ctx context.Context, in *ClientMessageRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[PipelineEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &ClientService_ServiceDesc.Streams[0], ClientService_SendMessage_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ClientMessageRequest, PipelineEvent]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -85,409 +185,491 @@ func (c *pipelineServiceClient) ProcessMessage(ctx context.Context, in *ProcessM
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type PipelineService_ProcessMessageClient = grpc.ServerStreamingClient[PipelineEvent]
+type ClientService_SendMessageClient = grpc.ServerStreamingClient[PipelineEvent]
 
-func (c *pipelineServiceClient) ResolveApproval(ctx context.Context, in *ApprovalResponse, opts ...grpc.CallOption) (*ApprovalAck, error) {
+func (c *clientServiceClient) ResolveApproval(ctx context.Context, in *ApprovalResponse, opts ...grpc.CallOption) (*ApprovalAck, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ApprovalAck)
-	err := c.cc.Invoke(ctx, PipelineService_ResolveApproval_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ClientService_ResolveApproval_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *pipelineServiceClient) ReadMemory(ctx context.Context, in *MemoryReadRequest, opts ...grpc.CallOption) (*MemoryReadResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(MemoryReadResponse)
-	err := c.cc.Invoke(ctx, PipelineService_ReadMemory_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *pipelineServiceClient) SearchMemory(ctx context.Context, in *MemorySearchRequest, opts ...grpc.CallOption) (*MemorySearchResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(MemorySearchResponse)
-	err := c.cc.Invoke(ctx, PipelineService_SearchMemory_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *pipelineServiceClient) GetStatus(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error) {
+func (c *clientServiceClient) GetStatus(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StatusResponse)
-	err := c.cc.Invoke(ctx, PipelineService_GetStatus_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ClientService_GetStatus_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *pipelineServiceClient) Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error) {
+func (c *clientServiceClient) ListSessions(ctx context.Context, in *ListSessionsRequest, opts ...grpc.CallOption) (*ListSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSessionsResponse)
+	err := c.cc.Invoke(ctx, ClientService_ListSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientServiceClient) GetHistory(ctx context.Context, in *GetHistoryRequest, opts ...grpc.CallOption) (*GetHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetHistoryResponse)
+	err := c.cc.Invoke(ctx, ClientService_GetHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientServiceClient) Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ShutdownResponse)
-	err := c.cc.Invoke(ctx, PipelineService_Shutdown_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, ClientService_Shutdown_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *pipelineServiceClient) RegisterSubAgent(ctx context.Context, in *SubAgentRegisterRequest, opts ...grpc.CallOption) (*SubAgentRegisterResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SubAgentRegisterResponse)
-	err := c.cc.Invoke(ctx, PipelineService_RegisterSubAgent_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *pipelineServiceClient) SubAgentExecuteTool(ctx context.Context, in *SubAgentToolRequest, opts ...grpc.CallOption) (*SubAgentToolResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SubAgentToolResponse)
-	err := c.cc.Invoke(ctx, PipelineService_SubAgentExecuteTool_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *pipelineServiceClient) SubAgentComplete(ctx context.Context, in *SubAgentCompleteRequest, opts ...grpc.CallOption) (*SubAgentCompleteResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SubAgentCompleteResponse)
-	err := c.cc.Invoke(ctx, PipelineService_SubAgentComplete_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *pipelineServiceClient) SubAgentFailed(ctx context.Context, in *SubAgentFailedRequest, opts ...grpc.CallOption) (*SubAgentFailedResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SubAgentFailedResponse)
-	err := c.cc.Invoke(ctx, PipelineService_SubAgentFailed_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// PipelineServiceServer is the server API for PipelineService service.
-// All implementations must embed UnimplementedPipelineServiceServer
+// ClientServiceServer is the server API for ClientService service.
+// All implementations must embed UnimplementedClientServiceServer
 // for forward compatibility.
 //
-// PipelineService handles Agent-to-Engine communication.
-type PipelineServiceServer interface {
-	// ProcessMessage runs a user message through the full pipeline.
-	ProcessMessage(*ProcessMessageRequest, grpc.ServerStreamingServer[PipelineEvent]) error
+// ClientService handles external client connections (TUI, Web UI via gRPC,
+// channel adapters). Clients send messages and receive streamed pipeline events.
+type ClientServiceServer interface {
+	// SendMessage submits a user message and streams back pipeline events.
+	SendMessage(*ClientMessageRequest, grpc.ServerStreamingServer[PipelineEvent]) error
 	// ResolveApproval responds to a Tier 3 approval request.
 	ResolveApproval(context.Context, *ApprovalResponse) (*ApprovalAck, error)
-	// ReadMemory reads a memory file.
-	ReadMemory(context.Context, *MemoryReadRequest) (*MemoryReadResponse, error)
-	// SearchMemory searches memory via FTS5.
-	SearchMemory(context.Context, *MemorySearchRequest) (*MemorySearchResponse, error)
-	// GetStatus returns agent status.
+	// GetStatus returns engine and agent status.
 	GetStatus(context.Context, *StatusRequest) (*StatusResponse, error)
+	// ListSessions returns available sessions.
+	ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error)
+	// GetHistory returns conversation history for a session.
+	GetHistory(context.Context, *GetHistoryRequest) (*GetHistoryResponse, error)
 	// Shutdown initiates graceful shutdown.
 	Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error)
-	// RegisterSubAgent authenticates a sub-agent process and returns its task assignment.
-	RegisterSubAgent(context.Context, *SubAgentRegisterRequest) (*SubAgentRegisterResponse, error)
-	// SubAgentExecuteTool forwards a tool call from a sub-agent to the engine for
-	// Shield evaluation and execution.
-	SubAgentExecuteTool(context.Context, *SubAgentToolRequest) (*SubAgentToolResponse, error)
-	// SubAgentComplete reports that a sub-agent has finished its task.
-	SubAgentComplete(context.Context, *SubAgentCompleteRequest) (*SubAgentCompleteResponse, error)
-	// SubAgentFailed reports that a sub-agent encountered an error.
-	SubAgentFailed(context.Context, *SubAgentFailedRequest) (*SubAgentFailedResponse, error)
-	mustEmbedUnimplementedPipelineServiceServer()
+	mustEmbedUnimplementedClientServiceServer()
 }
 
-// UnimplementedPipelineServiceServer must be embedded to have
+// UnimplementedClientServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedPipelineServiceServer struct{}
+type UnimplementedClientServiceServer struct{}
 
-func (UnimplementedPipelineServiceServer) ProcessMessage(*ProcessMessageRequest, grpc.ServerStreamingServer[PipelineEvent]) error {
-	return status.Error(codes.Unimplemented, "method ProcessMessage not implemented")
+func (UnimplementedClientServiceServer) SendMessage(*ClientMessageRequest, grpc.ServerStreamingServer[PipelineEvent]) error {
+	return status.Error(codes.Unimplemented, "method SendMessage not implemented")
 }
-func (UnimplementedPipelineServiceServer) ResolveApproval(context.Context, *ApprovalResponse) (*ApprovalAck, error) {
+func (UnimplementedClientServiceServer) ResolveApproval(context.Context, *ApprovalResponse) (*ApprovalAck, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveApproval not implemented")
 }
-func (UnimplementedPipelineServiceServer) ReadMemory(context.Context, *MemoryReadRequest) (*MemoryReadResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ReadMemory not implemented")
-}
-func (UnimplementedPipelineServiceServer) SearchMemory(context.Context, *MemorySearchRequest) (*MemorySearchResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method SearchMemory not implemented")
-}
-func (UnimplementedPipelineServiceServer) GetStatus(context.Context, *StatusRequest) (*StatusResponse, error) {
+func (UnimplementedClientServiceServer) GetStatus(context.Context, *StatusRequest) (*StatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStatus not implemented")
 }
-func (UnimplementedPipelineServiceServer) Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error) {
+func (UnimplementedClientServiceServer) ListSessions(context.Context, *ListSessionsRequest) (*ListSessionsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSessions not implemented")
+}
+func (UnimplementedClientServiceServer) GetHistory(context.Context, *GetHistoryRequest) (*GetHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetHistory not implemented")
+}
+func (UnimplementedClientServiceServer) Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Shutdown not implemented")
 }
-func (UnimplementedPipelineServiceServer) RegisterSubAgent(context.Context, *SubAgentRegisterRequest) (*SubAgentRegisterResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RegisterSubAgent not implemented")
-}
-func (UnimplementedPipelineServiceServer) SubAgentExecuteTool(context.Context, *SubAgentToolRequest) (*SubAgentToolResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method SubAgentExecuteTool not implemented")
-}
-func (UnimplementedPipelineServiceServer) SubAgentComplete(context.Context, *SubAgentCompleteRequest) (*SubAgentCompleteResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method SubAgentComplete not implemented")
-}
-func (UnimplementedPipelineServiceServer) SubAgentFailed(context.Context, *SubAgentFailedRequest) (*SubAgentFailedResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method SubAgentFailed not implemented")
-}
-func (UnimplementedPipelineServiceServer) mustEmbedUnimplementedPipelineServiceServer() {}
-func (UnimplementedPipelineServiceServer) testEmbeddedByValue()                         {}
+func (UnimplementedClientServiceServer) mustEmbedUnimplementedClientServiceServer() {}
+func (UnimplementedClientServiceServer) testEmbeddedByValue()                       {}
 
-// UnsafePipelineServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to PipelineServiceServer will
+// UnsafeClientServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ClientServiceServer will
 // result in compilation errors.
-type UnsafePipelineServiceServer interface {
-	mustEmbedUnimplementedPipelineServiceServer()
+type UnsafeClientServiceServer interface {
+	mustEmbedUnimplementedClientServiceServer()
 }
 
-func RegisterPipelineServiceServer(s grpc.ServiceRegistrar, srv PipelineServiceServer) {
-	// If the following call panics, it indicates UnimplementedPipelineServiceServer was
+func RegisterClientServiceServer(s grpc.ServiceRegistrar, srv ClientServiceServer) {
+	// If the following call panics, it indicates UnimplementedClientServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&PipelineService_ServiceDesc, srv)
+	s.RegisterService(&ClientService_ServiceDesc, srv)
 }
 
-func _PipelineService_ProcessMessage_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ProcessMessageRequest)
+func _ClientService_SendMessage_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ClientMessageRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(PipelineServiceServer).ProcessMessage(m, &grpc.GenericServerStream[ProcessMessageRequest, PipelineEvent]{ServerStream: stream})
+	return srv.(ClientServiceServer).SendMessage(m, &grpc.GenericServerStream[ClientMessageRequest, PipelineEvent]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type PipelineService_ProcessMessageServer = grpc.ServerStreamingServer[PipelineEvent]
+type ClientService_SendMessageServer = grpc.ServerStreamingServer[PipelineEvent]
 
-func _PipelineService_ResolveApproval_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ClientService_ResolveApproval_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ApprovalResponse)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PipelineServiceServer).ResolveApproval(ctx, in)
+		return srv.(ClientServiceServer).ResolveApproval(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PipelineService_ResolveApproval_FullMethodName,
+		FullMethod: ClientService_ResolveApproval_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).ResolveApproval(ctx, req.(*ApprovalResponse))
+		return srv.(ClientServiceServer).ResolveApproval(ctx, req.(*ApprovalResponse))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PipelineService_ReadMemory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MemoryReadRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PipelineServiceServer).ReadMemory(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PipelineService_ReadMemory_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).ReadMemory(ctx, req.(*MemoryReadRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _PipelineService_SearchMemory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MemorySearchRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PipelineServiceServer).SearchMemory(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: PipelineService_SearchMemory_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).SearchMemory(ctx, req.(*MemorySearchRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _PipelineService_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ClientService_GetStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StatusRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PipelineServiceServer).GetStatus(ctx, in)
+		return srv.(ClientServiceServer).GetStatus(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PipelineService_GetStatus_FullMethodName,
+		FullMethod: ClientService_GetStatus_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).GetStatus(ctx, req.(*StatusRequest))
+		return srv.(ClientServiceServer).GetStatus(ctx, req.(*StatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PipelineService_Shutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _ClientService_ListSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientServiceServer).ListSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientService_ListSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientServiceServer).ListSessions(ctx, req.(*ListSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientService_GetHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientServiceServer).GetHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientService_GetHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientServiceServer).GetHistory(ctx, req.(*GetHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientService_Shutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ShutdownRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PipelineServiceServer).Shutdown(ctx, in)
+		return srv.(ClientServiceServer).Shutdown(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PipelineService_Shutdown_FullMethodName,
+		FullMethod: ClientService_Shutdown_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).Shutdown(ctx, req.(*ShutdownRequest))
+		return srv.(ClientServiceServer).Shutdown(ctx, req.(*ShutdownRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PipelineService_RegisterSubAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+// ClientService_ServiceDesc is the grpc.ServiceDesc for ClientService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ClientService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "openparallax.v1.ClientService",
+	HandlerType: (*ClientServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ResolveApproval",
+			Handler:    _ClientService_ResolveApproval_Handler,
+		},
+		{
+			MethodName: "GetStatus",
+			Handler:    _ClientService_GetStatus_Handler,
+		},
+		{
+			MethodName: "ListSessions",
+			Handler:    _ClientService_ListSessions_Handler,
+		},
+		{
+			MethodName: "GetHistory",
+			Handler:    _ClientService_GetHistory_Handler,
+		},
+		{
+			MethodName: "Shutdown",
+			Handler:    _ClientService_Shutdown_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SendMessage",
+			Handler:       _ClientService_SendMessage_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "openparallax/v1/pipeline.proto",
+}
+
+const (
+	SubAgentService_RegisterSubAgent_FullMethodName    = "/openparallax.v1.SubAgentService/RegisterSubAgent"
+	SubAgentService_SubAgentExecuteTool_FullMethodName = "/openparallax.v1.SubAgentService/SubAgentExecuteTool"
+	SubAgentService_SubAgentComplete_FullMethodName    = "/openparallax.v1.SubAgentService/SubAgentComplete"
+	SubAgentService_SubAgentFailed_FullMethodName      = "/openparallax.v1.SubAgentService/SubAgentFailed"
+)
+
+// SubAgentServiceClient is the client API for SubAgentService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// SubAgentService handles sub-agent process communication. Sub-agents follow
+// the same pattern as the main agent: sandboxed, call LLM, propose tools.
+type SubAgentServiceClient interface {
+	// RegisterSubAgent authenticates a sub-agent process and returns its task.
+	RegisterSubAgent(ctx context.Context, in *SubAgentRegisterRequest, opts ...grpc.CallOption) (*SubAgentRegisterResponse, error)
+	// SubAgentExecuteTool forwards a tool call from a sub-agent to the engine.
+	SubAgentExecuteTool(ctx context.Context, in *SubAgentToolRequest, opts ...grpc.CallOption) (*SubAgentToolResponse, error)
+	// SubAgentComplete reports that a sub-agent has finished its task.
+	SubAgentComplete(ctx context.Context, in *SubAgentCompleteRequest, opts ...grpc.CallOption) (*SubAgentCompleteResponse, error)
+	// SubAgentFailed reports that a sub-agent encountered an error.
+	SubAgentFailed(ctx context.Context, in *SubAgentFailedRequest, opts ...grpc.CallOption) (*SubAgentFailedResponse, error)
+}
+
+type subAgentServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewSubAgentServiceClient(cc grpc.ClientConnInterface) SubAgentServiceClient {
+	return &subAgentServiceClient{cc}
+}
+
+func (c *subAgentServiceClient) RegisterSubAgent(ctx context.Context, in *SubAgentRegisterRequest, opts ...grpc.CallOption) (*SubAgentRegisterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentRegisterResponse)
+	err := c.cc.Invoke(ctx, SubAgentService_RegisterSubAgent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *subAgentServiceClient) SubAgentExecuteTool(ctx context.Context, in *SubAgentToolRequest, opts ...grpc.CallOption) (*SubAgentToolResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentToolResponse)
+	err := c.cc.Invoke(ctx, SubAgentService_SubAgentExecuteTool_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *subAgentServiceClient) SubAgentComplete(ctx context.Context, in *SubAgentCompleteRequest, opts ...grpc.CallOption) (*SubAgentCompleteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentCompleteResponse)
+	err := c.cc.Invoke(ctx, SubAgentService_SubAgentComplete_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *subAgentServiceClient) SubAgentFailed(ctx context.Context, in *SubAgentFailedRequest, opts ...grpc.CallOption) (*SubAgentFailedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentFailedResponse)
+	err := c.cc.Invoke(ctx, SubAgentService_SubAgentFailed_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// SubAgentServiceServer is the server API for SubAgentService service.
+// All implementations must embed UnimplementedSubAgentServiceServer
+// for forward compatibility.
+//
+// SubAgentService handles sub-agent process communication. Sub-agents follow
+// the same pattern as the main agent: sandboxed, call LLM, propose tools.
+type SubAgentServiceServer interface {
+	// RegisterSubAgent authenticates a sub-agent process and returns its task.
+	RegisterSubAgent(context.Context, *SubAgentRegisterRequest) (*SubAgentRegisterResponse, error)
+	// SubAgentExecuteTool forwards a tool call from a sub-agent to the engine.
+	SubAgentExecuteTool(context.Context, *SubAgentToolRequest) (*SubAgentToolResponse, error)
+	// SubAgentComplete reports that a sub-agent has finished its task.
+	SubAgentComplete(context.Context, *SubAgentCompleteRequest) (*SubAgentCompleteResponse, error)
+	// SubAgentFailed reports that a sub-agent encountered an error.
+	SubAgentFailed(context.Context, *SubAgentFailedRequest) (*SubAgentFailedResponse, error)
+	mustEmbedUnimplementedSubAgentServiceServer()
+}
+
+// UnimplementedSubAgentServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedSubAgentServiceServer struct{}
+
+func (UnimplementedSubAgentServiceServer) RegisterSubAgent(context.Context, *SubAgentRegisterRequest) (*SubAgentRegisterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterSubAgent not implemented")
+}
+func (UnimplementedSubAgentServiceServer) SubAgentExecuteTool(context.Context, *SubAgentToolRequest) (*SubAgentToolResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubAgentExecuteTool not implemented")
+}
+func (UnimplementedSubAgentServiceServer) SubAgentComplete(context.Context, *SubAgentCompleteRequest) (*SubAgentCompleteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubAgentComplete not implemented")
+}
+func (UnimplementedSubAgentServiceServer) SubAgentFailed(context.Context, *SubAgentFailedRequest) (*SubAgentFailedResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubAgentFailed not implemented")
+}
+func (UnimplementedSubAgentServiceServer) mustEmbedUnimplementedSubAgentServiceServer() {}
+func (UnimplementedSubAgentServiceServer) testEmbeddedByValue()                         {}
+
+// UnsafeSubAgentServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to SubAgentServiceServer will
+// result in compilation errors.
+type UnsafeSubAgentServiceServer interface {
+	mustEmbedUnimplementedSubAgentServiceServer()
+}
+
+func RegisterSubAgentServiceServer(s grpc.ServiceRegistrar, srv SubAgentServiceServer) {
+	// If the following call panics, it indicates UnimplementedSubAgentServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&SubAgentService_ServiceDesc, srv)
+}
+
+func _SubAgentService_RegisterSubAgent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SubAgentRegisterRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PipelineServiceServer).RegisterSubAgent(ctx, in)
+		return srv.(SubAgentServiceServer).RegisterSubAgent(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PipelineService_RegisterSubAgent_FullMethodName,
+		FullMethod: SubAgentService_RegisterSubAgent_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).RegisterSubAgent(ctx, req.(*SubAgentRegisterRequest))
+		return srv.(SubAgentServiceServer).RegisterSubAgent(ctx, req.(*SubAgentRegisterRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PipelineService_SubAgentExecuteTool_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SubAgentService_SubAgentExecuteTool_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SubAgentToolRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PipelineServiceServer).SubAgentExecuteTool(ctx, in)
+		return srv.(SubAgentServiceServer).SubAgentExecuteTool(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PipelineService_SubAgentExecuteTool_FullMethodName,
+		FullMethod: SubAgentService_SubAgentExecuteTool_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).SubAgentExecuteTool(ctx, req.(*SubAgentToolRequest))
+		return srv.(SubAgentServiceServer).SubAgentExecuteTool(ctx, req.(*SubAgentToolRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PipelineService_SubAgentComplete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SubAgentService_SubAgentComplete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SubAgentCompleteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PipelineServiceServer).SubAgentComplete(ctx, in)
+		return srv.(SubAgentServiceServer).SubAgentComplete(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PipelineService_SubAgentComplete_FullMethodName,
+		FullMethod: SubAgentService_SubAgentComplete_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).SubAgentComplete(ctx, req.(*SubAgentCompleteRequest))
+		return srv.(SubAgentServiceServer).SubAgentComplete(ctx, req.(*SubAgentCompleteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PipelineService_SubAgentFailed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _SubAgentService_SubAgentFailed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SubAgentFailedRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PipelineServiceServer).SubAgentFailed(ctx, in)
+		return srv.(SubAgentServiceServer).SubAgentFailed(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PipelineService_SubAgentFailed_FullMethodName,
+		FullMethod: SubAgentService_SubAgentFailed_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PipelineServiceServer).SubAgentFailed(ctx, req.(*SubAgentFailedRequest))
+		return srv.(SubAgentServiceServer).SubAgentFailed(ctx, req.(*SubAgentFailedRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// PipelineService_ServiceDesc is the grpc.ServiceDesc for PipelineService service.
+// SubAgentService_ServiceDesc is the grpc.ServiceDesc for SubAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var PipelineService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "openparallax.v1.PipelineService",
-	HandlerType: (*PipelineServiceServer)(nil),
+var SubAgentService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "openparallax.v1.SubAgentService",
+	HandlerType: (*SubAgentServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ResolveApproval",
-			Handler:    _PipelineService_ResolveApproval_Handler,
-		},
-		{
-			MethodName: "ReadMemory",
-			Handler:    _PipelineService_ReadMemory_Handler,
-		},
-		{
-			MethodName: "SearchMemory",
-			Handler:    _PipelineService_SearchMemory_Handler,
-		},
-		{
-			MethodName: "GetStatus",
-			Handler:    _PipelineService_GetStatus_Handler,
-		},
-		{
-			MethodName: "Shutdown",
-			Handler:    _PipelineService_Shutdown_Handler,
-		},
-		{
 			MethodName: "RegisterSubAgent",
-			Handler:    _PipelineService_RegisterSubAgent_Handler,
+			Handler:    _SubAgentService_RegisterSubAgent_Handler,
 		},
 		{
 			MethodName: "SubAgentExecuteTool",
-			Handler:    _PipelineService_SubAgentExecuteTool_Handler,
+			Handler:    _SubAgentService_SubAgentExecuteTool_Handler,
 		},
 		{
 			MethodName: "SubAgentComplete",
-			Handler:    _PipelineService_SubAgentComplete_Handler,
+			Handler:    _SubAgentService_SubAgentComplete_Handler,
 		},
 		{
 			MethodName: "SubAgentFailed",
-			Handler:    _PipelineService_SubAgentFailed_Handler,
+			Handler:    _SubAgentService_SubAgentFailed_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "ProcessMessage",
-			Handler:       _PipelineService_ProcessMessage_Handler,
-			ServerStreams: true,
-		},
-	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "openparallax/v1/pipeline.proto",
 }

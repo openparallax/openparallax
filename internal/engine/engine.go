@@ -40,7 +40,9 @@ const maxToolRounds = 25
 
 // Engine is the execution engine and gRPC server.
 type Engine struct {
-	pb.UnimplementedPipelineServiceServer
+	pb.UnimplementedAgentServiceServer
+	pb.UnimplementedClientServiceServer
+	pb.UnimplementedSubAgentServiceServer
 
 	cfg        *types.AgentConfig
 	llm        llm.Provider
@@ -59,9 +61,12 @@ type Engine struct {
 	tier3Manager    *Tier3Manager
 	subAgentManager *SubAgentManager
 	oauthManager    *oauth.Manager
+	broadcaster     *EventBroadcaster
 
 	server   *grpc.Server
 	listener net.Listener
+
+	agentStream pb.AgentService_RunSessionServer
 
 	sandboxStatus sandboxInfo
 
@@ -184,6 +189,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		mcpManager:   mcpMgr,
 		tier3Manager: NewTier3Manager(cfg.Shield.Tier3.MaxPerHour, cfg.Shield.Tier3.TimeoutSeconds),
 		oauthManager: oauthMgr,
+		broadcaster:  NewEventBroadcaster(),
 	}
 	eng.backgroundCtx, eng.backgroundCancel = context.WithCancel(context.Background())
 	return eng, nil
@@ -211,7 +217,9 @@ func (e *Engine) Start(listenPort ...int) (int, error) {
 	e.listener = lis
 
 	e.server = grpc.NewServer()
-	pb.RegisterPipelineServiceServer(e.server, e)
+	pb.RegisterAgentServiceServer(e.server, e)
+	pb.RegisterClientServiceServer(e.server, e)
+	pb.RegisterSubAgentServiceServer(e.server, e)
 
 	go func() {
 		_ = e.server.Serve(lis)
@@ -279,18 +287,390 @@ func (e *Engine) Port() int {
 
 // ProcessMessage implements the PipelineService gRPC method.
 // Thin wrapper around processMessageCore using a gRPC event sender.
-func (e *Engine) ProcessMessage(req *pb.ProcessMessageRequest, stream pb.PipelineService_ProcessMessageServer) error {
+// SendMessage implements ClientService.SendMessage — the entry point for TUI
+// and other gRPC clients. Stores the user message, subscribes the client for
+// events, and forwards the request to the Agent for LLM processing.
+func (e *Engine) SendMessage(req *pb.ClientMessageRequest, stream pb.ClientService_SendMessageServer) error {
+	sid := req.SessionId
+	mid := crypto.NewID()
 	mode := types.SessionNormal
 	if req.Mode == pb.SessionMode_OTR {
 		mode = types.SessionOTR
 	}
+
+	// Store user message.
+	e.storeMessage(sid, mid, "user", req.Content)
+
+	// Subscribe this client stream for events on this session.
+	clientID := "grpc-" + mid
 	sender := newGRPCEventSender(stream)
-	return e.processMessageCore(stream.Context(), sender, req.SessionId, req.MessageId, req.Content, mode)
+	e.broadcaster.Subscribe(clientID, sid, sender)
+	defer e.broadcaster.Unsubscribe(clientID)
+
+	// Forward to Agent.
+	if err := e.forwardToAgent(sid, mid, req.Content, mode, req.Source); err != nil {
+		return e.sendErrorEvent(sender, sid, mid, "AGENT_UNAVAILABLE", err.Error())
+	}
+
+	// Wait for ResponseComplete or context cancellation. The broadcaster
+	// delivers events to this client as they arrive from the Agent.
+	<-stream.Context().Done()
+	return nil
+}
+
+// forwardToAgent sends a ProcessRequest to the connected Agent.
+func (e *Engine) forwardToAgent(sid, mid, content string, mode types.SessionMode, source string) error {
+	e.mu.Lock()
+	agentStream := e.agentStream
+	e.mu.Unlock()
+
+	if agentStream == nil {
+		// Fall back to old processMessageCore for backward compatibility
+		// during the migration period.
+		return nil
+	}
+
+	pbMode := pb.SessionMode_NORMAL
+	if mode == types.SessionOTR {
+		pbMode = pb.SessionMode_OTR
+	}
+
+	return agentStream.Send(&pb.EngineDirective{
+		Directive: &pb.EngineDirective_Process{
+			Process: &pb.ProcessRequest{
+				SessionId: sid,
+				MessageId: mid,
+				Content:   content,
+				Mode:      pbMode,
+				Source:    source,
+			},
+		},
+	})
+}
+
+// RunSession implements AgentService.RunSession — the bidirectional stream
+// between the Engine and the sandboxed Agent process. The Agent sends events
+// (tokens, tool proposals, completions); the Engine evaluates tool calls
+// through Shield, executes them, and broadcasts events to all clients.
+func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
+	ctx := stream.Context()
+
+	// Wait for AgentReady.
+	firstEvent, err := stream.Recv()
+	if err != nil {
+		return fmt.Errorf("agent stream: %w", err)
+	}
+	ready := firstEvent.GetReady()
+	if ready == nil {
+		return fmt.Errorf("expected AgentReady, got %T", firstEvent.Event)
+	}
+	e.log.Info("agent_connected", "id", ready.AgentId)
+
+	// Store the agent stream for forwarding messages.
+	e.mu.Lock()
+	e.agentStream = stream
+	e.mu.Unlock()
+	defer func() {
+		e.mu.Lock()
+		e.agentStream = nil
+		e.mu.Unlock()
+	}()
+
+	// Read agent events in a loop.
+	for {
+		event, recvErr := stream.Recv()
+		if recvErr != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return fmt.Errorf("agent stream recv: %w", recvErr)
+		}
+
+		switch ev := event.Event.(type) {
+		case *pb.AgentEvent_LlmTokenEmitted:
+			e.broadcaster.Broadcast(&PipelineEvent{
+				SessionID: ev.LlmTokenEmitted.SessionId,
+				MessageID: ev.LlmTokenEmitted.MessageId,
+				Type:      EventLLMToken,
+				LLMToken:  &LLMTokenEvent{Text: ev.LlmTokenEmitted.Text},
+			})
+
+		case *pb.AgentEvent_ToolProposal:
+			tp := ev.ToolProposal
+			result := e.handleToolProposal(ctx, tp)
+
+			// Send result back to Agent.
+			if sendErr := stream.Send(&pb.EngineDirective{
+				Directive: &pb.EngineDirective_ToolResult{
+					ToolResult: &pb.ToolResultDelivery{
+						CallId:  tp.CallId,
+						Content: result.Content,
+						IsError: result.IsError,
+					},
+				},
+			}); sendErr != nil {
+				e.log.Error("tool_result_send_failed", "error", sendErr)
+			}
+
+		case *pb.AgentEvent_ToolDefsRequest:
+			groups := ev.ToolDefsRequest.Groups
+			isOTR := false // OTR state could be tracked per session
+			newTools, summary := e.executors.Groups.ResolveGroups(groups, isOTR)
+			_ = newTools
+
+			// Send tool definitions back as a ToolResult (the Agent
+			// is waiting on resultCh for load_tools response).
+			var defs []*pb.ToolDef
+			for _, t := range newTools {
+				paramJSON, _ := json.Marshal(t.Parameters)
+				defs = append(defs, &pb.ToolDef{
+					Name:           t.Name,
+					Description:    t.Description,
+					ParametersJson: string(paramJSON),
+				})
+			}
+			if sendErr := stream.Send(&pb.EngineDirective{
+				Directive: &pb.EngineDirective_ToolDefs{
+					ToolDefs: &pb.ToolDefsDelivery{Tools: defs},
+				},
+			}); sendErr != nil {
+				e.log.Error("tool_defs_send_failed", "error", sendErr)
+			}
+
+			e.log.Info("tools_loaded", "groups", strings.Join(groups, ","),
+				"tools_count", len(defs), "summary_len", len(summary))
+
+		case *pb.AgentEvent_MemoryFlush:
+			if ev.MemoryFlush.Content != "" {
+				_ = e.memory.Append("MEMORY.md", ev.MemoryFlush.Content)
+			}
+
+		case *pb.AgentEvent_ResponseComplete:
+			rc := ev.ResponseComplete
+			sid := rc.SessionId
+			mid := rc.MessageId
+
+			// Convert thoughts.
+			var thoughts []types.Thought
+			for _, t := range rc.Thoughts {
+				thoughts = append(thoughts, types.Thought{
+					Stage:   t.Stage,
+					Summary: t.Summary,
+				})
+			}
+
+			// Store assistant message.
+			msg := &types.Message{
+				SessionID: sid,
+				Role:      "assistant",
+				Content:   rc.Content,
+				Timestamp: time.Now(),
+				Thoughts:  thoughts,
+			}
+			e.storeAssistantMessage(sid, msg)
+
+			// Broadcast completion.
+			e.broadcaster.Broadcast(&PipelineEvent{
+				SessionID: sid, MessageID: mid,
+				Type:             EventResponseComplete,
+				ResponseComplete: &ResponseCompleteEvent{Content: rc.Content, Thoughts: thoughts},
+			})
+
+			// Generate session title if needed.
+			if sess, titleErr := e.db.GetSession(sid); titleErr == nil && sess.Title == "" {
+				history := e.getHistory(sid)
+				if len(history) >= 6 {
+					go e.generateSessionTitle(sid, history)
+				}
+			}
+
+		case *pb.AgentEvent_AgentError:
+			ae := ev.AgentError
+			e.broadcaster.Broadcast(&PipelineEvent{
+				SessionID: ae.SessionId, MessageID: ae.MessageId,
+				Type:  EventError,
+				Error: &PipelineErrorEvent{Code: ae.Code, Message: ae.Message, Recoverable: ae.Recoverable},
+			})
+		}
+	}
+}
+
+// handleToolProposal processes a tool call proposed by the Agent through the
+// full security pipeline: protection → Shield → execution.
+func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed) *pb.ToolResultDelivery {
+	sid := tp.SessionId
+	mid := tp.MessageId
+
+	// Parse arguments.
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tp.ArgumentsJson), &args); err != nil {
+		args = map[string]any{"raw": tp.ArgumentsJson}
+	}
+
+	// Build ActionRequest.
+	action := &types.ActionRequest{
+		RequestID: crypto.NewID(),
+		Type:      types.ActionType(tp.ToolName),
+		Payload:   args,
+		Timestamp: time.Now(),
+	}
+	hash, _ := crypto.HashAction(tp.ToolName, args)
+	action.Hash = hash
+
+	// Metadata enrichment.
+	e.enricher.Enrich(action)
+
+	// Hardcoded protection check.
+	allowed, protection, protReason := CheckProtection(action, e.cfg.Workspace)
+	if !allowed {
+		e.log.Warn("protection_blocked", "session", sid, "tool", tp.ToolName, "reason", protReason)
+		e.broadcaster.Broadcast(&PipelineEvent{
+			SessionID: sid, MessageID: mid, Type: EventActionCompleted,
+			ActionCompleted: &ActionCompletedEvent{ToolName: tp.ToolName, Success: false, Summary: "Blocked: " + protReason},
+		})
+		return &pb.ToolResultDelivery{CallId: tp.CallId, Content: "Blocked: " + protReason, IsError: true}
+	}
+	switch protection {
+	case EscalateTier2:
+		action.MinTier = 2
+	case WriteTier1Min:
+		action.MinTier = 1
+	}
+
+	// Emit ActionStarted.
+	e.broadcaster.Broadcast(&PipelineEvent{
+		SessionID: sid, MessageID: mid, Type: EventActionStarted,
+		ActionStarted: &ActionStartedEvent{ToolName: tp.ToolName, Summary: tp.ToolName + ": " + truncateForLog(tp.ArgumentsJson)},
+	})
+
+	// Audit: proposed.
+	_ = e.audit.Log(audit.Entry{
+		EventType: types.AuditActionProposed, SessionID: sid,
+		ActionType: string(action.Type), Details: "hash: " + action.Hash,
+	})
+
+	// Shield evaluation.
+	verdict := e.shield.Evaluate(ctx, action)
+	e.broadcaster.Broadcast(&PipelineEvent{
+		SessionID: sid, MessageID: mid, Type: EventShieldVerdict,
+		ShieldVerdict: &ShieldVerdictEvent{
+			ToolName: tp.ToolName, Decision: string(verdict.Decision), Tier: verdict.Tier,
+			Confidence: verdict.Confidence, Reasoning: verdict.Reasoning,
+		},
+	})
+	_ = e.audit.Log(audit.Entry{
+		EventType: types.AuditActionEvaluated, SessionID: sid,
+		ActionType: string(action.Type),
+		Details:    fmt.Sprintf("%s (tier %d): %s", verdict.Decision, verdict.Tier, verdict.Reasoning),
+	})
+
+	if verdict.Decision == types.VerdictBlock {
+		e.broadcaster.Broadcast(&PipelineEvent{
+			SessionID: sid, MessageID: mid, Type: EventActionCompleted,
+			ActionCompleted: &ActionCompletedEvent{ToolName: tp.ToolName, Success: false, Summary: "Blocked: " + verdict.Reasoning},
+		})
+		return &pb.ToolResultDelivery{CallId: tp.CallId, Content: "Blocked by security: " + verdict.Reasoning, IsError: true}
+	}
+
+	if verdict.Decision == types.VerdictEscalate {
+		return &pb.ToolResultDelivery{CallId: tp.CallId, Content: "Action requires human approval", IsError: true}
+	}
+
+	// Hash verification.
+	if verifyErr := e.verifier.Verify(action); verifyErr != nil {
+		return &pb.ToolResultDelivery{CallId: tp.CallId, Content: "Integrity check failed", IsError: true}
+	}
+
+	// Chronicle snapshot.
+	if _, snapErr := e.chronicle.Snapshot(action); snapErr != nil {
+		e.log.Warn("chronicle_snapshot_failed", "error", snapErr)
+	}
+
+	// IFC check.
+	if action.DataClassification != nil && !shield.IsFlowAllowed(action.DataClassification, action.Type) {
+		return &pb.ToolResultDelivery{CallId: tp.CallId, Content: "Blocked: IFC violation", IsError: true}
+	}
+
+	// Execute.
+	start := time.Now()
+	var result *types.ActionResult
+
+	if e.mcpManager != nil {
+		if client, toolName, isMCP := e.mcpManager.Route(tp.ToolName); isMCP {
+			mcpResult, mcpErr := client.CallTool(ctx, toolName, args)
+			if mcpErr != nil {
+				result = &types.ActionResult{RequestID: action.RequestID, Success: false, Error: mcpErr.Error(), Summary: "MCP call failed"}
+			} else {
+				result = &types.ActionResult{RequestID: action.RequestID, Success: true, Output: mcpResult, Summary: "MCP call completed"}
+			}
+			result.DurationMs = time.Since(start).Milliseconds()
+		}
+	}
+
+	if result == nil {
+		result = e.executors.Execute(ctx, action)
+		result.DurationMs = time.Since(start).Milliseconds()
+	}
+
+	// Audit + broadcast completion.
+	if result.Success {
+		_ = e.audit.Log(audit.Entry{EventType: types.AuditActionExecuted, SessionID: sid, ActionType: string(action.Type), Details: result.Summary})
+	} else {
+		_ = e.audit.Log(audit.Entry{EventType: types.AuditActionFailed, SessionID: sid, ActionType: string(action.Type), Details: result.Error})
+	}
+
+	e.broadcaster.Broadcast(&PipelineEvent{
+		SessionID: sid, MessageID: mid, Type: EventActionCompleted,
+		ActionCompleted: &ActionCompletedEvent{ToolName: tp.ToolName, Success: result.Success, Summary: result.Summary},
+	})
+
+	if result.Artifact != nil {
+		e.broadcaster.Broadcast(&PipelineEvent{
+			SessionID: sid, MessageID: mid, Type: EventActionArtifact,
+			ActionArtifact: &ActionArtifactEvent{Artifact: result.Artifact},
+		})
+	}
+
+	// Log to daily action log.
+	e.memory.LogAction(
+		[]*types.ActionRequest{action},
+		[]*types.ActionResult{result},
+	)
+
+	content := result.Output
+	if !result.Success {
+		content = result.Error
+	}
+	return &pb.ToolResultDelivery{CallId: tp.CallId, Content: content, IsError: !result.Success}
 }
 
 // ProcessMessageForWeb is the public entry point for the web server.
-// It uses a transport-neutral EventSender to deliver pipeline events.
+// It subscribes the WebSocket sender for events and forwards the message
+// to the Agent for LLM processing.
 func (e *Engine) ProcessMessageForWeb(ctx context.Context, sender EventSender, sid, mid, content string, mode types.SessionMode) error {
+	// Store user message.
+	e.storeMessage(sid, mid, "user", content)
+
+	// Subscribe this WS connection for events on this session.
+	clientID := "ws-" + mid
+	e.broadcaster.Subscribe(clientID, sid, sender)
+	defer e.broadcaster.Unsubscribe(clientID)
+
+	// Try forwarding to Agent (new architecture).
+	e.mu.Lock()
+	hasAgent := e.agentStream != nil
+	e.mu.Unlock()
+
+	if hasAgent {
+		if err := e.forwardToAgent(sid, mid, content, mode, "web"); err != nil {
+			return e.sendErrorEvent(sender, sid, mid, "AGENT_UNAVAILABLE", err.Error())
+		}
+		// Wait for completion or disconnect.
+		<-ctx.Done()
+		return nil
+	}
+
+	// Fallback: run the old in-process pipeline during migration.
 	return e.processMessageCore(ctx, sender, sid, mid, content, mode)
 }
 
@@ -837,6 +1217,57 @@ func (e *Engine) SearchMemory(_ context.Context, req *pb.MemorySearchRequest) (*
 	return &pb.MemorySearchResponse{Results: pbResults}, nil
 }
 
+// ListSessions implements ClientService.ListSessions.
+func (e *Engine) ListSessions(_ context.Context, req *pb.ListSessionsRequest) (*pb.ListSessionsResponse, error) {
+	sessions, err := e.db.ListSessions()
+	if err != nil {
+		return nil, err
+	}
+	var infos []*pb.SessionInfo
+	for _, s := range sessions {
+		var createdAt int64
+		if t, err := time.Parse(time.RFC3339, s.CreatedAt); err == nil {
+			createdAt = t.Unix()
+		}
+		infos = append(infos, &pb.SessionInfo{
+			Id:        s.ID,
+			Title:     s.Title,
+			CreatedAt: createdAt,
+		})
+	}
+	return &pb.ListSessionsResponse{Sessions: infos}, nil
+}
+
+// GetHistory implements ClientService.GetHistory.
+func (e *Engine) GetHistory(_ context.Context, req *pb.GetHistoryRequest) (*pb.GetHistoryResponse, error) {
+	messages, err := e.db.GetMessages(req.SessionId)
+	if err != nil {
+		return nil, err
+	}
+	var pbMsgs []*pb.ChatMessage
+	for _, m := range messages {
+		pbMsgs = append(pbMsgs, &pb.ChatMessage{
+			Id:        m.ID,
+			SessionId: m.SessionID,
+			Role:      m.Role,
+			Content:   m.Content,
+			Timestamp: m.Timestamp.Unix(),
+		})
+	}
+	return &pb.GetHistoryResponse{Messages: pbMsgs}, nil
+}
+
+// ResolveApproval implements ClientService.ResolveApproval.
+func (e *Engine) ResolveApproval(_ context.Context, req *pb.ApprovalResponse) (*pb.ApprovalAck, error) {
+	if e.tier3Manager == nil {
+		return &pb.ApprovalAck{Received: false}, nil
+	}
+	if err := e.tier3Manager.Decide(req.ApprovalId, req.Approved); err != nil {
+		return nil, err
+	}
+	return &pb.ApprovalAck{Received: true}, nil
+}
+
 // --- Internal helpers ---
 
 func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
@@ -998,6 +1429,9 @@ func (e *Engine) OAuthManager() *oauth.Manager { return e.oauthManager }
 
 // Tier3 returns the Tier 3 human-in-the-loop manager.
 func (e *Engine) Tier3() *Tier3Manager { return e.tier3Manager }
+
+// Broadcaster returns the event broadcaster for subscribing clients.
+func (e *Engine) Broadcaster() *EventBroadcaster { return e.broadcaster }
 
 // ConfigPath returns the path to the config.yaml file.
 func (e *Engine) ConfigPath() string {

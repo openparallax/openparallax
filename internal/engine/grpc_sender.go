@@ -6,10 +6,10 @@ import (
 
 // grpcEventSender adapts the gRPC stream to the EventSender interface.
 type grpcEventSender struct {
-	stream pb.PipelineService_ProcessMessageServer
+	stream pb.ClientService_SendMessageServer
 }
 
-func newGRPCEventSender(stream pb.PipelineService_ProcessMessageServer) EventSender {
+func newGRPCEventSender(stream pb.ClientService_SendMessageServer) EventSender {
 	return &grpcEventSender{stream: stream}
 }
 

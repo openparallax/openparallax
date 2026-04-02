@@ -4,31 +4,46 @@ option go_package = "github.com/openparallax/openparallax/internal/types/pb";
 
 import "openparallax/v1/types.proto";
 
-// PipelineService handles Agent-to-Engine communication.
-service PipelineService {
-  // ProcessMessage runs a user message through the full pipeline.
-  rpc ProcessMessage(ProcessMessageRequest) returns (stream PipelineEvent);
+// AgentService handles the bidirectional stream between the sandboxed Agent
+// process and the Engine. The Agent calls the LLM and proposes tool calls;
+// the Engine evaluates them through Shield and executes allowed tools.
+service AgentService {
+  // RunSession establishes a persistent bidirectional stream for the Agent's
+  // lifetime. The Engine sends directives (process a message, deliver tool
+  // results, shut down). The Agent sends events (tokens, tool proposals,
+  // response completions).
+  rpc RunSession(stream AgentEvent) returns (stream EngineDirective);
+}
+
+// ClientService handles external client connections (TUI, Web UI via gRPC,
+// channel adapters). Clients send messages and receive streamed pipeline events.
+service ClientService {
+  // SendMessage submits a user message and streams back pipeline events.
+  rpc SendMessage(ClientMessageRequest) returns (stream PipelineEvent);
 
   // ResolveApproval responds to a Tier 3 approval request.
   rpc ResolveApproval(ApprovalResponse) returns (ApprovalAck);
 
-  // ReadMemory reads a memory file.
-  rpc ReadMemory(MemoryReadRequest) returns (MemoryReadResponse);
-
-  // SearchMemory searches memory via FTS5.
-  rpc SearchMemory(MemorySearchRequest) returns (MemorySearchResponse);
-
-  // GetStatus returns agent status.
+  // GetStatus returns engine and agent status.
   rpc GetStatus(StatusRequest) returns (StatusResponse);
+
+  // ListSessions returns available sessions.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+
+  // GetHistory returns conversation history for a session.
+  rpc GetHistory(GetHistoryRequest) returns (GetHistoryResponse);
 
   // Shutdown initiates graceful shutdown.
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+}
 
-  // RegisterSubAgent authenticates a sub-agent process and returns its task assignment.
+// SubAgentService handles sub-agent process communication. Sub-agents follow
+// the same pattern as the main agent: sandboxed, call LLM, propose tools.
+service SubAgentService {
+  // RegisterSubAgent authenticates a sub-agent process and returns its task.
   rpc RegisterSubAgent(SubAgentRegisterRequest) returns (SubAgentRegisterResponse);
 
-  // SubAgentExecuteTool forwards a tool call from a sub-agent to the engine for
-  // Shield evaluation and execution.
+  // SubAgentExecuteTool forwards a tool call from a sub-agent to the engine.
   rpc SubAgentExecuteTool(SubAgentToolRequest) returns (SubAgentToolResponse);
 
   // SubAgentComplete reports that a sub-agent has finished its task.
@@ -38,7 +53,183 @@ service PipelineService {
   rpc SubAgentFailed(SubAgentFailedRequest) returns (SubAgentFailedResponse);
 }
 
-// ProcessMessageRequest is the main pipeline input.
+// --- AgentService messages ---
+
+// EngineDirective is a command from the Engine to the Agent.
+message EngineDirective {
+  oneof directive {
+    ProcessRequest process = 1;
+    ToolResultDelivery tool_result = 2;
+    ToolDefsDelivery tool_defs = 3;
+    ShutdownDirective shutdown = 4;
+  }
+}
+
+// ProcessRequest tells the Agent to process a user message.
+message ProcessRequest {
+  string session_id = 1;
+  string message_id = 2;
+  string content = 3;
+  SessionMode mode = 4;
+  string source = 5;
+}
+
+// ToolResultDelivery delivers the result of a tool the Agent proposed.
+message ToolResultDelivery {
+  string call_id = 1;
+  string content = 2;
+  bool is_error = 3;
+}
+
+// ToolDefsDelivery sends available tool definitions to the Agent.
+message ToolDefsDelivery {
+  repeated ToolDef tools = 1;
+}
+
+// ToolDef describes a single tool available to the Agent.
+message ToolDef {
+  string name = 1;
+  string description = 2;
+  string parameters_json = 3;
+  string group = 4;
+}
+
+// ShutdownDirective tells the Agent to shut down gracefully.
+message ShutdownDirective {
+  string reason = 1;
+}
+
+// AgentEvent is an event from the Agent to the Engine.
+message AgentEvent {
+  oneof event {
+    AgentReady ready = 1;
+    LLMTokenEmitted llm_token_emitted = 2;
+    ToolCallProposed tool_proposal = 3;
+    ToolDefsRequest tool_defs_request = 4;
+    MemoryFlush memory_flush = 5;
+    AgentResponseComplete response_complete = 6;
+    AgentError agent_error = 7;
+  }
+}
+
+// AgentReady signals the Agent is initialized and waiting for directives.
+message AgentReady {
+  string agent_id = 1;
+}
+
+// LLMTokenEmitted carries a single streaming token from the LLM.
+message LLMTokenEmitted {
+  string session_id = 1;
+  string message_id = 2;
+  string text = 3;
+}
+
+// ToolCallProposed signals the LLM wants to call a tool.
+message ToolCallProposed {
+  string session_id = 1;
+  string message_id = 2;
+  string call_id = 3;
+  string tool_name = 4;
+  string arguments_json = 5;
+}
+
+// ToolDefsRequest asks the Engine for available tool definitions.
+message ToolDefsRequest {
+  repeated string groups = 1;
+}
+
+// MemoryFlush sends compaction facts for the Engine to persist.
+message MemoryFlush {
+  string content = 1;
+}
+
+// AgentResponseComplete signals the Agent has finished processing a message.
+message AgentResponseComplete {
+  string session_id = 1;
+  string message_id = 2;
+  string content = 3;
+  repeated Thought thoughts = 4;
+  TokenUsage usage = 5;
+}
+
+// Thought records a reasoning step or tool call during processing.
+message Thought {
+  string stage = 1;
+  string summary = 2;
+  string detail_json = 3;
+}
+
+// TokenUsage tracks LLM token consumption for a single message.
+message TokenUsage {
+  int32 input_tokens = 1;
+  int32 output_tokens = 2;
+  int32 cache_read_tokens = 3;
+  int32 cache_write_tokens = 4;
+}
+
+// AgentError reports an error during Agent processing.
+message AgentError {
+  string session_id = 1;
+  string message_id = 2;
+  string code = 3;
+  string message = 4;
+  bool recoverable = 5;
+}
+
+// --- ClientService messages ---
+
+// ClientMessageRequest is a user message from a connected client.
+message ClientMessageRequest {
+  string content = 1;
+  string session_id = 2;
+  SessionMode mode = 3;
+  string source = 4;
+}
+
+// ListSessionsRequest asks for available sessions.
+message ListSessionsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+// ListSessionsResponse returns available sessions.
+message ListSessionsResponse {
+  repeated SessionInfo sessions = 1;
+}
+
+// SessionInfo is a summary of a session.
+message SessionInfo {
+  string id = 1;
+  string title = 2;
+  SessionMode mode = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+  int32 message_count = 6;
+}
+
+// GetHistoryRequest asks for conversation history.
+message GetHistoryRequest {
+  string session_id = 1;
+  int32 limit = 2;
+}
+
+// GetHistoryResponse returns conversation messages.
+message GetHistoryResponse {
+  repeated ChatMessage messages = 1;
+}
+
+// ChatMessage is a single message in a conversation.
+message ChatMessage {
+  string id = 1;
+  string session_id = 2;
+  string role = 3;
+  string content = 4;
+  int64 timestamp = 5;
+}
+
+// --- Legacy compatibility ---
+
+// ProcessMessageRequest is kept for backward compatibility during migration.
 message ProcessMessageRequest {
   string content = 1;
   string session_id = 2;

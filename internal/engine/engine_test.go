@@ -131,7 +131,7 @@ func TestEngineGRPCHealth(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = conn.Close() }()
 
-	client := pb.NewPipelineServiceClient(conn)
+	client := pb.NewClientServiceClient(conn)
 	resp, err := client.GetStatus(context.Background(), &pb.StatusRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, "TestBot", resp.AgentName)
@@ -165,13 +165,13 @@ func TestEngineProcessMessage(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = conn.Close() }()
 
-	client := pb.NewPipelineServiceClient(conn)
-	stream, err := client.ProcessMessage(context.Background(), &pb.ProcessMessageRequest{
+	client := pb.NewClientServiceClient(conn)
+	stream, err := client.SendMessage(context.Background(), &pb.ClientMessageRequest{
 		Content:   "Say exactly: hello",
 		SessionId: sessionID,
-		MessageId: "msg-test-001",
-		Mode:      pb.SessionMode_NORMAL,
-		Source:    "test",
+
+		Mode:   pb.SessionMode_NORMAL,
+		Source: "test",
 	})
 	require.NoError(t, err)
 
@@ -224,13 +224,13 @@ func TestEngineProcessMessageEmptyContent(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = conn.Close() }()
 
-	client := pb.NewPipelineServiceClient(conn)
-	stream, err := client.ProcessMessage(context.Background(), &pb.ProcessMessageRequest{
+	client := pb.NewClientServiceClient(conn)
+	stream, err := client.SendMessage(context.Background(), &pb.ClientMessageRequest{
 		Content:   "",
 		SessionId: sessionID,
-		MessageId: "msg-test-002",
-		Mode:      pb.SessionMode_NORMAL,
-		Source:    "test",
+
+		Mode:   pb.SessionMode_NORMAL,
+		Source: "test",
 	})
 	require.NoError(t, err)
 
@@ -267,21 +267,21 @@ func TestEngineShutdownRPC(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = conn.Close() }()
 
-	client := pb.NewPipelineServiceClient(conn)
+	client := pb.NewClientServiceClient(conn)
 	resp, err := client.Shutdown(context.Background(), &pb.ShutdownRequest{})
 	require.NoError(t, err)
 	assert.True(t, resp.Clean)
 }
 
 // helperSendAndCollect sends a message and collects all pipeline events.
-func helperSendAndCollect(t *testing.T, client pb.PipelineServiceClient, sessionID, content string) map[pb.PipelineEventType]bool {
+func helperSendAndCollect(t *testing.T, client pb.ClientServiceClient, sessionID, content string) map[pb.PipelineEventType]bool {
 	t.Helper()
-	stream, err := client.ProcessMessage(context.Background(), &pb.ProcessMessageRequest{
+	stream, err := client.SendMessage(context.Background(), &pb.ClientMessageRequest{
 		Content:   content,
 		SessionId: sessionID,
-		MessageId: fmt.Sprintf("msg-%d", time.Now().UnixNano()),
-		Mode:      pb.SessionMode_NORMAL,
-		Source:    "test",
+
+		Mode:   pb.SessionMode_NORMAL,
+		Source: "test",
 	})
 	require.NoError(t, err)
 
@@ -321,7 +321,7 @@ func TestEngineFullPipelineReadFile(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = conn.Close() }()
 
-	client := pb.NewPipelineServiceClient(conn)
+	client := pb.NewClientServiceClient(conn)
 
 	// Ask to read SOUL.md which exists in the workspace.
 	events := helperSendAndCollect(t, client, sessionID, "read the file SOUL.md")
@@ -351,7 +351,7 @@ func TestEngineConversationMode(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = conn.Close() }()
 
-	client := pb.NewPipelineServiceClient(conn)
+	client := pb.NewClientServiceClient(conn)
 
 	// Pure conversation — should not trigger action execution.
 	events := helperSendAndCollect(t, client, sessionID, "what is 2+2")

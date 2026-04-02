@@ -53,7 +53,7 @@ func (a *Adapter) Run(ctx context.Context) error {
 	}
 	defer func() { _ = conn.Close() }()
 
-	client := pb.NewPipelineServiceClient(conn)
+	client := pb.NewClientServiceClient(conn)
 
 	// Read-only DB connection for session listing and history loading.
 	// The engine handles all writes. This avoids SQLite write lock conflicts.
@@ -74,7 +74,7 @@ func (a *Adapter) Run(ctx context.Context) error {
 
 // model is the bubbletea model for the CLI.
 type model struct {
-	client    pb.PipelineServiceClient
+	client    pb.ClientServiceClient
 	db        *storage.DB
 	sessionID string
 	otrMode   bool
@@ -110,7 +110,7 @@ type (
 	newSession struct{}
 )
 
-func newModel(ctx context.Context, client pb.PipelineServiceClient, db *storage.DB, sessionID, agentName string) *model {
+func newModel(ctx context.Context, client pb.ClientServiceClient, db *storage.DB, sessionID, agentName string) *model {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message..."
 	ta.Focus()
@@ -425,17 +425,14 @@ func (m *model) otrStyle(s string) string {
 // into the bubbletea update loop via p.Send().
 func (m *model) startStreaming(text string) {
 	go func() {
-		msgID := crypto.NewID()
-
 		mode := pb.SessionMode_NORMAL
 		if m.otrMode {
 			mode = pb.SessionMode_OTR
 		}
 
-		stream, err := m.client.ProcessMessage(m.ctx, &pb.ProcessMessageRequest{
+		stream, err := m.client.SendMessage(m.ctx, &pb.ClientMessageRequest{
 			Content:   text,
 			SessionId: m.sessionID,
-			MessageId: msgID,
 			Mode:      mode,
 			Source:    "cli",
 		})
