@@ -18,6 +18,7 @@ import (
 	"github.com/openparallax/openparallax/internal/channels/whatsapp"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/engine/executors"
+	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/registry"
 	"github.com/openparallax/openparallax/internal/sandbox"
 	"github.com/openparallax/openparallax/internal/types"
@@ -96,7 +97,15 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		if webPort == 0 {
 			webPort = 3000
 		}
-		webServer = web.NewServer(eng, eng.Log(), webPort)
+		webHost := cfg.Web.Host
+		if webHost == "" {
+			webHost = "127.0.0.1"
+		}
+		webServer = web.NewServer(eng, eng.Log(), web.ServerConfig{
+			Host:         webHost,
+			Port:         webPort,
+			PasswordHash: cfg.Web.PasswordHash,
+		})
 
 		// Bind the port first so we know it works before opening the browser.
 		if listenErr := webServer.Listen(); listenErr != nil {
@@ -167,7 +176,7 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	if agentName == "" {
 		agentName = types.DefaultIdentity.Name
 	}
-	am := newAgentManager(grpcAddr, agentName, cfg.Workspace)
+	am := newAgentManager(grpcAddr, agentName, cfg.Workspace, llm.APIHost(cfg.LLM))
 	if amErr := am.spawnAgent(); amErr != nil {
 		eng.Log().Error("agent_spawn_failed", "error", amErr)
 		// Fall through — the engine still serves the web UI even without the CLI agent.
@@ -236,6 +245,7 @@ type agentManager struct {
 	grpcAddr  string
 	agentName string
 	workspace string
+	llmHost   string
 
 	mu        sync.Mutex
 	cmd       *exec.Cmd
@@ -244,11 +254,12 @@ type agentManager struct {
 	cleanExit bool // true when agent exited with code 0 (e.g. /quit)
 }
 
-func newAgentManager(grpcAddr, agentName, workspace string) *agentManager {
+func newAgentManager(grpcAddr, agentName, workspace, llmHost string) *agentManager {
 	return &agentManager{
 		grpcAddr:  grpcAddr,
 		agentName: agentName,
 		workspace: workspace,
+		llmHost:   llmHost,
 		done:      make(chan struct{}),
 	}
 }
@@ -268,22 +279,21 @@ func (am *agentManager) spawnAgent() error {
 		"--name", am.agentName,
 		"--workspace", am.workspace)
 
-	// Agent opens /dev/tty directly for bubbletea TUI, so stdout
-	// is not needed. Discard it to avoid pipe buffer issues.
+	// Agent is headless — discard stdout/stderr to avoid pipe issues.
 	devNull, openErr := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if openErr == nil {
 		am.cmd.Stdout = devNull
 	}
 	am.cmd.Stderr = os.Stderr
-	// stdin is inherited so the agent can open /dev/tty.
 
 	// Apply sandbox wrapping (macOS sandbox-exec, Windows Job Objects).
 	// On Linux, the agent self-sandboxes via Landlock on startup.
 	sb := sandbox.New()
 	if sb.Available() {
 		_ = sb.WrapCommand(am.cmd, sandbox.Config{
-			AllowedReadPaths:  []string{executable},
-			AllowedTCPConnect: []string{am.grpcAddr},
+			AllowedReadPaths:  []string{executable, am.workspace},
+			AllowedWritePaths: []string{},
+			AllowedTCPConnect: []string{am.grpcAddr, am.llmHost},
 			AllowProcessSpawn: false,
 		})
 	}

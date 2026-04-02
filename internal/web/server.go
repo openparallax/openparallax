@@ -18,24 +18,51 @@ import (
 // Server is the HTTP server for the Web UI.
 // It serves the embedded Svelte application, REST API endpoints,
 // and a WebSocket connection for real-time chat.
+// Server is the HTTP server for the Web UI.
+// It serves the embedded Svelte application, REST API endpoints,
+// and a WebSocket connection for real-time chat.
 type Server struct {
 	engine   *engine.Engine
 	log      *logging.Logger
 	port     int
+	host     string
 	server   *http.Server
 	listener net.Listener
+	auth     *authConfig
 
 	connsMu sync.Mutex
 	conns   map[*websocket.Conn]context.Context
 }
 
+// ServerConfig holds web server configuration.
+type ServerConfig struct {
+	Host         string // bind host (default "127.0.0.1")
+	Port         int
+	PasswordHash string // bcrypt hash for remote auth (empty = no auth)
+}
+
 // NewServer creates a web server.
-func NewServer(eng *engine.Engine, log *logging.Logger, port int) *Server {
+func NewServer(eng *engine.Engine, log *logging.Logger, cfg ServerConfig) *Server {
+	host := cfg.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
 	s := &Server{
 		engine: eng,
 		log:    log,
-		port:   port,
+		port:   cfg.Port,
+		host:   host,
 		conns:  make(map[*websocket.Conn]context.Context),
+	}
+
+	// Enable auth for non-localhost bindings.
+	if !isLocalhost(host) && cfg.PasswordHash != "" {
+		s.auth = &authConfig{
+			passwordHash: cfg.PasswordHash,
+			sessionToken: GenerateSessionToken(),
+			isRemote:     true,
+		}
 	}
 
 	log.AddHook(func(entry logging.LogEntry) {
@@ -139,10 +166,14 @@ func (s *Server) Listen() error {
 		fileServer.ServeHTTP(w, r)
 	})
 
-	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
+	addr := fmt.Sprintf("%s:%d", s.host, s.port)
+	handler := withCORS(mux)
+	if s.auth != nil {
+		handler = withAuth(handler, s.auth)
+	}
 	s.server = &http.Server{
 		Addr:              addr,
-		Handler:           withCORS(mux),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      0, // WebSocket needs unlimited write time.
 		IdleTimeout:       120 * time.Second,

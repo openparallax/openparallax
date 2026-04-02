@@ -315,6 +315,10 @@ type WebConfig struct {
 	// Enabled controls whether the Web UI is served.
 	Enabled bool `yaml:"enabled" json:"enabled"`
 
+	// Host is the bind address. Default "127.0.0.1" (localhost only).
+	// Set to "0.0.0.0" for remote access (requires PasswordHash).
+	Host string `yaml:"host,omitempty" json:"host,omitempty"`
+
 	// Port is the HTTP listen port.
 	Port int `yaml:"port" json:"port"`
 
@@ -324,6 +328,10 @@ type WebConfig struct {
 
 	// Auth enables cookie-based authentication.
 	Auth bool `yaml:"auth" json:"auth"`
+
+	// PasswordHash is the bcrypt hash of the web UI password.
+	// Required when Host is non-localhost.
+	PasswordHash string `yaml:"password_hash,omitempty" json:"password_hash,omitempty"`
 }
 
 // AgentsConfig configures sub-agent orchestration defaults.
