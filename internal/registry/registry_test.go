@@ -15,7 +15,7 @@ func TestLoadMissingFile(t *testing.T) {
 	reg, err := Load(path)
 	require.NoError(t, err)
 	assert.Empty(t, reg.Agents)
-	assert.Equal(t, defaultNextPort, reg.NextWebPort)
+	assert.Equal(t, defaultNextPort, reg.AllocatePort())
 }
 
 func TestAddAndReload(t *testing.T) {
@@ -33,7 +33,7 @@ func TestAddAndReload(t *testing.T) {
 		CreatedAt:  time.Now(),
 	}
 	require.NoError(t, reg.Add(rec))
-	assert.Equal(t, 3101, reg.NextWebPort)
+	assert.Equal(t, 3101, reg.AllocatePort())
 
 	// Reload from disk.
 	reg2, err := Load(path)
@@ -116,13 +116,23 @@ func TestAllocatePort(t *testing.T) {
 	reg, err := Load(path)
 	require.NoError(t, err)
 
+	// First allocation starts at base port.
 	p1 := reg.AllocatePort()
-	p2 := reg.AllocatePort()
-	p3 := reg.AllocatePort()
-
 	assert.Equal(t, 3100, p1)
+
+	// Register an agent on that port, next allocation skips it.
+	require.NoError(t, reg.Add(AgentRecord{Name: "A", Slug: "a", WebPort: 3100, GRPCPort: 4100, CreatedAt: time.Now()}))
+	p2 := reg.AllocatePort()
 	assert.Equal(t, 3101, p2)
+
+	require.NoError(t, reg.Add(AgentRecord{Name: "B", Slug: "b", WebPort: 3101, GRPCPort: 4101, CreatedAt: time.Now()}))
+	p3 := reg.AllocatePort()
 	assert.Equal(t, 3102, p3)
+
+	// Delete the first agent — its port is reclaimed.
+	require.NoError(t, reg.Remove("a"))
+	p4 := reg.AllocatePort()
+	assert.Equal(t, 3100, p4)
 }
 
 func TestFindSingleNone(t *testing.T) {

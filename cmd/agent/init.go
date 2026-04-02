@@ -303,7 +303,6 @@ func runInit(_ *cobra.Command, args []string) error {
 
 	// ─── Step 4: Chat Model ─────────────────────────────────
 
-	modelInput = info.model
 	err = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -368,7 +367,9 @@ func runInit(_ *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  ✓ Connected to %s. Using %s.\n\n", info.label, modelInput)
 
-	// ─── Step 5: Shield Provider + Model ────────────────────
+	// ─── Step 5: Shield ─────────────────────────────────────
+	// Same flow as chat: provider → model + base URL + API key.
+	// Placeholders default to chat values when same provider.
 
 	shieldProviderOpts := []huh.Option[string]{
 		huh.NewOption(fmt.Sprintf("Same as chat  (%s)", info.label), llmProvider).Selected(true),
@@ -393,76 +394,106 @@ func runInit(_ *cobra.Command, args []string) error {
 	}
 
 	shieldInfo := providers[shieldProvider]
+	sameShieldProvider := shieldProvider == llmProvider
 
-	// If shield uses a different provider, collect its API key + base URL.
-	if shieldProvider != llmProvider {
-		if shieldProvider != "ollama" {
-			// Check if key is in environment.
-			if envKey := os.Getenv(shieldInfo.apiKeyEnv); envKey != "" {
-				shieldAPIKey = envKey
-				fmt.Printf("  ✓ Using %s API key from environment for Shield.\n", shieldInfo.label)
-			} else {
-				keyURL := apiKeyURL(shieldProvider)
-				err = huh.NewForm(
-					huh.NewGroup(
-						huh.NewInput().
-							Title(fmt.Sprintf("Enter your %s API key for Shield:", shieldInfo.label)).
-							Description(fmt.Sprintf("Get one at %s", keyURL)).
-							Value(&shieldAPIKey).
-							EchoMode(huh.EchoModePassword).
-							Validate(func(s string) error {
-								if strings.TrimSpace(s) == "" {
-									return fmt.Errorf("API key is required")
-								}
-								return nil
-							}),
-					),
-				).Run()
-				if err != nil {
-					return err
-				}
-				shieldAPIKey = strings.TrimSpace(shieldAPIKey)
-			}
-
-			if shieldProvider == "openai" {
-				err = huh.NewForm(
-					huh.NewGroup(
-						huh.NewInput().
-							Title("Shield API base URL (optional):").
-							Description("Leave empty for OpenAI. For compatible providers, enter their API URL.").
-							Value(&shieldBaseURL).
-							Placeholder("https://api.openai.com/v1"),
-					),
-				).Run()
-				if err != nil {
-					return err
-				}
-				shieldBaseURL = strings.TrimSpace(shieldBaseURL)
-			}
-		}
-	} else {
-		shieldAPIKey = apiKeyInput
-		shieldBaseURL = baseURLInput
+	shieldModelPH := shieldInfo.shieldModel
+	if sameShieldProvider {
+		shieldModelPH = modelInput
 	}
 
-	shieldModel = shieldInfo.shieldModel
-	err = huh.NewForm(
-		huh.NewGroup(
+	shieldFields := []huh.Field{
+		huh.NewInput().
+			Title("Shield model:").
+			Value(&shieldModel).
+			Placeholder(shieldModelPH),
+	}
+	if shieldProvider == "openai" {
+		ph := "https://api.openai.com/v1"
+		if sameShieldProvider && baseURLInput != "" {
+			ph = baseURLInput
+		}
+		shieldFields = append(shieldFields,
 			huh.NewInput().
-				Title("Shield model:").
-				Description("A smaller/cheaper model used for security evaluations.").
-				Value(&shieldModel).
-				Placeholder(shieldInfo.shieldModel),
-		),
-	).Run()
+				Title("Shield base URL (optional):").
+				Value(&shieldBaseURL).
+				Placeholder(ph),
+		)
+	}
+	if shieldProvider != "ollama" {
+		shieldFields = append(shieldFields,
+			huh.NewInput().
+				Title("Shield API key:").
+				Description("Leave empty to reuse chat key.").
+				Value(&shieldAPIKey).
+				EchoMode(huh.EchoModePassword),
+		)
+	}
+	err = huh.NewForm(huh.NewGroup(shieldFields...)).Run()
 	if err != nil {
 		return err
 	}
 	if shieldModel == "" {
-		shieldModel = shieldInfo.shieldModel
+		shieldModel = shieldModelPH
+	}
+	shieldBaseURL = strings.TrimSpace(shieldBaseURL)
+	shieldAPIKey = strings.TrimSpace(shieldAPIKey)
+	if sameShieldProvider {
+		if shieldBaseURL == "" {
+			shieldBaseURL = baseURLInput
+		}
+		if shieldAPIKey == "" {
+			shieldAPIKey = apiKeyInput
+		}
 	}
 
-	// ─── Step 6: Embedding ─────────────────────────────────
+	// Connection test for shield.
+	fmt.Printf("  Testing Shield connection to %s...\n", shieldInfo.label)
+	shieldTestCfg := types.LLMConfig{
+		Provider: shieldProvider,
+		Model:    shieldModel,
+		BaseURL:  shieldBaseURL,
+	}
+	if testErr := llm.TestConnection(shieldTestCfg, shieldAPIKey); testErr != nil {
+		fmt.Printf("  ✗ Shield connection failed: %s\n", testErr)
+		fmt.Println("  Review your settings and try again.")
+
+		retryFields := []huh.Field{
+			huh.NewInput().
+				Title("Shield model:").
+				Value(&shieldModel),
+		}
+		if shieldProvider == "openai" {
+			retryFields = append(retryFields,
+				huh.NewInput().
+					Title("Shield base URL:").
+					Value(&shieldBaseURL),
+			)
+		}
+		if shieldProvider != "ollama" {
+			retryFields = append(retryFields,
+				huh.NewInput().
+					Title("Shield API key:").
+					Value(&shieldAPIKey).
+					EchoMode(huh.EchoModePassword),
+			)
+		}
+		err = huh.NewForm(huh.NewGroup(retryFields...)).Run()
+		if err != nil {
+			return err
+		}
+		shieldAPIKey = strings.TrimSpace(shieldAPIKey)
+		shieldBaseURL = strings.TrimSpace(shieldBaseURL)
+		shieldTestCfg.Model = shieldModel
+		shieldTestCfg.BaseURL = shieldBaseURL
+		if testErr2 := llm.TestConnection(shieldTestCfg, shieldAPIKey); testErr2 != nil {
+			return fmt.Errorf("shield connection to %s failed: %w", shieldInfo.label, testErr2)
+		}
+	}
+	fmt.Printf("  ✓ Shield connected. Using %s.\n\n", shieldModel)
+
+	// ─── Step 6: Embedding ──────────────────────────────────
+	// Same flow: provider → model + base URL + API key.
+	// Has a "Skip" option for keyword-only search.
 
 	embAPIKeyEnv := ""
 	embModel := ""
@@ -473,8 +504,6 @@ func runInit(_ *cobra.Command, args []string) error {
 		huh.NewOption("Ollama  (local embedding model)", "ollama"),
 		huh.NewOption("Skip    (keyword search only)", ""),
 	}
-
-	// Pre-select and annotate detected keys.
 	if os.Getenv("OPENAI_API_KEY") != "" {
 		embOpts[0] = huh.NewOption("OpenAI  (text-embedding-3-small — ✓ key detected)", "openai").Selected(true)
 	}
@@ -501,7 +530,8 @@ func runInit(_ *cobra.Command, args []string) error {
 		if defaultEmb == "" {
 			defaultEmb = "embedding-model"
 		}
-		embModel = defaultEmb
+		embAPIKeyEnv = defaultEmbeddingKeyEnvs[embProvider]
+		sameEmbProvider := embProvider == llmProvider
 
 		embFields := []huh.Field{
 			huh.NewInput().
@@ -510,15 +540,26 @@ func runInit(_ *cobra.Command, args []string) error {
 				Placeholder(defaultEmb),
 		}
 		if embProvider == "openai" {
+			ph := "https://api.openai.com/v1"
+			if sameEmbProvider && baseURLInput != "" {
+				ph = baseURLInput
+			}
 			embFields = append(embFields,
 				huh.NewInput().
-					Title("Embedding API base URL (optional):").
-					Description("Leave empty for OpenAI. For compatible providers, enter their API URL.").
+					Title("Embedding base URL (optional):").
 					Value(&embBaseURL).
-					Placeholder("https://api.openai.com/v1"),
+					Placeholder(ph),
 			)
 		}
-
+		if embProvider != "ollama" {
+			embFields = append(embFields,
+				huh.NewInput().
+					Title("Embedding API key:").
+					Description("Leave empty to reuse chat key.").
+					Value(&embAPIKey).
+					EchoMode(huh.EchoModePassword),
+			)
+		}
 		err = huh.NewForm(huh.NewGroup(embFields...)).Run()
 		if err != nil {
 			return err
@@ -527,27 +568,7 @@ func runInit(_ *cobra.Command, args []string) error {
 			embModel = defaultEmb
 		}
 		embBaseURL = strings.TrimSpace(embBaseURL)
-
-		if embProvider != "ollama" {
-			embAPIKeyEnv = defaultEmbeddingKeyEnvs[embProvider]
-
-			if envKey := os.Getenv(embAPIKeyEnv); envKey != "" {
-				embAPIKey = envKey
-				fmt.Printf("  ✓ Using %s API key from environment for embeddings.\n\n", embProvider)
-			} else {
-				err = huh.NewForm(
-					huh.NewGroup(
-						huh.NewInput().
-							Title(fmt.Sprintf("Enter your %s API key for embeddings:", embProvider)).
-							Value(&embAPIKey).
-							EchoMode(huh.EchoModePassword),
-					),
-				).Run()
-				if err != nil {
-					return err
-				}
-			}
-		}
+		embAPIKey = strings.TrimSpace(embAPIKey)
 	}
 
 	// ─── Step 6: Workspace ──────────────────────────────────

@@ -51,8 +51,9 @@ type Registry struct {
 	// Agents is the list of all registered agents.
 	Agents []AgentRecord `json:"agents"`
 
-	// NextWebPort is the next port to assign to a new agent.
-	NextWebPort int `json:"next_port"`
+	// NextWebPort is kept for JSON backwards compatibility but no longer
+	// drives allocation. AllocatePort scans for gaps instead.
+	NextWebPort int `json:"next_port,omitempty"`
 
 	// path is the filesystem location of agents.json.
 	path string
@@ -68,11 +69,10 @@ func DefaultPath() (string, error) {
 }
 
 // Load reads the registry from disk. If the file does not exist, an empty
-// registry is returned with NextWebPort set to the default starting port.
+// registry is returned.
 func Load(path string) (*Registry, error) {
 	r := &Registry{
-		NextWebPort: defaultNextPort,
-		path:        path,
+		path: path,
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -126,9 +126,6 @@ func (r *Registry) Add(rec AgentRecord) error {
 		}
 	}
 	r.Agents = append(r.Agents, rec)
-	if rec.WebPort >= r.NextWebPort {
-		r.NextWebPort = rec.WebPort + 1
-	}
 	return r.Save()
 }
 
@@ -167,28 +164,34 @@ func (r *Registry) List() []AgentRecord {
 	return result
 }
 
-// AllocatePort returns the next available web port and increments the counter.
-// The caller must call Save() to persist the change (Add does this automatically).
+// AllocatePort returns the lowest available web port starting from the
+// base port. Ports freed by deleted agents are reused.
 func (r *Registry) AllocatePort() int {
-	port := r.NextWebPort
-	r.NextWebPort++
+	used := make(map[int]bool, len(r.Agents))
+	for _, a := range r.Agents {
+		used[a.WebPort] = true
+	}
+	port := defaultNextPort
+	for used[port] {
+		port++
+	}
 	return port
 }
 
 // FindSingle returns the sole agent if exactly one is registered.
 // Returns an error listing available agents otherwise.
-func (r *Registry) FindSingle() (*AgentRecord, error) {
+func (r *Registry) FindSingle() (AgentRecord, error) {
 	switch len(r.Agents) {
 	case 0:
-		return nil, fmt.Errorf("no agents registered: run 'openparallax init' first")
+		return AgentRecord{}, fmt.Errorf("no agents registered: run 'openparallax init' first")
 	case 1:
-		return &r.Agents[0], nil
+		return r.Agents[0], nil
 	default:
 		names := make([]string, len(r.Agents))
 		for i, a := range r.Agents {
 			names[i] = a.Name
 		}
-		return nil, fmt.Errorf("multiple agents registered (%s): specify an agent name", strings.Join(names, ", "))
+		return AgentRecord{}, fmt.Errorf("multiple agents registered (%s): specify an agent name", strings.Join(names, ", "))
 	}
 }
 
