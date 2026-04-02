@@ -23,6 +23,7 @@ var (
 	startConfigPath string
 	startVerbose    bool
 	startDaemon     bool
+	startTUI        bool
 	startPort       int
 )
 
@@ -38,6 +39,7 @@ func init() {
 	startCmd.Flags().StringVarP(&startConfigPath, "config", "c", "", "path to config.yaml")
 	startCmd.Flags().BoolVarP(&startVerbose, "verbose", "v", false, "enable verbose pipeline logging")
 	startCmd.Flags().BoolVarP(&startDaemon, "daemon", "d", false, "start in background (daemon mode)")
+	startCmd.Flags().BoolVar(&startTUI, "tui", false, "auto-attach TUI in foreground")
 	startCmd.Flags().IntVar(&startPort, "port", 0, "override web UI port")
 	rootCmd.AddCommand(startCmd)
 }
@@ -124,13 +126,31 @@ func runStart(_ *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Auto-attach TUI if requested.
+	if startTUI {
+		go func() {
+			grpcAddr := fmt.Sprintf("localhost:%d", port)
+			name := cfg.Identity.Name
+			if name == "" {
+				name = "Atlas"
+			}
+			if tuiErr := attachTUI(ctx, grpcAddr, name, workspace); tuiErr != nil {
+				fmt.Fprintf(os.Stderr, "TUI exited: %s\n", tuiErr)
+			}
+			// When TUI exits (user quit), shut down if no daemon mode.
+			sigCh <- syscall.SIGTERM
+		}()
+	}
+
 	// Foreground mode: wait for engine to exit or signal.
 	select {
 	case <-pm.done:
 		_ = registry.RemovePID(workspace)
 		return nil
 	case <-sigCh:
-		fmt.Println("\nShutting down...")
+		if !startTUI {
+			fmt.Println("\nShutting down...")
+		}
 		cancel()
 		pm.stopEngine()
 		_ = registry.RemovePID(workspace)
