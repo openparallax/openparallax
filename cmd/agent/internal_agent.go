@@ -74,17 +74,21 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Canary probe: verify sandbox is active.
+	// Canary probes: verify sandbox enforcement per platform.
 	canary := sandbox.VerifyCanary()
+	_ = sandbox.WriteCanaryResult(agentWorkspace, canary)
+	fmt.Fprintf(os.Stderr, "sandbox: %s\n", canary.Summary)
+
 	switch canary.Status {
 	case "sandboxed":
-		fmt.Fprintf(os.Stderr, "sandbox: verified (canary probe blocked on %s)\n", canary.CanaryPath)
-	case "unsandboxed":
-		fmt.Fprintf(os.Stderr, "sandbox: NOT active (canary probe succeeded on %s)\n", canary.CanaryPath)
-	default:
-		fmt.Fprintf(os.Stderr, "sandbox: verification inconclusive: %s\n", canary.Error)
+		// All applicable probes blocked — proceed.
+	case "unsandboxed", "partial":
+		// Sandbox failed to enforce — refuse to start.
+		return fmt.Errorf("sandbox verification failed: %s", canary.Summary)
+	case "unavailable":
+		// No sandbox mechanism available — warn but allow on unsupported platforms.
+		fmt.Fprintf(os.Stderr, "sandbox: WARNING — no sandbox available on this platform, running unprotected\n")
 	}
-	_ = sandbox.WriteCanaryResult(agentWorkspace, canary)
 
 	// Create LLM provider.
 	provider, err := llm.NewProvider(cfg.LLM)

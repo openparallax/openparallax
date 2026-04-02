@@ -10,67 +10,77 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCanaryPathPerPlatform(t *testing.T) {
-	path := canaryPath()
-	switch runtime.GOOS {
-	case "linux", "darwin":
-		assert.Equal(t, "/etc/passwd", path)
-	case "windows":
-		assert.Contains(t, path, "SAM")
-	}
-}
-
 func TestVerifyCanaryUnsandboxed(t *testing.T) {
-	// Without a sandbox applied, the canary should succeed (open works),
-	// meaning the result is "unsandboxed".
+	// Without a sandbox applied, probes should detect no enforcement.
 	result := VerifyCanary()
-	// On a normal test environment, /etc/passwd is readable.
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
-		assert.Equal(t, "unsandboxed", result.Status)
+		// At least file_read and file_write probes run and should fail (not blocked).
 		assert.False(t, result.Verified)
-		assert.False(t, result.CanaryBlocked)
-		assert.Equal(t, "/etc/passwd", result.CanaryPath)
-		assert.Equal(t, runtime.GOOS, result.Platform)
-		assert.NotEmpty(t, result.Mechanism)
+		assert.True(t, result.Failed() > 0, "expected at least one failed probe")
+	}
+	assert.Equal(t, runtime.GOOS, result.Platform)
+	assert.NotEmpty(t, result.Mechanism)
+	assert.NotEmpty(t, result.Summary)
+	assert.False(t, result.Timestamp.IsZero())
+}
+
+func TestVerifyCanaryProbeResults(t *testing.T) {
+	result := VerifyCanary()
+	// Every probe should have a name and status.
+	for _, p := range result.Probes {
+		assert.NotEmpty(t, p.Name, "probe must have a name")
+		assert.Contains(t, []string{"blocked", "failed", "skipped"}, p.Status,
+			"probe %s has invalid status %q", p.Name, p.Status)
 	}
 }
 
-func TestVerifyCanaryFields(t *testing.T) {
+func TestVerifyCanarySummary(t *testing.T) {
 	result := VerifyCanary()
-	assert.NotEmpty(t, result.Status)
-	assert.NotEmpty(t, result.CanaryPath)
-	assert.NotEmpty(t, result.Platform)
-	assert.NotEmpty(t, result.Mechanism)
-	assert.False(t, result.Timestamp.IsZero())
+	assert.Contains(t, result.Summary, "probes blocked")
+}
+
+func TestCanaryResultHelpers(t *testing.T) {
+	r := CanaryResult{
+		Probes: []ProbeResult{
+			{Name: "file_read", Status: "blocked"},
+			{Name: "file_write", Status: "failed"},
+			{Name: "network", Status: "skipped"},
+		},
+	}
+	assert.Equal(t, 1, r.Blocked())
+	assert.Equal(t, 1, r.Failed())
+	assert.Equal(t, 1, r.Skipped())
 }
 
 func TestWriteAndReadCanaryResult(t *testing.T) {
 	workspace := t.TempDir()
 
 	result := CanaryResult{
-		Verified:      true,
-		Status:        "sandboxed",
-		CanaryPath:    "/etc/passwd",
-		CanaryBlocked: true,
-		Platform:      "linux",
-		Mechanism:     "landlock",
+		Verified:  true,
+		Status:    "sandboxed",
+		Platform:  "linux",
+		Mechanism: "landlock",
+		Probes: []ProbeResult{
+			{Name: "file_read", Status: "blocked", Target: "/etc/shadow"},
+			{Name: "file_write", Status: "blocked", Target: "/tmp"},
+		},
+		Summary: "Sandbox verified: 2/2 probes blocked (file_read, file_write).",
 	}
 
 	require.NoError(t, WriteCanaryResult(workspace, result))
 
-	// Verify file exists.
 	path := filepath.Join(workspace, ".openparallax", "sandbox.status")
 	_, err := os.Stat(path)
 	require.NoError(t, err)
 
-	// Read back.
 	read := ReadCanaryResult(workspace)
 	assert.Equal(t, "sandboxed", read.Status)
 	assert.True(t, read.Verified)
-	assert.True(t, read.CanaryBlocked)
-	assert.Equal(t, "/etc/passwd", read.CanaryPath)
 	assert.Equal(t, "linux", read.Platform)
 	assert.Equal(t, "landlock", read.Mechanism)
+	assert.Len(t, read.Probes, 2)
+	assert.Equal(t, 2, read.Blocked())
+	assert.Equal(t, 0, read.Failed())
 }
 
 func TestReadCanaryResultMissing(t *testing.T) {
@@ -89,43 +99,20 @@ func TestReadCanaryResultCorrupt(t *testing.T) {
 	assert.Equal(t, "unknown", result.Status)
 }
 
-func TestCanaryResultSandboxedVsUnsandboxed(t *testing.T) {
-	// Verify result structure via write+read round-trip.
+func TestCanaryStatusPartial(t *testing.T) {
 	workspace := t.TempDir()
-
-	sandboxed := CanaryResult{
-		Verified:      true,
-		Status:        "sandboxed",
-		CanaryBlocked: true,
-	}
-	require.NoError(t, WriteCanaryResult(workspace, sandboxed))
-	read := ReadCanaryResult(workspace)
-	assert.True(t, read.Verified)
-	assert.True(t, read.CanaryBlocked)
-	assert.Equal(t, "sandboxed", read.Status)
-
-	unsandboxed := CanaryResult{
-		Verified:      false,
-		Status:        "unsandboxed",
-		CanaryBlocked: false,
-	}
-	require.NoError(t, WriteCanaryResult(workspace, unsandboxed))
-	read = ReadCanaryResult(workspace)
-	assert.False(t, read.Verified)
-	assert.False(t, read.CanaryBlocked)
-	assert.Equal(t, "unsandboxed", read.Status)
-}
-
-func TestCanaryResultInconclusive(t *testing.T) {
-	workspace := t.TempDir()
-	inconclusive := CanaryResult{
+	partial := CanaryResult{
 		Verified: false,
-		Status:   "inconclusive",
-		Error:    "file not found",
+		Status:   "partial",
+		Probes: []ProbeResult{
+			{Name: "file_read", Status: "blocked"},
+			{Name: "file_write", Status: "failed"},
+		},
 	}
-	require.NoError(t, WriteCanaryResult(workspace, inconclusive))
+	require.NoError(t, WriteCanaryResult(workspace, partial))
 	read := ReadCanaryResult(workspace)
 	assert.False(t, read.Verified)
-	assert.Equal(t, "inconclusive", read.Status)
-	assert.NotEmpty(t, read.Error)
+	assert.Equal(t, "partial", read.Status)
+	assert.Equal(t, 1, read.Blocked())
+	assert.Equal(t, 1, read.Failed())
 }

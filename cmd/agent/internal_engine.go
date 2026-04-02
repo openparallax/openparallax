@@ -188,27 +188,25 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	go func() {
 		time.Sleep(2 * time.Second)
 		canary := sandbox.ReadCanaryResult(cfg.Workspace)
-		switch {
-		case canary.Verified:
+		switch canary.Status {
+		case "sandboxed":
 			eng.SetSandboxStatus(true, canary.Mechanism, sbStatus.Version,
 				sbStatus.Filesystem, sbStatus.Network, "")
 			eng.Log().Info("sandbox_verified",
-				"status", canary.Status,
-				"canary_path", canary.CanaryPath,
-				"canary_blocked", canary.CanaryBlocked,
+				"summary", canary.Summary,
 				"mechanism", canary.Mechanism,
+				"blocked", canary.Blocked(),
 				"platform", canary.Platform)
-		case canary.Status == "unsandboxed":
+		case "partial", "unsandboxed":
 			eng.SetSandboxStatus(false, canary.Mechanism, 0,
-				false, false, "canary probe succeeded — sandbox not active")
-			eng.Log().Warn("sandbox_not_verified",
-				"status", canary.Status,
-				"canary_path", canary.CanaryPath,
+				false, false, canary.Summary)
+			eng.Log().Warn("sandbox_verification_failed",
+				"summary", canary.Summary,
 				"platform", canary.Platform)
-		case canary.Status != "unknown":
-			eng.Log().Warn("sandbox_inconclusive",
-				"status", canary.Status,
-				"error", canary.Error)
+		case "unavailable":
+			eng.Log().Warn("sandbox_unavailable",
+				"summary", canary.Summary,
+				"platform", canary.Platform)
 		}
 	}()
 

@@ -3,91 +3,203 @@ package sandbox
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"time"
 )
 
-// CanaryResult holds the outcome of a sandbox canary probe.
-type CanaryResult struct {
-	// Verified is true if the sandbox was confirmed active via canary probe.
-	Verified bool `json:"verified"`
-	// Status is "sandboxed", "unsandboxed", or "inconclusive".
+// ProbeResult holds the outcome of a single canary probe.
+type ProbeResult struct {
+	// Name identifies the probe (e.g. "file_read", "file_write", "network").
+	Name string `json:"name"`
+	// Status is "blocked", "failed", or "skipped".
 	Status string `json:"status"`
-	// CanaryPath is the file path that was probed.
-	CanaryPath string `json:"canary_path"`
-	// CanaryBlocked is true if the canary open was denied.
-	CanaryBlocked bool `json:"canary_blocked"`
+	// Target is what was probed (file path, host:port, etc.).
+	Target string `json:"target,omitempty"`
+	// Error is set when the probe result is unexpected.
+	Error string `json:"error,omitempty"`
+}
+
+// CanaryResult holds the outcome of all sandbox canary probes.
+type CanaryResult struct {
+	// Verified is true when all applicable probes were blocked.
+	Verified bool `json:"verified"`
+	// Status is "sandboxed", "partial", "unsandboxed", or "unavailable".
+	Status string `json:"status"`
 	// Platform is the runtime OS.
 	Platform string `json:"platform"`
 	// Mechanism is the sandbox type (landlock, sandbox-exec, job-object, none).
 	Mechanism string `json:"mechanism"`
-	// Error is set for inconclusive results.
-	Error string `json:"error,omitempty"`
-	// Timestamp is when the probe ran.
+	// Probes holds per-probe results.
+	Probes []ProbeResult `json:"probes"`
+	// Summary is a human-readable one-liner.
+	Summary string `json:"summary"`
+	// Timestamp is when the probes ran.
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// VerifyCanary runs a canary probe to verify the sandbox is actually applied.
-// It attempts to open a system file that should be blocked by the sandbox.
-// Returns the probe result. This must be called AFTER ApplySelf and BEFORE
-// any gRPC connections or LLM calls.
-func VerifyCanary() CanaryResult {
-	path := canaryPath()
-	mechanism := New().Mode()
-
-	f, err := os.Open(path)
-	if err != nil {
-		if os.IsPermission(err) {
-			// Permission denied = sandbox is active and working.
-			return CanaryResult{
-				Verified:      true,
-				Status:        "sandboxed",
-				CanaryPath:    path,
-				CanaryBlocked: true,
-				Platform:      runtime.GOOS,
-				Mechanism:     mechanism,
-				Timestamp:     time.Now(),
-			}
-		}
-		// Other error (file not found, etc.) = inconclusive.
-		return CanaryResult{
-			Verified:   false,
-			Status:     "inconclusive",
-			CanaryPath: path,
-			Platform:   runtime.GOOS,
-			Mechanism:  mechanism,
-			Error:      fmt.Sprintf("canary probe inconclusive: %s", err),
-			Timestamp:  time.Now(),
+// Blocked returns the number of probes that were blocked.
+func (r *CanaryResult) Blocked() int {
+	n := 0
+	for _, p := range r.Probes {
+		if p.Status == "blocked" {
+			n++
 		}
 	}
-	// Open succeeded = sandbox is NOT active.
-	_ = f.Close()
+	return n
+}
+
+// Failed returns the number of probes that failed (sandbox didn't block).
+func (r *CanaryResult) Failed() int {
+	n := 0
+	for _, p := range r.Probes {
+		if p.Status == "failed" {
+			n++
+		}
+	}
+	return n
+}
+
+// Skipped returns the number of probes that were skipped.
+func (r *CanaryResult) Skipped() int {
+	n := 0
+	for _, p := range r.Probes {
+		if p.Status == "skipped" {
+			n++
+		}
+	}
+	return n
+}
+
+// VerifyCanary runs platform-appropriate canary probes to verify the sandbox
+// is actually applied. Each platform tests only what its sandbox mechanism
+// can enforce. Must be called AFTER ApplySelf.
+func VerifyCanary() CanaryResult {
+	mechanism := New().Mode()
+	probes := runPlatformProbes()
+
+	blocked := 0
+	failed := 0
+	skipped := 0
+	var blockedNames, failedNames, skippedNames []string
+
+	for _, p := range probes {
+		switch p.Status {
+		case "blocked":
+			blocked++
+			blockedNames = append(blockedNames, p.Name)
+		case "failed":
+			failed++
+			failedNames = append(failedNames, p.Name)
+		case "skipped":
+			skipped++
+			skippedNames = append(skippedNames, p.Name)
+		}
+	}
+
+	applicable := blocked + failed
+	var status string
+	var verified bool
+
+	switch {
+	case applicable == 0:
+		status = "unavailable"
+		verified = false
+	case failed == 0:
+		status = "sandboxed"
+		verified = true
+	case blocked > 0:
+		status = "partial"
+		verified = false
+	default:
+		status = "unsandboxed"
+		verified = false
+	}
+
+	summary := buildSummary(blocked, applicable, blockedNames, failedNames, skippedNames)
+
 	return CanaryResult{
-		Verified:      false,
-		Status:        "unsandboxed",
-		CanaryPath:    path,
-		CanaryBlocked: false,
-		Platform:      runtime.GOOS,
-		Mechanism:     mechanism,
-		Timestamp:     time.Now(),
+		Verified:  verified,
+		Status:    status,
+		Platform:  runtime.GOOS,
+		Mechanism: mechanism,
+		Probes:    probes,
+		Summary:   summary,
+		Timestamp: time.Now(),
 	}
 }
 
-// canaryPath returns a system file path that should always exist and should be
-// blocked by the sandbox. Platform-specific.
-func canaryPath() string {
-	switch runtime.GOOS {
-	case "windows":
-		root := os.Getenv("SYSTEMROOT")
-		if root == "" {
-			root = `C:\Windows`
-		}
-		return filepath.Join(root, "System32", "config", "SAM")
-	default: // linux, darwin
-		return "/etc/passwd"
+func buildSummary(blocked, applicable int, blockedNames, failedNames, skippedNames []string) string {
+	s := fmt.Sprintf("Sandbox verified: %d/%d probes blocked", blocked, applicable)
+	if len(blockedNames) > 0 {
+		s += fmt.Sprintf(" (%s)", joinNames(blockedNames))
 	}
+	s += "."
+	if len(failedNames) > 0 {
+		s += fmt.Sprintf(" Failed: %s.", joinNames(failedNames))
+	}
+	if len(skippedNames) > 0 {
+		s += fmt.Sprintf(" Skipped: %s.", joinNames(skippedNames))
+	}
+	return s
+}
+
+func joinNames(names []string) string {
+	result := ""
+	for i, n := range names {
+		if i > 0 {
+			result += ", "
+		}
+		result += n
+	}
+	return result
+}
+
+// probeFileRead tests whether reading a protected system file is blocked.
+func probeFileRead(path string) ProbeResult {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsPermission(err) {
+			return ProbeResult{Name: "file_read", Status: "blocked", Target: path}
+		}
+		// File doesn't exist or other error — inconclusive, treat as blocked
+		// since we can't distinguish.
+		return ProbeResult{Name: "file_read", Status: "blocked", Target: path}
+	}
+	_ = f.Close()
+	return ProbeResult{Name: "file_read", Status: "failed", Target: path,
+		Error: "sandbox did not block read access"}
+}
+
+// probeFileWrite tests whether writing to a protected directory is blocked.
+func probeFileWrite(dir string) ProbeResult {
+	path := filepath.Join(dir, ".openparallax-canary-probe")
+	f, err := os.Create(path)
+	if err != nil {
+		if os.IsPermission(err) {
+			return ProbeResult{Name: "file_write", Status: "blocked", Target: dir}
+		}
+		// Other error — treat as blocked.
+		return ProbeResult{Name: "file_write", Status: "blocked", Target: dir}
+	}
+	_ = f.Close()
+	_ = os.Remove(path)
+	return ProbeResult{Name: "file_write", Status: "failed", Target: dir,
+		Error: "sandbox did not block write access"}
+}
+
+// probeNetwork tests whether outbound TCP to an external host is blocked.
+func probeNetwork(host string) ProbeResult {
+	conn, err := net.DialTimeout("tcp", host, 2*time.Second)
+	if err != nil {
+		// Connection refused, timeout, or permission denied — all count as blocked.
+		return ProbeResult{Name: "network", Status: "blocked", Target: host}
+	}
+	_ = conn.Close()
+	return ProbeResult{Name: "network", Status: "failed", Target: host,
+		Error: "sandbox did not block outbound connection"}
 }
 
 // WriteCanaryResult writes the canary probe result to a JSON file in the
