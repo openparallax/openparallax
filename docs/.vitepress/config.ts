@@ -2,6 +2,9 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   appearance: 'dark',
+  markdown: {
+    theme: 'night-owl',
+  },
   title: 'OpenParallax',
   description: 'Open-source personal AI agent with composable security, memory, and messaging modules',
   head: [

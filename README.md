@@ -36,7 +36,7 @@ make build-all
 
 ## What It Does
 
-OpenParallax is a personal AI agent that runs on your machine — any machine. It connects to LLM providers (Anthropic, OpenAI, Google, Ollama), executes 50+ tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
+OpenParallax is a personal AI agent that runs on your machine — any machine. It connects to LLM providers (Anthropic, OpenAI, Google, Ollama, and any OpenAI-compatible API), executes 50+ tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
 
 - **Talk through CLI, web, or messaging apps** — terminal TUI, glassmorphism web UI, WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage
 - **50+ actions** — files, git, shell, browser, email, calendar, canvas, HTTP, scheduling
@@ -114,7 +114,7 @@ OpenParallax is composed of standalone modules. Use the whole system, or import 
 | **[Sandbox](https://openparallax.dev/sandbox/)** | Kernel-level process isolation (Landlock, sandbox-exec, Job Objects) | &#10003; | | |
 | **[Channels](https://openparallax.dev/channels/)** | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage | &#10003; | &#10003; | &#10003; |
 | **[Chronicle](https://openparallax.dev/modules/chronicle)** | Copy-on-write workspace snapshots with rollback | &#10003; | | |
-| **[LLM](https://openparallax.dev/modules/llm)** | Unified provider abstraction (Anthropic, OpenAI, Google, Ollama) | &#10003; | | |
+| **[LLM](https://openparallax.dev/modules/llm)** | Anthropic, OpenAI + compatible APIs, Google, Ollama | &#10003; | | |
 | **[IFC](https://openparallax.dev/modules/ifc)** | Information flow control with sensitivity labels | &#10003; | | |
 | **[Crypto](https://openparallax.dev/modules/crypto)** | ID generation, hash chains, canary tokens | &#10003; | | |
 | **[MCP](https://openparallax.dev/modules/mcp)** | Model Context Protocol client integration | &#10003; | | |

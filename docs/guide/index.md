@@ -1,6 +1,6 @@
 # Getting Started
 
-OpenParallax is an open-source personal AI agent that runs on your machine, under your control. It connects to LLM providers (Anthropic, OpenAI, Google, Ollama), executes actions on your behalf, and remembers context across conversations — all secured by a 3-tier security pipeline.
+OpenParallax is an open-source personal AI agent that runs on your machine, under your control. It connects to LLM providers (Anthropic, OpenAI and any OpenAI-compatible API, Google, Ollama), executes actions on your behalf, and remembers context across conversations — all secured by a 3-tier security pipeline.
 
 OpenParallax is a reference implementation of the architecture proposed in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
 

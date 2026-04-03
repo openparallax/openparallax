@@ -49,7 +49,7 @@ OpenParallax is composed of standalone modules that can be used independently:
 | [Sandbox](/sandbox/) | Kernel process isolation | OS-level sandboxing for any process |
 | [Chronicle](/modules/chronicle) | Copy-on-write snapshots | Workspace versioning with rollback |
 | [Channels](/channels/) | Multi-platform messaging | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage adapters |
-| [LLM](/modules/llm) | Provider abstraction | Unified API for Anthropic, OpenAI, Google, Ollama |
+| [LLM](/modules/llm) | Provider abstraction | Anthropic, OpenAI + compatible APIs, Google, Ollama |
 | [IFC](/modules/ifc) | Information flow control | Data classification and taint tracking |
 | [MCP](/modules/mcp) | MCP client integration | Connect to any MCP server |
 | [Crypto](/modules/crypto) | Security primitives | ID generation, hash chains, canary tokens |
@@ -84,7 +84,7 @@ Channels ◄── HTTP webhooks ──────────────► E
 | Transport | gRPC (protobuf), WebSocket, REST |
 | Database | SQLite (modernc.org, pure Go, WAL mode) |
 | Search | FTS5 full-text + cosine similarity vectors |
-| LLM | Anthropic Claude, OpenAI GPT, Google Gemini, Ollama |
+| LLM | Anthropic Claude, OpenAI GPT (+ any OpenAI-compatible API), Google Gemini, Ollama |
 | Security | Shield (policy + ONNX DeBERTa + LLM evaluator) |
 | ML Inference | onnxruntime-purego (pure Go, no CGo) |
 | Audit | Append-only JSONL with SHA-256 hash chain |
