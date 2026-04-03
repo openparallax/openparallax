@@ -49,3 +49,4 @@ docs/.vitepress/cache/
 tmp/
 *.tmp
 
+channels-bridge
