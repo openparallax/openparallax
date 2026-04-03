@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/types"
 )
 

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/types"
 )

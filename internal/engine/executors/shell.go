@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/platform"
 	"github.com/openparallax/openparallax/internal/types"
 )

@@ -13,7 +13,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/mattn/go-isatty"
-	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/registry"

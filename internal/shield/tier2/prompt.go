@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/crypto"
 )
 
 // LoadPrompt reads the evaluator prompt from disk, verifies its integrity,

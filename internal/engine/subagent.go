@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/sandbox"

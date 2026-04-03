@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/types"
 )
 

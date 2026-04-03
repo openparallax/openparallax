@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/crypto"
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/types"
