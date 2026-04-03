@@ -51,7 +51,7 @@ features:
 
 ## The Core Principle
 
-> *An agent that thinks and an agent that acts must never be the same process.*
+> *An agent that thinks and the system that acts must never be the same process.*
 
 OpenParallax is the reference implementation of the ideas presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv). The central argument: giving an LLM direct execution capability is an architectural failure. The thinking process — which talks to external APIs and can be manipulated through prompt injection — must be physically separated from the execution process, with a security pipeline between them.
 
@@ -69,7 +69,7 @@ openparallax init
 openparallax start
 ```
 
-The init wizard configures your LLM provider, security pipeline, and memory backend. After that, `start` launches the agent, opens the CLI, and starts the web UI. Three commands, any operating system, zero prerequisites.
+The `init` wizard configures your LLM provider, security pipeline, and memory backend. After that, `start` launches the agent, opens the CLI, and starts the web UI. Three commands, any operating system, zero prerequisites.
 
 ::: tip Building from Source
 See the [Quick Start guide](/guide/quickstart) for `git clone && make build-all`, or jump to the [Architecture](/technical/) to understand the design.

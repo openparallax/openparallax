@@ -147,7 +147,7 @@
   /* Core VitePress tokens → our glassmorphism */
   --vp-c-bg: var(--bg-void);
   --vp-c-bg-alt: var(--bg-base);
-  --vp-c-bg-elv: #0c1020;
+  --vp-c-bg-elv: var(--bg-void);
   --vp-c-bg-soft: var(--op-accent-ghost);
 
   --vp-c-text-1: var(--op-text-primary);
@@ -168,7 +168,7 @@
   /* Code */
   --vp-code-color: var(--op-accent);
   --vp-code-bg: var(--op-accent-ghost);
-  --vp-code-block-bg: rgba(10, 14, 24, 0.80);
+  --vp-code-block-bg: rgba(16, 22, 36, 0.90);
   --vp-code-block-divider-color: var(--op-glass-border);
 
   /* Custom blocks */
@@ -314,14 +314,23 @@ body {
   border: 1px solid var(--op-accent-border);
 }
 
-/* Code blocks — glass panels */
+/* Code blocks — elevated glass panels with brighter interior */
 .vp-doc div[class*="language-"] {
-  background: rgba(10, 14, 24, 0.80) !important;
-  border: 1px solid var(--op-glass-border);
+  background: rgba(16, 22, 36, 0.90) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--op-radius-lg);
   box-shadow: var(--op-accent-glow);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+/* Brighten syntax colors inside code blocks */
+.vp-doc div[class*="language-"] .line {
+  opacity: 0.95;
+}
+
+.vp-doc div[class*="language-"] code {
+  color: #e2e8f0;
 }
 
 .vp-doc div[class*="language-"] code {
