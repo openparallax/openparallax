@@ -68,17 +68,18 @@ func (c *ContextAssembler) Assemble(mode types.SessionMode) (string, error) {
 	return strings.Join(sections, "\n\n---\n\n"), nil
 }
 
-// AssembleWithSkills extends Assemble with skill summaries and active skill bodies.
-func (c *ContextAssembler) AssembleWithSkills(mode types.SessionMode, skillSummary, activeSkills string) (string, error) {
+// AssembleWithSkills extends Assemble with custom skill discovery summary
+// and loaded skill bodies.
+func (c *ContextAssembler) AssembleWithSkills(mode types.SessionMode, discoverySummary, loadedSkills string) (string, error) {
 	base, err := c.Assemble(mode)
 	if err != nil {
 		return "", err
 	}
-	if skillSummary != "" {
-		base += "\n\n---\n\n" + skillSummary
+	if discoverySummary != "" {
+		base += "\n\n---\n\n" + discoverySummary
 	}
-	if activeSkills != "" {
-		base += "\n\n---\n\n" + activeSkills
+	if loadedSkills != "" {
+		base += "\n\n---\n\n" + loadedSkills
 	}
 	return base, nil
 }

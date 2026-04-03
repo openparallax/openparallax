@@ -102,13 +102,13 @@ func RunLoop(
 	_ = mode // OTR filtering happens at the Engine level, not in the loop.
 
 	// Build system prompt.
-	skillSummary := ""
-	activeSkills := ""
+	discoverySummary := ""
+	loadedSkills := ""
 	if cfg.Agent.Skills != nil {
-		skillSummary = cfg.Agent.Skills.LightSummary()
-		activeSkills = cfg.Agent.Skills.ActiveSkillBodies()
+		discoverySummary = cfg.Agent.Skills.DiscoverySummary()
+		loadedSkills = cfg.Agent.Skills.LoadedSkillBodies()
 	}
-	systemPrompt, err := cfg.Agent.Context.AssembleWithSkills(mode, skillSummary, activeSkills)
+	systemPrompt, err := cfg.Agent.Context.AssembleWithSkills(mode, discoverySummary, loadedSkills)
 	if err != nil {
 		emit(LoopEvent{Type: EventLoopError, ErrorCode: "CONTEXT_FAILED", ErrorMessage: err.Error()})
 		return
@@ -221,8 +221,7 @@ func RunLoop(
 				}
 				emit(LoopEvent{Type: EventToolDefsRequest, RequestedGroups: names})
 
-				// Wait for tool definitions from Engine (delivered as a ToolResult
-				// containing the tool summary text).
+				// Wait for tool definitions from Engine.
 				select {
 				case result := <-resultCh:
 					toolResults = append(toolResults, llm.ToolResult{CallID: tc.ID, Content: result.Content})
@@ -234,6 +233,35 @@ func RunLoop(
 				case <-ctx.Done():
 					return
 				}
+				continue
+			}
+
+			// Handle load_skills meta-tool locally.
+			if tc.Name == "load_skills" && cfg.Agent.Skills != nil {
+				skillNames, _ := tc.Arguments["skills"].([]any)
+				var loaded []string
+				var bodies []string
+				for _, s := range skillNames {
+					name, ok := s.(string)
+					if !ok {
+						continue
+					}
+					body, found := cfg.Agent.Skills.LoadSkill(name)
+					if found {
+						loaded = append(loaded, name)
+						bodies = append(bodies, fmt.Sprintf("# Skill: %s\n\n%s", name, body))
+					}
+				}
+				response := "No skills found."
+				if len(bodies) > 0 {
+					response = fmt.Sprintf("Loaded %d skill(s):\n\n%s", len(bodies), strings.Join(bodies, "\n\n---\n\n"))
+				}
+				toolResults = append(toolResults, llm.ToolResult{CallID: tc.ID, Content: response})
+				thoughts = append(thoughts, types.Thought{
+					Stage:   "tool_call",
+					Summary: fmt.Sprintf("load_skills(%s)", strings.Join(loaded, ", ")),
+					Detail:  map[string]any{"tool_name": "load_skills", "success": len(loaded) > 0},
+				})
 				continue
 			}
 
@@ -265,9 +293,6 @@ func RunLoop(
 					},
 				})
 
-				if cfg.Agent.Skills != nil {
-					cfg.Agent.Skills.MatchSkills([]string{tc.Name})
-				}
 			case <-ctx.Done():
 				return
 			}

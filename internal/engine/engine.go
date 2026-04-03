@@ -701,13 +701,13 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 	history := e.getHistory(sid)
 
 	// Build system prompt with OTR awareness and skills.
-	skillSummary := ""
-	activeSkills := ""
+	discoverySummary := ""
+	loadedSkills := ""
 	if e.agent.Skills != nil {
-		skillSummary = e.agent.Skills.LightSummary()
-		activeSkills = e.agent.Skills.ActiveSkillBodies()
+		discoverySummary = e.agent.Skills.DiscoverySummary()
+		loadedSkills = e.agent.Skills.LoadedSkillBodies()
 	}
-	systemPrompt, err := e.agent.Context.AssembleWithSkills(mode, skillSummary, activeSkills)
+	systemPrompt, err := e.agent.Context.AssembleWithSkills(mode, discoverySummary, loadedSkills)
 	if err != nil {
 		return e.sendErrorEvent(sender, sid, mid, "CONTEXT_FAILED", err.Error())
 	}
@@ -884,10 +884,6 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 
 			executedActions = append(executedActions, &types.ActionRequest{Type: types.ActionType(tc.Name), Payload: tc.Arguments})
 			executedResults = append(executedResults, &types.ActionResult{Success: !result.IsError, Summary: executors.Truncate(result.Content, 100)})
-
-			if e.agent.Skills != nil {
-				e.agent.Skills.MatchSkills([]string{tc.Name})
-			}
 		}
 	}
 

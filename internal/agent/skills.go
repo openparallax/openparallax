@@ -9,119 +9,99 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Skill represents a loaded skill with frontmatter metadata and body content.
+// Skill represents a custom user-defined skill following the Agent Skills
+// Specification. Skills live at skills/<name>/SKILL.md with YAML frontmatter
+// (name, description) and a markdown body with instructions.
 type Skill struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	WhenToUse   string   `yaml:"when_to_use"`
-	Actions     []string `yaml:"actions"`
-	Keywords    []string `yaml:"keywords"`
-	Emoji       string   `yaml:"emoji"`
-	Body        string   `yaml:"-"`
+	// Name is the skill identifier (lowercase, hyphens, max 64 chars).
+	Name string `yaml:"name"`
+	// Description explains what the skill does and when to use it.
+	// Used for discovery — the LLM sees this to decide whether to load the skill.
+	Description string `yaml:"description"`
+	// Body is the full markdown instruction content (loaded on demand).
+	Body string `yaml:"-"`
+	// Dir is the skill directory path (for loading resources).
+	Dir string `yaml:"-"`
 }
 
-// MatchesTool returns true if the skill's actions list includes the given tool name.
-func (s *Skill) MatchesTool(toolName string) bool {
-	for _, a := range s.Actions {
-		if a == toolName {
-			return true
-		}
-	}
-	return false
-}
-
-// SkillManager loads and manages skills for system prompt injection.
+// SkillManager loads and manages custom user-defined skills.
+// Built-in tool guidance comes from tool schemas, not skills.
 type SkillManager struct {
 	skills []Skill
-	active map[string]bool
+	loaded map[string]bool
 }
 
-// NewSkillManager loads skills from workspace and bundled directories.
+// NewSkillManager loads custom skills from the workspace skills directory.
+// Each skill is a subdirectory containing a SKILL.md file.
 func NewSkillManager(workspacePath string) *SkillManager {
-	sm := &SkillManager{active: make(map[string]bool)}
-
-	// Load bundled skills first (lower priority).
-	bundled := loadSkillsFromDir("skills")
-	// Load workspace skills (higher priority, overrides bundled).
-	workspace := loadSkillsFromDir(filepath.Join(workspacePath, "skills"))
-
-	// Merge: workspace overrides bundled by name.
-	seen := make(map[string]bool)
-	for _, s := range workspace {
-		sm.skills = append(sm.skills, s)
-		seen[s.Name] = true
-	}
-	for _, s := range bundled {
-		if !seen[s.Name] {
-			sm.skills = append(sm.skills, s)
-		}
-	}
-
+	sm := &SkillManager{loaded: make(map[string]bool)}
+	skillsDir := filepath.Join(workspacePath, "skills")
+	sm.skills = loadCustomSkills(skillsDir)
 	return sm
 }
 
-// LightSummary returns a compact skills overview for the system prompt.
-func (sm *SkillManager) LightSummary() string {
+// DiscoverySummary returns a compact index of available custom skills for
+// the system prompt. Only name and description — the LLM uses this to
+// decide which skills to load via load_skills.
+func (sm *SkillManager) DiscoverySummary() string {
 	if len(sm.skills) == 0 {
 		return ""
 	}
 
 	var lines []string
 	for _, s := range sm.skills {
-		prefix := ""
-		if s.Emoji != "" {
-			prefix = s.Emoji + " "
-		}
-		lines = append(lines, fmt.Sprintf("- %s**%s**: %s", prefix, s.Name, s.Description))
+		lines = append(lines, fmt.Sprintf("- **%s**: %s", s.Name, s.Description))
 	}
 
-	return fmt.Sprintf(`# Available Skills
+	return fmt.Sprintf(`# Custom Skills
 
-You have specialized knowledge for these domains:
+You have access to user-defined guidance for these domains:
 %s
-When a conversation enters one of these domains, you'll receive detailed guidance.`, strings.Join(lines, "\n"))
+
+To get detailed instructions for a domain, call load_skills with the skill name.`, strings.Join(lines, "\n"))
 }
 
-// MatchSkills returns skills relevant to the given tool names that aren't already active.
-func (sm *SkillManager) MatchSkills(toolNames []string) []Skill {
-	var matched []Skill
+// LoadSkill loads a skill's full body by name. Returns the body text.
+// Called when the LLM requests a skill via load_skills.
+func (sm *SkillManager) LoadSkill(name string) (string, bool) {
 	for i := range sm.skills {
-		if sm.active[sm.skills[i].Name] {
-			continue
-		}
-		for _, toolName := range toolNames {
-			if sm.skills[i].MatchesTool(toolName) {
-				sm.active[sm.skills[i].Name] = true
-				matched = append(matched, sm.skills[i])
-				break
-			}
+		if sm.skills[i].Name == name {
+			sm.loaded[name] = true
+			return sm.skills[i].Body, true
 		}
 	}
-	return matched
+	return "", false
 }
 
-// ActiveSkillBodies returns the full body content of all activated skills.
-func (sm *SkillManager) ActiveSkillBodies() string {
+// LoadedSkillBodies returns the full body content of all loaded skills.
+func (sm *SkillManager) LoadedSkillBodies() string {
 	var bodies []string
 	for _, s := range sm.skills {
-		if sm.active[s.Name] && s.Body != "" {
+		if sm.loaded[s.Name] && s.Body != "" {
 			bodies = append(bodies, fmt.Sprintf("# Skill: %s\n\n%s", s.Name, s.Body))
 		}
 	}
 	return strings.Join(bodies, "\n\n---\n\n")
 }
 
-// ResetSession clears the active skills for a new session.
+// ResetSession clears the loaded skills for a new session.
 func (sm *SkillManager) ResetSession() {
-	sm.active = make(map[string]bool)
+	sm.loaded = make(map[string]bool)
 }
 
-// Skills returns all loaded skills.
+// Skills returns all discovered skills.
 func (sm *SkillManager) Skills() []Skill {
 	return sm.skills
 }
 
-func loadSkillsFromDir(dir string) []Skill {
+// HasSkills returns true if any custom skills are available.
+func (sm *SkillManager) HasSkills() bool {
+	return len(sm.skills) > 0
+}
+
+// loadCustomSkills reads skills from subdirectories of the skills dir.
+// Each subdirectory must contain a SKILL.md file with YAML frontmatter.
+func loadCustomSkills(dir string) []Skill {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -129,24 +109,25 @@ func loadSkillsFromDir(dir string) []Skill {
 
 	var skills []Skill
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+		if !e.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
+		skillPath := filepath.Join(dir, e.Name(), "SKILL.md")
+		data, readErr := os.ReadFile(skillPath)
+		if readErr != nil {
 			continue
 		}
-		skill, err := parseSkill(string(data))
-		if err != nil {
+		skill, parseErr := parseSkill(string(data))
+		if parseErr != nil {
 			continue
 		}
+		skill.Dir = filepath.Join(dir, e.Name())
 		skills = append(skills, skill)
 	}
 	return skills
 }
 
 func parseSkill(content string) (Skill, error) {
-	// Split YAML frontmatter from body.
 	if !strings.HasPrefix(content, "---") {
 		return Skill{}, fmt.Errorf("no frontmatter")
 	}
@@ -158,6 +139,9 @@ func parseSkill(content string) (Skill, error) {
 	var skill Skill
 	if err := yaml.Unmarshal([]byte(parts[0]), &skill); err != nil {
 		return Skill{}, err
+	}
+	if skill.Name == "" {
+		return Skill{}, fmt.Errorf("skill name is required")
 	}
 	skill.Body = strings.TrimSpace(parts[1])
 	return skill, nil

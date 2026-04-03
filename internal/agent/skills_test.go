@@ -11,139 +11,150 @@ import (
 
 func TestParseSkill(t *testing.T) {
 	content := `---
-name: test-skill
-description: A test skill
-actions:
-  - read_file
-  - write_file
-keywords:
-  - test
-emoji: "\U0001F4DD"
+name: deploy-guide
+description: How we deploy to production using Terraform and AWS
 ---
 
-# Test Skill
+# Deployment Guide
 
-This is the body of the test skill.`
+Always run terraform plan before apply.`
 
 	skill, err := parseSkill(content)
 	require.NoError(t, err)
-	assert.Equal(t, "test-skill", skill.Name)
-	assert.Equal(t, "A test skill", skill.Description)
-	assert.Equal(t, []string{"read_file", "write_file"}, skill.Actions)
-	assert.Contains(t, skill.Body, "This is the body")
+	assert.Equal(t, "deploy-guide", skill.Name)
+	assert.Equal(t, "How we deploy to production using Terraform and AWS", skill.Description)
+	assert.Contains(t, skill.Body, "Always run terraform plan")
 }
 
-func TestParseSkill_NoFrontmatter(t *testing.T) {
+func TestParseSkillNoFrontmatter(t *testing.T) {
 	_, err := parseSkill("No frontmatter here")
 	assert.Error(t, err)
 }
 
-func TestSkillMatchesTool(t *testing.T) {
-	skill := Skill{Actions: []string{"read_file", "write_file"}}
-	assert.True(t, skill.MatchesTool("read_file"))
-	assert.False(t, skill.MatchesTool("execute_command"))
+func TestParseSkillNoName(t *testing.T) {
+	_, err := parseSkill("---\ndescription: missing name\n---\nbody")
+	assert.Error(t, err)
 }
 
-func TestSkillManager_LoadFromDir(t *testing.T) {
+func TestSkillManagerLoadFromDir(t *testing.T) {
 	dir := t.TempDir()
-	skillDir := filepath.Join(dir, "skills")
+	skillDir := filepath.Join(dir, "skills", "my-skill")
 	require.NoError(t, os.MkdirAll(skillDir, 0o755))
 
 	content := `---
-name: custom
-description: Custom skill
-actions:
-  - execute_command
+name: my-skill
+description: A custom skill for testing
 ---
-# Custom Skill Body`
-	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "custom.md"), []byte(content), 0o644))
+# My Skill Body`
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644))
 
 	sm := NewSkillManager(dir)
 	skills := sm.Skills()
-	found := false
-	for _, s := range skills {
-		if s.Name == "custom" {
-			found = true
-			assert.Equal(t, "Custom skill", s.Description)
-		}
-	}
-	assert.True(t, found, "custom skill should be loaded")
+	require.Len(t, skills, 1)
+	assert.Equal(t, "my-skill", skills[0].Name)
+	assert.Equal(t, "A custom skill for testing", skills[0].Description)
+	assert.Contains(t, skills[0].Body, "My Skill Body")
+	assert.Equal(t, skillDir, skills[0].Dir)
 }
 
-func TestSkillManager_LightSummary(t *testing.T) {
+func TestSkillManagerIgnoresFlatFiles(t *testing.T) {
 	dir := t.TempDir()
 	skillDir := filepath.Join(dir, "skills")
 	require.NoError(t, os.MkdirAll(skillDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "test.md"), []byte(`---
-name: test
-description: Test skill
-actions: [read_file]
+
+	// Flat .md file should be ignored — must be in subdirectory.
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "old-style.md"), []byte(`---
+name: old
+description: Old flat style
+---
+body`), 0o644))
+
+	sm := NewSkillManager(dir)
+	assert.Empty(t, sm.Skills())
+}
+
+func TestSkillManagerDiscoverySummary(t *testing.T) {
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "skills", "deploy")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(`---
+name: deploy
+description: Production deployment procedures
 ---
 Body`), 0o644))
 
 	sm := NewSkillManager(dir)
-	summary := sm.LightSummary()
-	assert.Contains(t, summary, "test")
-	assert.Contains(t, summary, "Test skill")
+	summary := sm.DiscoverySummary()
+	assert.Contains(t, summary, "deploy")
+	assert.Contains(t, summary, "Production deployment procedures")
+	assert.Contains(t, summary, "load_skills")
 }
 
-func TestSkillManager_MatchSkills(t *testing.T) {
+func TestSkillManagerDiscoverySummaryEmpty(t *testing.T) {
 	dir := t.TempDir()
-	skillDir := filepath.Join(dir, "skills")
-	require.NoError(t, os.MkdirAll(skillDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "git.md"), []byte(`---
-name: git
-description: Git ops
-actions: [git_status, git_diff]
----
-Git body`), 0o644))
-
 	sm := NewSkillManager(dir)
-
-	matched := sm.MatchSkills([]string{"git_status"})
-	require.Len(t, matched, 1)
-	assert.Equal(t, "git", matched[0].Name)
-
-	// Second match for same skill — should not re-activate.
-	matched2 := sm.MatchSkills([]string{"git_diff"})
-	assert.Empty(t, matched2, "already active skill should not be re-matched")
+	assert.Empty(t, sm.DiscoverySummary())
 }
 
-func TestSkillManager_ActiveBodies(t *testing.T) {
+func TestSkillManagerLoadSkill(t *testing.T) {
 	dir := t.TempDir()
-	skillDir := filepath.Join(dir, "skills")
+	skillDir := filepath.Join(dir, "skills", "test")
 	require.NoError(t, os.MkdirAll(skillDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "test.md"), []byte(`---
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(`---
 name: test
-description: Test
-actions: [read_file]
+description: Test skill
 ---
 Detailed instructions here`), 0o644))
 
 	sm := NewSkillManager(dir)
-	assert.Empty(t, sm.ActiveSkillBodies())
 
-	sm.MatchSkills([]string{"read_file"})
-	bodies := sm.ActiveSkillBodies()
-	assert.Contains(t, bodies, "Detailed instructions here")
+	// Before loading.
+	assert.Empty(t, sm.LoadedSkillBodies())
+
+	// Load by name.
+	body, ok := sm.LoadSkill("test")
+	assert.True(t, ok)
+	assert.Contains(t, body, "Detailed instructions here")
+
+	// Loaded bodies should now include it.
+	assert.Contains(t, sm.LoadedSkillBodies(), "Detailed instructions here")
+
+	// Loading unknown skill.
+	_, ok = sm.LoadSkill("nonexistent")
+	assert.False(t, ok)
 }
 
-func TestSkillManager_ResetSession(t *testing.T) {
+func TestSkillManagerResetSession(t *testing.T) {
 	dir := t.TempDir()
-	skillDir := filepath.Join(dir, "skills")
+	skillDir := filepath.Join(dir, "skills", "test")
 	require.NoError(t, os.MkdirAll(skillDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "test.md"), []byte(`---
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(`---
 name: test
 description: Test
-actions: [read_file]
 ---
 Body`), 0o644))
 
 	sm := NewSkillManager(dir)
-	sm.MatchSkills([]string{"read_file"})
-	sm.ResetSession()
+	sm.LoadSkill("test")
+	assert.NotEmpty(t, sm.LoadedSkillBodies())
 
-	// After reset, the same skill should match again.
-	matched := sm.MatchSkills([]string{"read_file"})
-	assert.Len(t, matched, 1)
+	sm.ResetSession()
+	assert.Empty(t, sm.LoadedSkillBodies())
+}
+
+func TestSkillManagerHasSkills(t *testing.T) {
+	dir := t.TempDir()
+	sm := NewSkillManager(dir)
+	assert.False(t, sm.HasSkills())
+
+	skillDir := filepath.Join(dir, "skills", "one")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(`---
+name: one
+description: One
+---
+body`), 0o644))
+
+	sm2 := NewSkillManager(dir)
+	assert.True(t, sm2.HasSkills())
 }
