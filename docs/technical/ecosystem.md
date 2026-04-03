@@ -238,3 +238,5 @@ The current SQLite backend uses brute-force cosine similarity (no ANN index). Th
 The Agent makes LLM API calls. Those APIs could be compromised. The LLM could be manipulated through prompt injection. By isolating the Agent in a kernel sandbox and routing every action through the Engine's security pipeline, we ensure that a compromised Agent cannot cause harm — even with full code execution capability.
 
 This is defense in depth: the sandbox prevents unauthorized system access, Shield prevents dangerous actions, IFC prevents data exfiltration, Chronicle enables rollback, and Audit provides forensic evidence. No single layer is sufficient. Together, they make the system trustworthy.
+
+The composable module architecture and the strict separation between thinking (Agent) and acting (Engine) are grounded in the research presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).

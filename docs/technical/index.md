@@ -25,6 +25,8 @@ openparallax start              (Process Manager)
 
 ## Why This Separation?
 
+The thinking/acting separation is the core architectural principle of OpenParallax, grounded in the theory presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
+
 The Agent talks to external LLM APIs. If those APIs are compromised — or if the LLM is manipulated through prompt injection — the Agent could propose dangerous actions. By sandboxing the Agent and routing every action through the Engine's security pipeline, we ensure that even a fully compromised Agent cannot cause harm.
 
 The Engine trusts nothing from the Agent. Every tool call passes through:
@@ -46,7 +48,7 @@ OpenParallax is composed of standalone modules that can be used independently:
 | [Audit](/audit/) | Tamper-evident logging | Hash-chain audit trail for any system |
 | [Sandbox](/sandbox/) | Kernel process isolation | OS-level sandboxing for any process |
 | [Chronicle](/modules/chronicle) | Copy-on-write snapshots | Workspace versioning with rollback |
-| [Channels](/channels/) | Multi-platform messaging | WhatsApp, Telegram, Discord, Slack, Signal, Teams adapters |
+| [Channels](/channels/) | Multi-platform messaging | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage adapters |
 | [LLM](/modules/llm) | Provider abstraction | Unified API for Anthropic, OpenAI, Google, Ollama |
 | [IFC](/modules/ifc) | Information flow control | Data classification and taint tracking |
 | [MCP](/modules/mcp) | MCP client integration | Connect to any MCP server |

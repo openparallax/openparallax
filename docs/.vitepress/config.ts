@@ -233,6 +233,7 @@ export default defineConfig({
             { text: 'Slack', link: '/channels/slack' },
             { text: 'Signal', link: '/channels/signal' },
             { text: 'Teams', link: '/channels/teams' },
+            { text: 'iMessage', link: '/channels/imessage' },
           ]
         }
       ],

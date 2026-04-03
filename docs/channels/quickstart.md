@@ -156,3 +156,16 @@ manager.StartAll(ctx)
 ```
 
 Each platform gets independent session management. A Telegram user and a WhatsApp user talking to the same agent have separate sessions.
+
+## macOS: iMessage
+
+On macOS, you can connect your agent to iMessage via the AppleScript bridge to Messages.app. Add to your `config.yaml`:
+
+```yaml
+channels:
+  imessage:
+    enabled: true
+    apple_id: "you@icloud.com"
+```
+
+Grant Full Disk Access to the OpenParallax process in System Settings, ensure Messages.app is signed in, and restart the agent. See the [iMessage adapter documentation](/channels/imessage) for full setup details.

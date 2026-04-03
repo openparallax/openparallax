@@ -2,13 +2,14 @@
 
 # OpenParallax
 
-**Your AI agent, your rules.**
+**AI agents that think must never act.**
 
-Open-source personal AI agent with composable security, semantic memory, and multi-channel messaging.
+Open-source security framework for autonomous AI systems. 3-tier defense pipeline, kernel sandboxing, tamper-evident audit, and composable modules — because an agent that can execute anything will eventually execute the wrong thing.
 
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 [![CGo](https://img.shields.io/badge/CGo-disabled-success?style=flat-square)](https://pkg.go.dev)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?style=flat-square)](https://openparallax.dev/guide/installation)
 
 [Documentation](https://openparallax.dev) &bull; [Quick Start](#quick-start) &bull; [Architecture](#architecture) &bull; [Modules](#modules) &bull; [Contributing](CONTRIBUTING.md)
 
@@ -16,12 +17,14 @@ Open-source personal AI agent with composable security, semantic memory, and mul
 
 ---
 
-## One Binary. Zero Dependencies.
+> **Research paper:** OpenParallax is a reference implementation of the ideas presented in *Parallax: Why AI Agents That Think Must Never Act* (forthcoming on [arXiv](https://github.com/openparallax/openparallax)). The paper argues that giving an LLM direct execution capability is an architectural failure — the thinking process and the acting process must be physically separated, with a security pipeline between them.
 
-OpenParallax is a single static binary. No Python. No Node.js. No Docker. No runtime dependencies. Download it, run it, and you have a fully functional AI agent with a 3-tier security pipeline, semantic memory, a web UI, and multi-channel messaging.
+## One Binary. Zero Dependencies. Any Platform.
+
+A single static binary for Linux, macOS, and Windows. No Python. No Node.js. No Docker. No runtime dependencies. Download it, run it, done.
 
 ```bash
-# Build from source
+# Build from source (Linux, macOS, or Windows with Git Bash / WSL)
 git clone https://github.com/openparallax/openparallax.git
 cd openparallax
 make build-all
@@ -33,9 +36,9 @@ make build-all
 
 ## What It Does
 
-OpenParallax is a personal AI agent that runs on your machine. It connects to LLM providers (Anthropic, OpenAI, Google, Ollama), executes 50+ tool actions on your behalf, and remembers context across conversations.
+OpenParallax is a personal AI agent that runs on your machine — any machine. It connects to LLM providers (Anthropic, OpenAI, Google, Ollama), executes 50+ tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
 
-- **Talk through CLI, web, or messaging apps** — terminal TUI, glassmorphism web UI, WhatsApp, Telegram, Discord, Slack, Signal, Teams
+- **Talk through CLI, web, or messaging apps** — terminal TUI, glassmorphism web UI, WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage
 - **50+ actions** — files, git, shell, browser, email, calendar, canvas, HTTP, scheduling
 - **Semantic memory** — FTS5 full-text search + vector embeddings that persist across sessions
 - **3-tier security** — every tool call evaluated by policy rules, ML classifier, and LLM judge before execution
@@ -81,9 +84,11 @@ openparallax start              (Process Manager)
               └── Skills        (on-demand domain guidance)
 ```
 
-**The Agent** owns the LLM — it assembles context, runs the reasoning loop, and proposes tool calls. It runs inside a kernel sandbox and cannot access files, network, or processes outside its allowed scope.
+**The Agent** owns the LLM — it assembles context, runs the reasoning loop, and proposes tool calls. It runs inside a kernel sandbox (Landlock on Linux, sandbox-exec on macOS, Job Objects on Windows) and cannot access files, network, or processes outside its allowed scope.
 
 **The Engine** is the security gate — it evaluates every tool proposal through Shield, checks IFC labels, takes Chronicle snapshots, logs to audit, and executes approved actions. The Agent never executes anything directly.
+
+This separation is the core thesis of the [research paper](https://github.com/openparallax/openparallax) — an agent that thinks and an agent that acts must never be the same process.
 
 **Why?** The Agent talks to external LLM APIs. If those APIs are compromised or the LLM is manipulated through prompt injection, the Agent could propose dangerous actions. The kernel sandbox + Shield pipeline ensures that even a fully compromised Agent cannot cause harm.
 
@@ -107,7 +112,7 @@ OpenParallax is composed of standalone modules. Use the whole system, or import 
 | **[Memory](https://openparallax.dev/memory/)** | Semantic memory with pluggable backends (SQLite, pgvector, Qdrant, Pinecone, ...) | &#10003; | &#10003; | &#10003; |
 | **[Audit](https://openparallax.dev/audit/)** | Tamper-evident append-only logging with SHA-256 hash chains | &#10003; | &#10003; | &#10003; |
 | **[Sandbox](https://openparallax.dev/sandbox/)** | Kernel-level process isolation (Landlock, sandbox-exec, Job Objects) | &#10003; | | |
-| **[Channels](https://openparallax.dev/channels/)** | Multi-platform messaging (WhatsApp, Telegram, Discord, Slack, Signal, Teams) | &#10003; | &#10003; | &#10003; |
+| **[Channels](https://openparallax.dev/channels/)** | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage | &#10003; | &#10003; | &#10003; |
 | **[Chronicle](https://openparallax.dev/modules/chronicle)** | Copy-on-write workspace snapshots with rollback | &#10003; | | |
 | **[LLM](https://openparallax.dev/modules/llm)** | Unified provider abstraction (Anthropic, OpenAI, Google, Ollama) | &#10003; | | |
 | **[IFC](https://openparallax.dev/modules/ifc)** | Information flow control with sensitivity labels | &#10003; | | |

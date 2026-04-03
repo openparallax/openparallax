@@ -1,6 +1,6 @@
 # Channels
 
-Channels is a multi-platform messaging adapter system that connects AI agents to WhatsApp, Telegram, Discord, Slack, Signal, and Microsoft Teams. Each adapter handles platform-specific webhook processing, message normalization, and response delivery, so you write your agent logic once and deploy it to any messaging platform.
+Channels is a multi-platform messaging adapter system that connects AI agents to WhatsApp, Telegram, Discord, Slack, Signal, Microsoft Teams, and iMessage. Each adapter handles platform-specific webhook processing, message normalization, and response delivery, so you write your agent logic once and deploy it to any messaging platform.
 
 ## Why Channels Exists
 
@@ -18,6 +18,7 @@ Your agent receives normalized messages and sends plain text or Markdown respons
 | Slack | Socket Mode | Bot + App tokens | Available |
 | Signal | subprocess (signal-cli) | Account number | Available |
 | Microsoft Teams | Webhook (Graph API) | App ID + password | Available |
+| iMessage | AppleScript (Messages.app) | Apple ID | Available (macOS only) |
 
 ## Architecture
 
@@ -139,6 +140,10 @@ channels:
     enabled: true
     app_id_env: TEAMS_APP_ID
     password_env: TEAMS_APP_PASSWORD
+
+  imessage:
+    enabled: true             # macOS only
+    apple_id: "you@icloud.com"
 ```
 
 API keys and tokens are read from environment variables, never stored in the config file.

@@ -259,12 +259,27 @@ ss -tlnp | grep 3100
 
 **Step 4: Check firewall**
 
-Ensure your firewall allows connections to the configured port. On Linux:
+Ensure your firewall allows connections to the configured port.
 
+::: details Linux
 ```bash
 sudo ufw status
 sudo iptables -L -n | grep 3100
 ```
+:::
+
+::: details macOS
+```bash
+sudo pfctl -sr
+```
+Check System Settings > Network > Firewall for application-level rules.
+:::
+
+::: details Windows (PowerShell)
+```powershell
+netsh advfirewall firewall show rule name=all | findstr 3100
+```
+:::
 
 **Step 5: Check authentication**
 
@@ -441,6 +456,10 @@ This is a warning, not a failure. The agent runs without kernel sandboxing in th
 
 **Linux (Landlock):**
 
+::: info Linux-specific diagnostics
+The following commands check Landlock LSM availability on Linux.
+:::
+
 | Check | Command | Expected |
 |---|---|---|
 | Kernel version | `uname -r` | 5.13+ for filesystem, 6.7+ for network |
@@ -454,6 +473,10 @@ Landlock requires kernel 5.13 or later. Filesystem restrictions are available fr
 ```bash
 which sandbox-exec
 # Expected: /usr/bin/sandbox-exec
+
+# Test that sandbox-exec works
+sandbox-exec -p '(version 1)(deny default)' /usr/bin/true
+# Expected: exits cleanly (exit code 0)
 ```
 
 `sandbox-exec` should be available on all supported macOS versions. If it is missing, the macOS installation may be non-standard.
@@ -461,6 +484,12 @@ which sandbox-exec
 **Windows (Job Objects):**
 
 Job Objects are used for process isolation. They restrict child process spawning but do not restrict filesystem or network access. The sandbox warning on Windows typically means Job Objects could not be created, which can happen in some restricted environments.
+
+To inspect a running process for Job Object assignment (PowerShell):
+
+```powershell
+Get-Process -Id $PID | Select-Object -Property Id, ProcessName, Handle, StartTime
+```
 
 ---
 

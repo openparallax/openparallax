@@ -315,6 +315,41 @@ Load and start:
 launchctl load ~/Library/LaunchAgents/dev.openparallax.shield.plist
 ```
 
+### Windows Service
+
+Use `sc.exe` to register Shield as a Windows service, or use [NSSM (Non-Sucking Service Manager)](https://nssm.cc/) for more control over logging and restart behavior.
+
+**Using sc.exe:**
+
+```powershell
+sc.exe create OpenParallaxShield `
+  binPath= "C:\Program Files\OpenParallax\openparallax-shield.exe serve --config C:\shield\shield.yaml" `
+  start= auto `
+  DisplayName= "OpenParallax Shield"
+
+sc.exe start OpenParallaxShield
+```
+
+**Using NSSM** (recommended for production):
+
+```powershell
+# Install NSSM (via Scoop or download from nssm.cc)
+scoop install nssm
+
+# Register the service
+nssm install OpenParallaxShield "C:\Program Files\OpenParallax\openparallax-shield.exe"
+nssm set OpenParallaxShield AppParameters "serve --config C:\shield\shield.yaml"
+nssm set OpenParallaxShield AppDirectory "C:\shield"
+nssm set OpenParallaxShield AppStdout "C:\shield\logs\shield.log"
+nssm set OpenParallaxShield AppStderr "C:\shield\logs\shield-error.log"
+nssm set OpenParallaxShield AppEnvironmentExtra "ANTHROPIC_API_KEY=sk-ant-..."
+
+# Start the service
+nssm start OpenParallaxShield
+```
+
+NSSM provides automatic restart on crash, log rotation, and a GUI for editing service parameters (`nssm edit OpenParallaxShield`).
+
 ## Docker Deployment
 
 ### Dockerfile

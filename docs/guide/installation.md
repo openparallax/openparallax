@@ -106,15 +106,33 @@ The agent process self-sandboxes on startup. If Landlock is unavailable (older k
 
 All features work on macOS. Kernel sandboxing uses Apple's `sandbox-exec` facility.
 
+**Install via Homebrew** (when published):
+
+```bash
+brew install openparallax/tap/openparallax
+```
+
 **Notes:**
 - `sandbox-exec` is deprecated by Apple but still functional on current macOS versions
 - The engine wraps the agent spawn with a sandbox profile that restricts filesystem access, network access, and process spawning
 - Chromium-based browsers are detected automatically for browser automation
 - On Apple Silicon, the Go binary compiles natively for arm64
+- iMessage channel integration is available on macOS only (via AppleScript bridge to Messages.app)
 
 ### Windows
 
 OpenParallax runs on Windows with Job Objects providing process-level isolation.
+
+**Install via Scoop or winget** (when published):
+
+```powershell
+# Scoop
+scoop bucket add openparallax https://github.com/openparallax/scoop-bucket
+scoop install openparallax
+
+# winget
+winget install OpenParallax.OpenParallax
+```
 
 **Notes:**
 - Job Objects restrict the agent from spawning child processes

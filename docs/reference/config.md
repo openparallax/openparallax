@@ -89,6 +89,10 @@ channels:
     app_password_env: TEAMS_APP_PASSWORD
     tenant_id: ""
 
+  imessage:
+    enabled: false
+    apple_id: ""               # Apple ID email used in Messages.app (macOS only)
+
 # ─── MCP Servers ────────────────────────────────────────────────────
 mcp:
   servers:

@@ -83,6 +83,14 @@ Balanced security suitable for most use cases.
 - File operations on sensitive system paths (`~/.ssh/**`, `~/.aws/**`, `~/.gnupg/**`, `~/.kube/**`, `/etc/shadow`, `/etc/sudoers`)
 - Deletion of identity files (SOUL.md, IDENTITY.md, TOOLS.md, BOOT.md, AGENTS.md, HEARTBEAT.md)
 
+::: info Platform-specific sensitive paths
+The paths above (`/etc/shadow`, `/etc/sudoers`) are Linux-specific examples. The Shield policy engine works with whatever paths are relevant to your platform:
+- **macOS**: `/etc/master.passwd`, `~/Library/Keychains/`
+- **Windows**: `C:\Windows\System32\config\SAM`, `%APPDATA%\Microsoft\Credentials\`
+
+Customize your policy file to block the sensitive paths for your operating system.
+:::
+
 **Evaluated at higher tiers:**
 - Shell commands (Tier 1)
 - External communication: messages, emails, HTTP requests (Tier 1)

@@ -1,6 +1,6 @@
 # Shield
 
-Shield is a 3-tier AI security pipeline that evaluates every tool call an LLM agent proposes before it executes. It catches prompt injection, blocks access to sensitive resources, and provides cryptographic proof of every security decision.
+Shield is a 3-tier AI security pipeline that evaluates every tool call an LLM agent proposes before it executes. It catches prompt injection, blocks access to sensitive resources, and provides cryptographic proof of every security decision. Shield implements the security pipeline described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
 
 Shield runs inside OpenParallax as the security core, but it is also a standalone product. You can drop it into any AI agent, any MCP server, any tool-calling pipeline — in Go, Python, Node.js, or as a standalone binary.
 

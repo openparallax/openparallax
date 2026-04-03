@@ -223,6 +223,40 @@ channels:
 
 ---
 
+### iMessage (macOS only)
+
+Connect via iMessage using the AppleScript bridge to Messages.app.
+
+::: warning macOS Only
+iMessage integration requires macOS with Messages.app configured. It is not available on Linux or Windows.
+:::
+
+**Configuration:**
+
+```yaml
+channels:
+  imessage:
+    enabled: true
+    apple_id: "you@icloud.com"
+```
+
+| Field | Description |
+|-------|-------------|
+| `apple_id` | The Apple ID email address configured in Messages.app |
+
+**Setup steps:**
+
+1. Sign in to Messages.app with your Apple ID
+2. Grant Full Disk Access to the OpenParallax process in System Settings > Privacy & Security > Full Disk Access
+3. Set your Apple ID email in `config.yaml`
+4. Enable the channel and restart
+
+The adapter uses AppleScript to poll for new messages and send responses through Messages.app. A GUI session is required -- headless servers are not supported. Text messages only; attachments are not processed in the initial implementation.
+
+See the [iMessage adapter documentation](/channels/imessage) for full details.
+
+---
+
 ## Message Normalization
 
 Regardless of the source channel, messages are normalized into a common format before entering the pipeline:
