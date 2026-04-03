@@ -1,0 +1,502 @@
+/* === OpenParallax Docs — Glassmorphism Theme === */
+
+/* ── Fonts ── */
+
+@font-face {
+  font-family: 'Exo 2';
+  src: url('/fonts/exo2-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-variable.woff2') format('woff2');
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+/* ── Base Tokens ── */
+
+:root {
+  /* Background */
+  --bg-void: #06060c;
+  --bg-base: #0a0a14;
+  --bg-surface: rgba(12, 16, 28, 0.82);
+  --bg-elevated: rgba(18, 28, 48, 0.92);
+
+  /* Accent — Cyan (default) */
+  --op-accent: #00dcff;
+  --op-accent-rgb: 0, 220, 255;
+  --op-accent-dim: rgba(0, 220, 255, 0.6);
+  --op-accent-subtle: rgba(0, 220, 255, 0.15);
+  --op-accent-ghost: rgba(0, 220, 255, 0.05);
+  --op-accent-glow: 0 0 20px rgba(0, 220, 255, 0.12);
+  --op-accent-glow-strong: 0 0 30px rgba(0, 220, 255, 0.22);
+  --op-accent-border: rgba(0, 220, 255, 0.10);
+  --op-accent-border-active: rgba(0, 220, 255, 0.30);
+
+  /* Text */
+  --op-text-primary: #f0f0f5;
+  --op-text-secondary: rgba(240, 240, 245, 0.55);
+  --op-text-tertiary: rgba(240, 240, 245, 0.3);
+
+  /* Glass */
+  --op-glass: rgba(255, 255, 255, 0.03);
+  --op-glass-hover: rgba(255, 255, 255, 0.05);
+  --op-glass-border: rgba(255, 255, 255, 0.06);
+  --op-glass-blur: 20px;
+
+  /* Layout */
+  --op-radius: 8px;
+  --op-radius-lg: 12px;
+}
+
+/* ── Module Accent Overrides ── */
+
+.section-shield {
+  --op-accent: #ff3366;
+  --op-accent-rgb: 255, 51, 102;
+  --op-accent-dim: rgba(255, 51, 102, 0.6);
+  --op-accent-subtle: rgba(255, 51, 102, 0.15);
+  --op-accent-ghost: rgba(255, 51, 102, 0.05);
+  --op-accent-glow: 0 0 20px rgba(255, 51, 102, 0.12);
+  --op-accent-glow-strong: 0 0 30px rgba(255, 51, 102, 0.22);
+  --op-accent-border: rgba(255, 51, 102, 0.10);
+  --op-accent-border-active: rgba(255, 51, 102, 0.30);
+}
+
+.section-memory {
+  --op-accent: #a855f7;
+  --op-accent-rgb: 168, 85, 247;
+  --op-accent-dim: rgba(168, 85, 247, 0.6);
+  --op-accent-subtle: rgba(168, 85, 247, 0.15);
+  --op-accent-ghost: rgba(168, 85, 247, 0.05);
+  --op-accent-glow: 0 0 20px rgba(168, 85, 247, 0.12);
+  --op-accent-glow-strong: 0 0 30px rgba(168, 85, 247, 0.22);
+  --op-accent-border: rgba(168, 85, 247, 0.10);
+  --op-accent-border-active: rgba(168, 85, 247, 0.30);
+}
+
+.section-audit {
+  --op-accent: #f59e0b;
+  --op-accent-rgb: 245, 158, 11;
+  --op-accent-dim: rgba(245, 158, 11, 0.6);
+  --op-accent-subtle: rgba(245, 158, 11, 0.15);
+  --op-accent-ghost: rgba(245, 158, 11, 0.05);
+  --op-accent-glow: 0 0 20px rgba(245, 158, 11, 0.12);
+  --op-accent-glow-strong: 0 0 30px rgba(245, 158, 11, 0.22);
+  --op-accent-border: rgba(245, 158, 11, 0.10);
+  --op-accent-border-active: rgba(245, 158, 11, 0.30);
+}
+
+.section-sandbox {
+  --op-accent: #f97316;
+  --op-accent-rgb: 249, 115, 22;
+  --op-accent-dim: rgba(249, 115, 22, 0.6);
+  --op-accent-subtle: rgba(249, 115, 22, 0.15);
+  --op-accent-ghost: rgba(249, 115, 22, 0.05);
+  --op-accent-glow: 0 0 20px rgba(249, 115, 22, 0.12);
+  --op-accent-glow-strong: 0 0 30px rgba(249, 115, 22, 0.22);
+  --op-accent-border: rgba(249, 115, 22, 0.10);
+  --op-accent-border-active: rgba(249, 115, 22, 0.30);
+}
+
+.section-channels {
+  --op-accent: #10b981;
+  --op-accent-rgb: 16, 185, 129;
+  --op-accent-dim: rgba(16, 185, 129, 0.6);
+  --op-accent-subtle: rgba(16, 185, 129, 0.15);
+  --op-accent-ghost: rgba(16, 185, 129, 0.05);
+  --op-accent-glow: 0 0 20px rgba(16, 185, 129, 0.12);
+  --op-accent-glow-strong: 0 0 30px rgba(16, 185, 129, 0.22);
+  --op-accent-border: rgba(16, 185, 129, 0.10);
+  --op-accent-border-active: rgba(16, 185, 129, 0.30);
+}
+
+.section-chronicle {
+  --op-accent: #14b8a6;
+  --op-accent-rgb: 20, 184, 166;
+  --op-accent-dim: rgba(20, 184, 166, 0.6);
+  --op-accent-subtle: rgba(20, 184, 166, 0.15);
+  --op-accent-ghost: rgba(20, 184, 166, 0.05);
+  --op-accent-glow: 0 0 20px rgba(20, 184, 166, 0.12);
+  --op-accent-glow-strong: 0 0 30px rgba(20, 184, 166, 0.22);
+  --op-accent-border: rgba(20, 184, 166, 0.10);
+  --op-accent-border-active: rgba(20, 184, 166, 0.30);
+}
+
+.section-llm {
+  --op-accent: #38bdf8;
+  --op-accent-rgb: 56, 189, 248;
+  --op-accent-dim: rgba(56, 189, 248, 0.6);
+  --op-accent-subtle: rgba(56, 189, 248, 0.15);
+  --op-accent-ghost: rgba(56, 189, 248, 0.05);
+  --op-accent-glow: 0 0 20px rgba(56, 189, 248, 0.12);
+  --op-accent-glow-strong: 0 0 30px rgba(56, 189, 248, 0.22);
+  --op-accent-border: rgba(56, 189, 248, 0.10);
+  --op-accent-border-active: rgba(56, 189, 248, 0.30);
+}
+
+/* ── VitePress Dark Theme Overrides ── */
+
+.dark {
+  /* Core VitePress tokens → our glassmorphism */
+  --vp-c-bg: var(--bg-void);
+  --vp-c-bg-alt: var(--bg-base);
+  --vp-c-bg-elv: var(--bg-surface);
+  --vp-c-bg-soft: var(--op-accent-ghost);
+
+  --vp-c-text-1: var(--op-text-primary);
+  --vp-c-text-2: var(--op-text-secondary);
+  --vp-c-text-3: var(--op-text-tertiary);
+
+  /* Brand colors → module accent */
+  --vp-c-brand-1: var(--op-accent);
+  --vp-c-brand-2: var(--op-accent-dim);
+  --vp-c-brand-3: var(--op-accent-subtle);
+  --vp-c-brand-soft: var(--op-accent-ghost);
+
+  /* Borders */
+  --vp-c-border: var(--op-glass-border);
+  --vp-c-divider: var(--op-glass-border);
+  --vp-c-gutter: var(--bg-void);
+
+  /* Code */
+  --vp-code-color: var(--op-accent);
+  --vp-code-bg: var(--op-accent-ghost);
+  --vp-code-block-bg: rgba(10, 14, 24, 0.80);
+  --vp-code-block-divider-color: var(--op-glass-border);
+
+  /* Custom blocks */
+  --vp-custom-block-tip-border: var(--op-accent-border-active);
+  --vp-custom-block-tip-bg: var(--op-accent-ghost);
+  --vp-custom-block-tip-text: var(--op-text-primary);
+  --vp-custom-block-tip-code-bg: var(--op-accent-ghost);
+
+  /* Fonts */
+  --vp-font-family-base: 'Exo 2', ui-sans-serif, system-ui, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Nav */
+  --vp-nav-bg-color: rgba(6, 6, 12, 0.85);
+
+  /* Sidebar */
+  --vp-sidebar-bg-color: rgba(6, 6, 12, 0.60);
+
+  /* Home hero */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(
+    135deg,
+    var(--op-accent) 0%,
+    rgba(var(--op-accent-rgb), 0.6) 100%
+  );
+  --vp-home-hero-image-background-image: radial-gradient(
+    circle at center,
+    rgba(var(--op-accent-rgb), 0.15) 0%,
+    transparent 70%
+  );
+
+  /* Button */
+  --vp-button-brand-bg: var(--op-accent);
+  --vp-button-brand-hover-bg: var(--op-accent-dim);
+  --vp-button-brand-text: var(--bg-void);
+  --vp-button-brand-hover-text: var(--bg-void);
+  --vp-button-alt-bg: var(--op-glass);
+  --vp-button-alt-hover-bg: var(--op-glass-hover);
+  --vp-button-alt-text: var(--op-text-primary);
+  --vp-button-alt-border: var(--op-glass-border);
+}
+
+/* ── Global Styles ── */
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg-void);
+}
+
+/* Navbar glass effect */
+.VPNav {
+  backdrop-filter: blur(var(--op-glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--op-glass-blur)) !important;
+}
+
+.VPNavBar {
+  border-bottom-color: var(--op-glass-border) !important;
+  background: rgba(6, 6, 12, 0.75) !important;
+  backdrop-filter: blur(var(--op-glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--op-glass-blur)) !important;
+}
+
+/* Sidebar glass effect */
+.VPSidebar {
+  background: rgba(6, 6, 12, 0.50) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-right-color: var(--op-glass-border) !important;
+}
+
+.VPSidebar .VPSidebarItem.is-active > .item > .indicator {
+  background: var(--op-accent) !important;
+  box-shadow: var(--op-accent-glow) !important;
+}
+
+/* Active sidebar link glow */
+.VPSidebar a.active {
+  color: var(--op-accent) !important;
+}
+
+/* Content area */
+.VPDoc .container {
+  max-width: 900px;
+}
+
+/* Headings */
+.vp-doc h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--op-accent), rgba(var(--op-accent-rgb), 0.7));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.vp-doc h2 {
+  border-top-color: var(--op-glass-border);
+  padding-top: 24px;
+  color: var(--op-text-primary);
+}
+
+/* Links */
+.vp-doc a {
+  color: var(--op-accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--op-accent-border);
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.vp-doc a:hover {
+  border-bottom-color: var(--op-accent);
+}
+
+/* Inline code */
+.vp-doc :not(pre) > code {
+  background: var(--op-accent-ghost);
+  color: var(--op-accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.9em;
+  border: 1px solid var(--op-accent-border);
+}
+
+/* Code blocks — glass panels */
+.vp-doc div[class*="language-"] {
+  background: rgba(10, 14, 24, 0.80) !important;
+  border: 1px solid var(--op-glass-border);
+  border-radius: var(--op-radius-lg);
+  box-shadow: var(--op-accent-glow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.vp-doc div[class*="language-"] code {
+  font-family: var(--vp-font-family-mono);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* Language label */
+.vp-doc div[class*="language-"]::before {
+  color: var(--op-text-tertiary) !important;
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Tables */
+.vp-doc table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--op-glass);
+  border-radius: var(--op-radius);
+  overflow: hidden;
+  border: 1px solid var(--op-glass-border);
+}
+
+.vp-doc th {
+  background: var(--op-accent-ghost);
+  color: var(--op-accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--op-accent-border);
+}
+
+.vp-doc th,
+.vp-doc td {
+  padding: 10px 16px;
+  border-right: 1px solid var(--op-glass-border);
+}
+
+.vp-doc tr:nth-child(even) {
+  background: var(--op-glass);
+}
+
+.vp-doc tr {
+  border-bottom: 1px solid var(--op-glass-border);
+}
+
+/* Blockquotes */
+.vp-doc blockquote {
+  border-left: 3px solid var(--op-accent);
+  background: var(--op-accent-ghost);
+  padding: 12px 20px;
+  border-radius: 0 var(--op-radius) var(--op-radius) 0;
+  color: var(--op-text-secondary);
+}
+
+/* Custom blocks (tip, warning, danger) */
+.vp-doc .custom-block {
+  border-radius: var(--op-radius-lg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.vp-doc .custom-block.tip {
+  border-color: var(--op-accent-border-active);
+  background: var(--op-accent-ghost);
+}
+
+.vp-doc .custom-block.tip .custom-block-title {
+  color: var(--op-accent);
+}
+
+.vp-doc .custom-block.warning {
+  border-color: rgba(245, 158, 11, 0.30);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.vp-doc .custom-block.danger {
+  border-color: rgba(255, 61, 90, 0.30);
+  background: rgba(255, 61, 90, 0.05);
+}
+
+/* Footer */
+.VPFooter {
+  border-top-color: var(--op-glass-border) !important;
+  background: rgba(6, 6, 12, 0.50) !important;
+}
+
+/* Home page features */
+.VPFeature {
+  background: var(--op-glass) !important;
+  border: 1px solid var(--op-glass-border) !important;
+  border-radius: var(--op-radius-lg) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s !important;
+}
+
+.VPFeature:hover {
+  border-color: var(--op-accent-border-active) !important;
+  box-shadow: var(--op-accent-glow) !important;
+  transform: translateY(-2px) !important;
+}
+
+.VPFeature .title {
+  color: var(--op-accent) !important;
+  font-weight: 600 !important;
+}
+
+/* Hero action buttons */
+.VPButton.brand {
+  background: var(--op-accent) !important;
+  color: var(--bg-void) !important;
+  border: none !important;
+  font-weight: 600 !important;
+  box-shadow: var(--op-accent-glow) !important;
+  transition: box-shadow 0.3s, transform 0.2s !important;
+}
+
+.VPButton.brand:hover {
+  box-shadow: var(--op-accent-glow-strong) !important;
+  transform: translateY(-1px) !important;
+}
+
+.VPButton.alt {
+  background: var(--op-glass) !important;
+  border: 1px solid var(--op-glass-border) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  transition: border-color 0.3s !important;
+}
+
+.VPButton.alt:hover {
+  border-color: var(--op-accent-border-active) !important;
+}
+
+/* Search dialog */
+.VPLocalSearchBox .shell {
+  background: rgba(10, 14, 24, 0.95) !important;
+  border: 1px solid var(--op-glass-border) !important;
+  backdrop-filter: blur(var(--op-glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--op-glass-blur)) !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--op-accent-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--op-accent-border-active);
+}
+
+/* Badge styles for module indicators */
+.module-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75em;
+  font-weight: 600;
+  font-family: var(--vp-font-family-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--op-accent-ghost);
+  color: var(--op-accent);
+  border: 1px solid var(--op-accent-border);
+}
+
+/* Smooth transitions on section change */
+* {
+  transition-property: --op-accent, --op-accent-dim, --op-accent-subtle;
+  transition-duration: 0.4s;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 768px) {
+  .vp-doc h1 {
+    font-size: 1.8em;
+  }
+
+  .VPFeature {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
