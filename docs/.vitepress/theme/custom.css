@@ -138,9 +138,12 @@
   --op-accent-border-active: rgba(56, 189, 248, 0.30);
 }
 
-/* ── VitePress Dark Theme Overrides ── */
+/* ── VitePress Theme Overrides ── */
+/* Applied to :root so they work in both .dark and any fallback state.
+   appearance:'dark' in config.ts forces dark mode, but we define these
+   globally to prevent broken styling if the class is ever absent. */
 
-.dark {
+:root {
   /* Core VitePress tokens → our glassmorphism */
   --vp-c-bg: var(--bg-void);
   --vp-c-bg-alt: var(--bg-base);
@@ -247,6 +250,25 @@ body {
 /* Active sidebar link glow */
 .VPSidebar a.active {
   color: var(--op-accent) !important;
+}
+
+/* Hide appearance toggle — dark-only theme */
+.VPSwitchAppearance {
+  display: none !important;
+}
+
+/* Hero name — larger, bolder */
+.VPHero .name {
+  font-size: 4rem !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+}
+
+@media (min-width: 960px) {
+  .VPHero .name {
+    font-size: 5rem !important;
+  }
 }
 
 /* Content area */
