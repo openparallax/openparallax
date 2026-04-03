@@ -11,6 +11,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testStore wraps storage.DB to satisfy the Store interface while converting
+// storage.SearchResult to memory.SearchResult.
+type testStore struct {
+	db *storage.DB
+}
+
+func (s *testStore) IndexMemoryFile(path string, content string) {
+	s.db.IndexMemoryFile(path, content)
+}
+
+func (s *testStore) ClearMemoryIndex() {
+	s.db.ClearMemoryIndex()
+}
+
+func (s *testStore) SearchMemory(query string, limit int) ([]SearchResult, error) {
+	results, err := s.db.SearchMemory(query, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SearchResult, len(results))
+	for i, r := range results {
+		out[i] = SearchResult{Path: r.Path, Section: r.Section, Snippet: r.Snippet, Score: r.Score}
+	}
+	return out, nil
+}
+
 func openTestManager(t *testing.T) (*Manager, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -18,7 +44,7 @@ func openTestManager(t *testing.T) (*Manager, string) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
-	mgr := NewManager(dir, db, nil)
+	mgr := NewManager(dir, &testStore{db: db}, nil)
 	return mgr, dir
 }
 
@@ -26,7 +52,7 @@ func TestReadExistingFile(t *testing.T) {
 	mgr, dir := openTestManager(t)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "SOUL.md"), []byte("Be helpful."), 0o644))
 
-	content, err := mgr.Read(types.MemorySoul)
+	content, err := mgr.Read(MemorySoul)
 	require.NoError(t, err)
 	assert.Equal(t, "Be helpful.", content)
 }
@@ -34,17 +60,17 @@ func TestReadExistingFile(t *testing.T) {
 func TestReadNonexistentFile(t *testing.T) {
 	mgr, _ := openTestManager(t)
 
-	_, err := mgr.Read(types.MemorySoul)
-	assert.ErrorIs(t, err, types.ErrMemoryFileNotFound)
+	_, err := mgr.Read(MemorySoul)
+	assert.ErrorIs(t, err, ErrFileNotFound)
 }
 
 func TestAppendAndReindex(t *testing.T) {
 	mgr, dir := openTestManager(t)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte("# Memory\n"), 0o644))
 
-	require.NoError(t, mgr.Append(types.MemoryMain, "\n## Today\nLearned about quantum computing.\n"))
+	require.NoError(t, mgr.Append(MemoryMain, "\n## Today\nLearned about quantum computing.\n"))
 
-	content, err := mgr.Read(types.MemoryMain)
+	content, err := mgr.Read(MemoryMain)
 	require.NoError(t, err)
 	assert.Contains(t, content, "quantum computing")
 

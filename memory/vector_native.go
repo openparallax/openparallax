@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"database/sql"
 	"encoding/binary"
 	"math"
 	"os"
@@ -8,39 +9,57 @@ import (
 	"runtime"
 
 	"github.com/openparallax/openparallax/internal/logging"
-	"github.com/openparallax/openparallax/internal/storage"
 )
 
 // NativeVectorSearcher uses the sqlite-vec extension for in-database vector
 // queries. Only available when the extension is downloaded via
 // `openparallax get-vector-ext`. Falls back to BuiltinVectorSearcher otherwise.
 type NativeVectorSearcher struct {
-	db *storage.DB
+	conn *sql.DB
 }
 
 // NewVectorSearcher tries to detect the sqlite-vec extension. If found and
 // loadable, returns a NativeVectorSearcher with the vec0 table rebuilt from
 // BLOB embeddings. Otherwise returns a BuiltinVectorSearcher.
-func NewVectorSearcher(db *storage.DB, log *logging.Logger) VectorSearcher {
+func NewVectorSearcher(store ChunkStore, log *logging.Logger) VectorSearcher {
 	extPath := sqliteVecExtensionPath()
 	if extPath == "" {
 		if log != nil {
 			log.Info("vector_search_mode", "mode", "builtin")
 		}
-		return loadBuiltinFromDB(db, log)
+		return loadBuiltinFromStore(store, log)
 	}
 
 	if log != nil {
 		log.Info("vector_ext_detected", "path", extPath)
 	}
 
-	native := &NativeVectorSearcher{db: db}
+	// Native vector search requires raw SQL access for the vec0 virtual table.
+	provider, ok := store.(RawConnProvider)
+	if !ok {
+		if log != nil {
+			log.Warn("vector_native_unavailable", "reason", "store does not provide raw connection")
+			log.Info("vector_search_mode", "mode", "builtin")
+		}
+		return loadBuiltinFromStore(store, log)
+	}
+
+	conn, ok := provider.RawConn().(*sql.DB)
+	if !ok {
+		if log != nil {
+			log.Warn("vector_native_unavailable", "reason", "raw connection is not *sql.DB")
+			log.Info("vector_search_mode", "mode", "builtin")
+		}
+		return loadBuiltinFromStore(store, log)
+	}
+
+	native := &NativeVectorSearcher{conn: conn}
 	if err := native.RebuildFromBlobs(); err != nil {
 		if log != nil {
 			log.Warn("vector_rebuild_failed", "error", err)
 			log.Info("vector_search_mode", "mode", "builtin")
 		}
-		return loadBuiltinFromDB(db, log)
+		return loadBuiltinFromStore(store, log)
 	}
 
 	if log != nil {
@@ -52,10 +71,8 @@ func NewVectorSearcher(db *storage.DB, log *logging.Logger) VectorSearcher {
 // RebuildFromBlobs drops and recreates the vec0 table from BLOB embeddings
 // in the chunks table. Called on every startup when sqlite-vec is loaded.
 func (n *NativeVectorSearcher) RebuildFromBlobs() error {
-	conn := n.db.Conn()
-
-	_, _ = conn.Exec("DROP TABLE IF EXISTS chunks_vec")
-	_, err := conn.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
+	_, _ = n.conn.Exec("DROP TABLE IF EXISTS chunks_vec")
+	_, err := n.conn.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
 		id TEXT PRIMARY KEY,
 		embedding float[1536]
 	)`)
@@ -63,7 +80,7 @@ func (n *NativeVectorSearcher) RebuildFromBlobs() error {
 		return err
 	}
 
-	rows, err := conn.Query(`SELECT id, embedding FROM chunks WHERE embedding IS NOT NULL`)
+	rows, err := n.conn.Query(`SELECT id, embedding FROM chunks WHERE embedding IS NOT NULL`)
 	if err != nil {
 		return err
 	}
@@ -73,21 +90,23 @@ func (n *NativeVectorSearcher) RebuildFromBlobs() error {
 		var id string
 		var blob []byte
 		if scanErr := rows.Scan(&id, &blob); scanErr == nil && len(blob) > 0 {
-			_, _ = conn.Exec(`INSERT INTO chunks_vec (id, embedding) VALUES (?, ?)`, id, blob)
+			_, _ = n.conn.Exec(`INSERT INTO chunks_vec (id, embedding) VALUES (?, ?)`, id, blob)
 		}
 	}
 	return nil
 }
 
+// Insert adds or replaces a vector in the vec0 table.
 func (n *NativeVectorSearcher) Insert(id string, embedding []float32) error {
 	blob := vecSerialize(embedding)
-	_, err := n.db.Conn().Exec(`INSERT OR REPLACE INTO chunks_vec (id, embedding) VALUES (?, ?)`, id, blob)
+	_, err := n.conn.Exec(`INSERT OR REPLACE INTO chunks_vec (id, embedding) VALUES (?, ?)`, id, blob)
 	return err
 }
 
+// Search performs nearest-neighbor vector search using the vec0 table.
 func (n *NativeVectorSearcher) Search(query []float32, limit int) ([]VectorResult, error) {
 	blob := vecSerialize(query)
-	rows, err := n.db.Conn().Query(`
+	rows, err := n.conn.Query(`
 		SELECT id, distance
 		FROM chunks_vec
 		WHERE embedding MATCH ?
@@ -109,8 +128,9 @@ func (n *NativeVectorSearcher) Search(query []float32, limit int) ([]VectorResul
 	return results, nil
 }
 
+// Delete removes a vector from the vec0 table.
 func (n *NativeVectorSearcher) Delete(id string) error {
-	_, err := n.db.Conn().Exec(`DELETE FROM chunks_vec WHERE id = ?`, id)
+	_, err := n.conn.Exec(`DELETE FROM chunks_vec WHERE id = ?`, id)
 	return err
 }
 
@@ -149,10 +169,10 @@ func sqliteVecExtensionPath() string {
 	return ""
 }
 
-// loadBuiltinFromDB creates a BuiltinVectorSearcher preloaded from the DB.
-func loadBuiltinFromDB(db *storage.DB, log *logging.Logger) *BuiltinVectorSearcher {
+// loadBuiltinFromStore creates a BuiltinVectorSearcher preloaded from the store.
+func loadBuiltinFromStore(store ChunkStore, log *logging.Logger) *BuiltinVectorSearcher {
 	vs := NewBuiltinVectorSearcher()
-	embeddings, err := db.GetAllEmbeddings()
+	embeddings, err := store.GetAllEmbeddings()
 	if err != nil {
 		return vs
 	}

@@ -11,20 +11,19 @@ import (
 
 	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/logging"
-	"github.com/openparallax/openparallax/internal/storage"
 )
 
 // Indexer manages the chunk index and embedding pipeline.
 type Indexer struct {
-	db       *storage.DB
+	store    ChunkStore
 	embedder EmbeddingProvider
 	vector   VectorSearcher
 	log      *logging.Logger
 }
 
-// NewIndexer creates a new Indexer.
-func NewIndexer(db *storage.DB, embedder EmbeddingProvider, vector VectorSearcher, log *logging.Logger) *Indexer {
-	return &Indexer{db: db, embedder: embedder, vector: vector, log: log}
+// NewIndexer creates a new Indexer backed by the given ChunkStore.
+func NewIndexer(store ChunkStore, embedder EmbeddingProvider, vector VectorSearcher, log *logging.Logger) *Indexer {
+	return &Indexer{store: store, embedder: embedder, vector: vector, log: log}
 }
 
 // IndexFile chunks a file and indexes it. Skips unchanged files.
@@ -37,15 +36,15 @@ func (idx *Indexer) IndexFile(ctx context.Context, path string) error {
 	contentHash := hashContent(data)
 
 	// Check if file has changed since last index.
-	existing, err := idx.db.GetFileHash(path)
+	existing, err := idx.store.GetFileHash(path)
 	if err == nil && existing == contentHash {
 		return nil
 	}
 
 	// Remove old chunks for this file.
-	idx.db.DeleteChunksByPath(path)
+	idx.store.DeleteChunksByPath(path)
 	if idx.vector != nil {
-		ids, _ := idx.db.GetChunkIDsByPath(path)
+		ids, _ := idx.store.GetChunkIDsByPath(path)
 		for _, id := range ids {
 			_ = idx.vector.Delete(id)
 		}
@@ -66,7 +65,7 @@ func (idx *Indexer) IndexFile(ctx context.Context, path string) error {
 		chunkHashes = append(chunkHashes, h)
 		texts = append(texts, chunk.Text)
 
-		idx.db.InsertChunk(id, path, chunk.StartLine, chunk.EndLine, chunk.Text, h)
+		idx.store.InsertChunk(id, path, chunk.StartLine, chunk.EndLine, chunk.Text, h)
 	}
 
 	// Embed if provider available.
@@ -75,7 +74,7 @@ func (idx *Indexer) IndexFile(ctx context.Context, path string) error {
 	}
 
 	// Update file hash record.
-	idx.db.SetFileHash(path, contentHash)
+	idx.store.SetFileHash(path, contentHash)
 
 	if idx.log != nil {
 		idx.log.Info("indexed_file", "path", path, "chunks", len(chunks))
@@ -110,20 +109,20 @@ func (idx *Indexer) IndexWorkspace(ctx context.Context, workspacePath string) {
 
 // IndexSessions indexes past session transcripts.
 func (idx *Indexer) IndexSessions(ctx context.Context) {
-	sessions, err := idx.db.ListSessions()
+	sessionIDs, err := idx.store.ListSessionIDs()
 	if err != nil {
 		return
 	}
 
-	for _, sess := range sessions {
-		path := fmt.Sprintf("session:%s", sess.ID)
+	for _, sid := range sessionIDs {
+		path := fmt.Sprintf("session:%s", sid)
 
 		// Check if already indexed.
-		if existing, err := idx.db.GetFileHash(path); err == nil && existing != "" {
+		if existing, err := idx.store.GetFileHash(path); err == nil && existing != "" {
 			continue
 		}
 
-		messages, err := idx.db.GetMessages(sess.ID)
+		messages, err := idx.store.GetSessionMessages(sid)
 		if err != nil || len(messages) < 2 {
 			continue
 		}
@@ -147,14 +146,14 @@ func (idx *Indexer) IndexSessions(ctx context.Context) {
 			chunkIDs = append(chunkIDs, id)
 			chunkHashes = append(chunkHashes, h)
 			texts = append(texts, chunk.Text)
-			idx.db.InsertChunk(id, path, chunk.StartLine, chunk.EndLine, chunk.Text, h)
+			idx.store.InsertChunk(id, path, chunk.StartLine, chunk.EndLine, chunk.Text, h)
 		}
 
 		if idx.embedder != nil && len(texts) > 0 {
 			idx.embedBatch(ctx, chunkIDs, chunkHashes, texts)
 		}
 
-		idx.db.SetFileHash(path, contentHash)
+		idx.store.SetFileHash(path, contentHash)
 	}
 }
 
@@ -164,7 +163,7 @@ func (idx *Indexer) embedBatch(ctx context.Context, ids, hashes, texts []string)
 	cachedEmbeddings := make(map[int][]float32)
 
 	for i, h := range hashes {
-		if cached, err := idx.db.GetEmbeddingCache(h); err == nil {
+		if cached, err := idx.store.GetEmbeddingCache(h); err == nil {
 			cachedEmbeddings[i] = cached
 		} else {
 			toEmbed = append(toEmbed, i)
@@ -173,7 +172,7 @@ func (idx *Indexer) embedBatch(ctx context.Context, ids, hashes, texts []string)
 
 	// Insert cached embeddings.
 	for i, emb := range cachedEmbeddings {
-		idx.db.UpdateChunkEmbedding(ids[i], emb)
+		idx.store.UpdateChunkEmbedding(ids[i], emb)
 		if idx.vector != nil {
 			_ = idx.vector.Insert(ids[i], emb)
 		}
@@ -203,8 +202,8 @@ func (idx *Indexer) embedBatch(ctx context.Context, ids, hashes, texts []string)
 
 		for j, emb := range embeddings {
 			origIdx := batch[j]
-			idx.db.UpdateChunkEmbedding(ids[origIdx], emb)
-			idx.db.SetEmbeddingCache(hashes[origIdx], emb, idx.embedder.ModelID())
+			idx.store.UpdateChunkEmbedding(ids[origIdx], emb)
+			idx.store.SetEmbeddingCache(hashes[origIdx], emb, idx.embedder.ModelID())
 			if idx.vector != nil {
 				_ = idx.vector.Insert(ids[origIdx], emb)
 			}

@@ -9,8 +9,8 @@ import (
 
 	"github.com/openparallax/openparallax/internal/jsonrpc"
 	"github.com/openparallax/openparallax/internal/storage"
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/memory"
+	memsqlite "github.com/openparallax/openparallax/memory/sqlite"
 )
 
 var mgr *memory.Manager
@@ -30,7 +30,7 @@ func main() {
 		if err != nil {
 			return nil, fmt.Errorf("open database: %w", err)
 		}
-		mgr = memory.NewManager(cfg.Workspace, db, nil)
+		mgr = memory.NewManager(cfg.Workspace, memsqlite.NewStore(db), nil)
 		return map[string]bool{"ok": true}, nil
 	})
 
@@ -62,7 +62,7 @@ func main() {
 		if err := json.Unmarshal(params, &p); err != nil {
 			return nil, fmt.Errorf("invalid params: %w", err)
 		}
-		content, err := mgr.Read(types.MemoryFileType(p.FileType))
+		content, err := mgr.Read(memory.FileType(p.FileType))
 		if err != nil {
 			return nil, err
 		}

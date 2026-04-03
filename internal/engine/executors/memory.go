@@ -94,7 +94,7 @@ func (m *MemoryExecutor) write(action *types.ActionRequest) *types.ActionResult 
 		entry = fmt.Sprintf("\n- **%s**: %s\n", timestamp, strings.TrimSpace(content))
 	}
 
-	if err := m.manager.Append(types.MemoryMain, entry); err != nil {
+	if err := m.manager.Append(memory.MemoryMain, entry); err != nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "memory write failed"}
 	}
 

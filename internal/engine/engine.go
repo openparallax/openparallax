@@ -31,6 +31,7 @@ import (
 	"github.com/openparallax/openparallax/llm"
 	"github.com/openparallax/openparallax/mcp"
 	"github.com/openparallax/openparallax/memory"
+	memsqlite "github.com/openparallax/openparallax/memory/sqlite"
 	"github.com/openparallax/openparallax/shield"
 	"google.golang.org/grpc"
 )
@@ -180,7 +181,8 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		return nil, fmt.Errorf("chronicle: %w", err)
 	}
 
-	mem := memory.NewManager(cfg.Workspace, db, provider)
+	memStore := memsqlite.NewStore(db)
+	mem := memory.NewManager(cfg.Workspace, memStore, provider)
 	registry.RegisterMemory(mem)
 	ag := agent.NewAgent(provider, cfg.Workspace, mem)
 
@@ -459,7 +461,7 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 
 		case *pb.AgentEvent_MemoryFlush:
 			if ev.MemoryFlush.Content != "" {
-				_ = e.memory.Append("MEMORY.md", ev.MemoryFlush.Content)
+				_ = e.memory.Append(memory.MemoryMain, ev.MemoryFlush.Content)
 			}
 
 		case *pb.AgentEvent_ResponseComplete:
@@ -1205,7 +1207,7 @@ func (e *Engine) summarizeActiveSessions(_ context.Context) {
 
 // ReadMemory implements the PipelineService gRPC method.
 func (e *Engine) ReadMemory(_ context.Context, req *pb.MemoryReadRequest) (*pb.MemoryReadResponse, error) {
-	content, err := e.memory.Read(types.MemoryFileType(req.FileType))
+	content, err := e.memory.Read(memory.FileType(req.FileType))
 	if err != nil {
 		return nil, err
 	}

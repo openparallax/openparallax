@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/llm"
 )
@@ -22,7 +21,7 @@ type Store interface {
 	// ClearMemoryIndex removes all FTS5 entries.
 	ClearMemoryIndex()
 	// SearchMemory performs FTS5 search across indexed memory content.
-	SearchMemory(query string, limit int) ([]storage.SearchResult, error)
+	SearchMemory(query string, limit int) ([]SearchResult, error)
 }
 
 // Manager handles memory file operations and search.
@@ -40,17 +39,17 @@ func NewManager(workspace string, store Store, provider llm.Provider) *Manager {
 }
 
 // Read reads a memory file by type.
-func (m *Manager) Read(fileType types.MemoryFileType) (string, error) {
+func (m *Manager) Read(fileType FileType) (string, error) {
 	path := filepath.Join(m.workspace, string(fileType))
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", types.ErrMemoryFileNotFound
+		return "", ErrFileNotFound
 	}
 	return string(data), nil
 }
 
 // Append adds content to the end of a memory file and reindexes it.
-func (m *Manager) Append(fileType types.MemoryFileType, content string) error {
+func (m *Manager) Append(fileType FileType, content string) error {
 	path := filepath.Join(m.workspace, string(fileType))
 
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
@@ -70,7 +69,7 @@ func (m *Manager) Append(fileType types.MemoryFileType, content string) error {
 }
 
 // Search performs full-text search across all indexed memory content.
-func (m *Manager) Search(query string, limit int) ([]storage.SearchResult, error) {
+func (m *Manager) Search(query string, limit int) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -139,14 +138,14 @@ Conversation:
 	}
 	header += "\n"
 
-	return m.Append(types.MemoryMain, header+summary+"\n")
+	return m.Append(MemoryMain, header+summary+"\n")
 }
 
 // ReindexAll rebuilds the FTS5 index from all memory files on disk.
 func (m *Manager) ReindexAll() {
 	m.store.ClearMemoryIndex()
 
-	for _, ft := range types.AllMemoryFiles {
+	for _, ft := range AllFiles {
 		content, err := m.Read(ft)
 		if err == nil {
 			m.store.IndexMemoryFile(string(ft), content)

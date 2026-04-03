@@ -9,6 +9,7 @@ import (
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/memory"
+	memsqlite "github.com/openparallax/openparallax/memory/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +61,7 @@ func openMemory(cfgPath string) (*memory.Manager, *types.AgentConfig, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	mgr := memory.NewManager(cfg.Workspace, db, nil)
+	mgr := memory.NewManager(cfg.Workspace, memsqlite.NewStore(db), nil)
 	return mgr, cfg, nil
 }
 
@@ -89,7 +90,7 @@ func runMemoryShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	content, readErr := mgr.Read(types.MemoryFileType(args[0]))
+	content, readErr := mgr.Read(memory.FileType(args[0]))
 	if readErr != nil {
 		return fmt.Errorf("file not found: %s", args[0])
 	}

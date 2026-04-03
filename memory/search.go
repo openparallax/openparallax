@@ -3,8 +3,6 @@ package memory
 import (
 	"context"
 	"sort"
-
-	"github.com/openparallax/openparallax/internal/storage"
 )
 
 // HybridSearchResult is a merged search result from vector + keyword search.
@@ -20,11 +18,11 @@ type HybridSearchResult struct {
 
 // HybridSearch performs vector similarity + FTS5 keyword search, merged with
 // configurable weights. Falls back to FTS5-only if no embedding provider.
-func HybridSearch(ctx context.Context, db *storage.DB, embedder EmbeddingProvider, vector VectorSearcher, query string, limit int) ([]HybridSearchResult, error) {
+func HybridSearch(ctx context.Context, store ChunkStore, embedder EmbeddingProvider, vector VectorSearcher, query string, limit int) ([]HybridSearchResult, error) {
 	candidates := limit * 3
 
 	// FTS5 keyword search (always available).
-	keywordResults, _ := db.SearchChunksFTS(query, candidates)
+	keywordResults, _ := store.SearchChunksFTS(query, candidates)
 
 	// Vector search (if embedding provider and searcher available).
 	var vectorResults []VectorResult
@@ -91,7 +89,7 @@ func HybridSearch(ctx context.Context, db *storage.DB, embedder EmbeddingProvide
 	// Look up chunk details.
 	var results []HybridSearchResult
 	for _, m := range merged {
-		chunk, err := db.GetChunkByID(m.ID)
+		chunk, err := store.GetChunkByID(m.ID)
 		if err != nil {
 			continue
 		}
@@ -110,7 +108,7 @@ func HybridSearch(ctx context.Context, db *storage.DB, embedder EmbeddingProvide
 	return results, nil
 }
 
-func convertKeywordResults(results []storage.ChunkSearchResult, limit int) []HybridSearchResult {
+func convertKeywordResults(results []ChunkSearchResult, limit int) []HybridSearchResult {
 	if len(results) > limit {
 		results = results[:limit]
 	}

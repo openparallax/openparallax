@@ -11,6 +11,7 @@ import (
 	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/memory"
 )
 
 func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
@@ -164,7 +165,7 @@ func (s *Server) handleMemorySearch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleReadMemory(w http.ResponseWriter, r *http.Request) {
 	fileType := r.PathValue("type")
-	content, err := s.engine.Memory().Read(types.MemoryFileType(fileType))
+	content, err := s.engine.Memory().Read(memory.FileType(fileType))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "memory file not found: "+fileType)
 		return

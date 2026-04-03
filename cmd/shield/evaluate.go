@@ -61,7 +61,7 @@ func runEvaluate(_ *cobra.Command, _ []string) error {
 	verdict := pipeline.Evaluate(context.Background(), action)
 
 	out, _ := json.MarshalIndent(verdict, "", "  ")
-	fmt.Fprintln(os.Stdout, string(out))
+	_, _ = fmt.Fprintln(os.Stdout, string(out))
 
 	if verdict.Decision == shield.VerdictBlock {
 		os.Exit(1)

@@ -28,19 +28,19 @@ func runStatus(_ *cobra.Command, _ []string) error {
 	}
 
 	status := map[string]any{
-		"listen":             cfg.Listen,
-		"policy_file":        cfg.Policy.File,
+		"listen":               cfg.Listen,
+		"policy_file":          cfg.Policy.File,
 		"classifier_threshold": cfg.Classifier.Threshold,
-		"heuristic_enabled":  cfg.Heuristic.Enabled,
+		"heuristic_enabled":    cfg.Heuristic.Enabled,
 		"evaluator_configured": cfg.Evaluator != nil && cfg.Evaluator.Provider != "",
-		"fail_closed":        cfg.FailClosed,
-		"rate_limit":         cfg.RateLimit,
-		"daily_budget":       cfg.DailyBudget,
-		"verdict_ttl_seconds": cfg.VerdictTTL,
-		"audit_file":         cfg.Audit.File,
+		"fail_closed":          cfg.FailClosed,
+		"rate_limit":           cfg.RateLimit,
+		"daily_budget":         cfg.DailyBudget,
+		"verdict_ttl_seconds":  cfg.VerdictTTL,
+		"audit_file":           cfg.Audit.File,
 	}
 
 	out, _ := json.MarshalIndent(status, "", "  ")
-	fmt.Fprintln(os.Stdout, string(out))
+	_, _ = fmt.Fprintln(os.Stdout, string(out))
 	return nil
 }
