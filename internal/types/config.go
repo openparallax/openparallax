@@ -288,14 +288,7 @@ type TeamsConfig struct {
 	PasswordEnv string `yaml:"password_env" json:"password_env"`
 }
 
-// ChronicleConfig configures state versioning.
-type ChronicleConfig struct {
-	// MaxSnapshots is the maximum number of snapshots to retain.
-	MaxSnapshots int `yaml:"max_snapshots" json:"max_snapshots"`
-
-	// MaxAgeDays is the maximum age in days for retained snapshots.
-	MaxAgeDays int `yaml:"max_age_days" json:"max_age_days"`
-}
+// ChronicleConfig is defined as an alias in chronicle.go.
 
 // WebConfig configures the Web UI server.
 type WebConfig struct {

@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/openparallax/openparallax/audit"
+	"github.com/openparallax/openparallax/chronicle"
 	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/agent"
-	"github.com/openparallax/openparallax/internal/chronicle"
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/logging"
@@ -598,7 +598,7 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	}
 
 	// Chronicle snapshot.
-	if _, snapErr := e.chronicle.Snapshot(action); snapErr != nil {
+	if _, snapErr := e.chronicle.Snapshot(&chronicle.ActionRequest{Type: string(action.Type), Payload: action.Payload}); snapErr != nil {
 		e.log.Warn("chronicle_snapshot_failed", "error", snapErr)
 	}
 
@@ -1055,7 +1055,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 
 	// Chronicle snapshot (Normal mode only).
 	if !isOTR {
-		if _, snapErr := e.chronicle.Snapshot(action); snapErr != nil {
+		if _, snapErr := e.chronicle.Snapshot(&chronicle.ActionRequest{Type: string(action.Type), Payload: action.Payload}); snapErr != nil {
 			e.log.Warn("chronicle_snapshot_failed", "session", sid, "error", snapErr)
 		}
 	}

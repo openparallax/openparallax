@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/openparallax/openparallax/internal/chronicle"
+	"github.com/openparallax/openparallax/chronicle"
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/spf13/cobra"

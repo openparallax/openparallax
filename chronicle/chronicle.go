@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/openparallax/openparallax/crypto"
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // Store is the persistence interface Chronicle requires.
@@ -18,11 +17,11 @@ type Store interface {
 	// GetLastSnapshotHash returns the hash of the most recent snapshot.
 	GetLastSnapshotHash() string
 	// InsertSnapshot stores snapshot metadata.
-	InsertSnapshot(snap *types.SnapshotMetadata) error
+	InsertSnapshot(snap *SnapshotMetadata) error
 	// GetSnapshot retrieves a snapshot by ID.
-	GetSnapshot(id string) (*types.SnapshotMetadata, error)
+	GetSnapshot(id string) (*SnapshotMetadata, error)
 	// GetAllSnapshots returns all snapshots ordered by timestamp.
-	GetAllSnapshots() []types.SnapshotMetadata
+	GetAllSnapshots() []SnapshotMetadata
 	// PruneSnapshots removes snapshots exceeding count or age limits.
 	PruneSnapshots(maxCount, maxAgeDays int)
 }
@@ -37,7 +36,7 @@ type Chronicle struct {
 }
 
 // New creates a Chronicle instance for the given workspace.
-func New(workspace string, cfg types.ChronicleConfig, store Store) (*Chronicle, error) {
+func New(workspace string, cfg Config, store Store) (*Chronicle, error) {
 	snapshotDir := filepath.Join(workspace, ".openparallax", "chronicle", "snapshots")
 	if err := os.MkdirAll(snapshotDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create snapshot directory: %w", err)
@@ -54,16 +53,16 @@ func New(workspace string, cfg types.ChronicleConfig, store Store) (*Chronicle, 
 
 // Snapshot creates a pre-execution backup of files affected by the action.
 // Returns nil metadata if no files need backing up (e.g., read actions).
-func (c *Chronicle) Snapshot(action *types.ActionRequest) (*types.SnapshotMetadata, error) {
+func (c *Chronicle) Snapshot(action *ActionRequest) (*SnapshotMetadata, error) {
 	files := c.affectedFiles(action)
 	if len(files) == 0 {
 		return nil, nil
 	}
 
-	snap := &types.SnapshotMetadata{
+	snap := &SnapshotMetadata{
 		ID:            crypto.NewID(),
 		Timestamp:     time.Now(),
-		ActionType:    string(action.Type),
+		ActionType:    action.Type,
 		ActionSummary: fmt.Sprintf("%s: %v", action.Type, action.Payload["path"]),
 	}
 
@@ -96,7 +95,7 @@ func (c *Chronicle) Snapshot(action *types.ActionRequest) (*types.SnapshotMetada
 func (c *Chronicle) Rollback(snapshotID string) error {
 	snap, err := c.store.GetSnapshot(snapshotID)
 	if err != nil {
-		return types.ErrSnapshotNotFound
+		return ErrSnapshotNotFound
 	}
 
 	snapDir := filepath.Join(c.snapshotDir, snap.ID)
@@ -111,13 +110,13 @@ func (c *Chronicle) Rollback(snapshotID string) error {
 }
 
 // Diff computes changes between a snapshot and the current file state.
-func (c *Chronicle) Diff(snapshotID string) (*types.Diff, error) {
+func (c *Chronicle) Diff(snapshotID string) (*Diff, error) {
 	snap, err := c.store.GetSnapshot(snapshotID)
 	if err != nil {
-		return nil, types.ErrSnapshotNotFound
+		return nil, ErrSnapshotNotFound
 	}
 
-	diff := &types.Diff{
+	diff := &Diff{
 		FromSnapshot: snapshotID,
 		Timestamp:    time.Now(),
 	}
@@ -133,7 +132,7 @@ func (c *Chronicle) Diff(snapshotID string) (*types.Diff, error) {
 			if currentHash == "" {
 				changeType = "deleted"
 			}
-			diff.Changes = append(diff.Changes, types.FileChange{
+			diff.Changes = append(diff.Changes, FileChange{
 				Path:       path,
 				ChangeType: changeType,
 				BeforeHash: backupHash,
@@ -152,7 +151,7 @@ func (c *Chronicle) VerifyIntegrity() error {
 	for _, snap := range snapshots {
 		if snap.PreviousHash != prevHash {
 			return fmt.Errorf("%w: snapshot %s has previous_hash %q but expected %q",
-				types.ErrIntegrityViolation, snap.ID, snap.PreviousHash, prevHash)
+				ErrIntegrityViolation, snap.ID, snap.PreviousHash, prevHash)
 		}
 		prevHash = snap.Hash
 	}
@@ -160,7 +159,7 @@ func (c *Chronicle) VerifyIntegrity() error {
 }
 
 // List returns all snapshots ordered by timestamp.
-func (c *Chronicle) List() []types.SnapshotMetadata {
+func (c *Chronicle) List() []SnapshotMetadata {
 	return c.store.GetAllSnapshots()
 }
 
@@ -170,16 +169,16 @@ func (c *Chronicle) Close() error {
 }
 
 // affectedFiles returns the list of files that will be modified by this action.
-func (c *Chronicle) affectedFiles(action *types.ActionRequest) []string {
+func (c *Chronicle) affectedFiles(action *ActionRequest) []string {
 	switch action.Type {
-	case types.ActionWriteFile, types.ActionDeleteFile:
+	case ActionWriteFile, ActionDeleteFile:
 		if path, ok := action.Payload["path"].(string); ok && path != "" {
 			resolved := c.resolvePath(path)
 			if fileExists(resolved) {
 				return []string{resolved}
 			}
 		}
-	case types.ActionMoveFile:
+	case ActionMoveFile:
 		if src, ok := action.Payload["source"].(string); ok && src != "" {
 			resolved := c.resolvePath(src)
 			if fileExists(resolved) {
