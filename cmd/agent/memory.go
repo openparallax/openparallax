@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 
 	"github.com/openparallax/openparallax/internal/config"
-	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/memory"
 	"github.com/spf13/cobra"
 )
 

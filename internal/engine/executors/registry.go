@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/openparallax/openparallax/internal/logging"
-	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/oauth"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/memory"
 )
 
 // Registry maps action types to executors.

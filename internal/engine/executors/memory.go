@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/memory"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/memory"
 )
 
 // MemoryExecutor handles memory_write and memory_search operations.
