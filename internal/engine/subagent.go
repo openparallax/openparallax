@@ -13,7 +13,7 @@ import (
 	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
-	"github.com/openparallax/openparallax/internal/sandbox"
+	"github.com/openparallax/openparallax/sandbox"
 )
 
 // SubAgentStatus represents the lifecycle state of a sub-agent.

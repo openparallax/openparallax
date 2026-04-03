@@ -9,8 +9,8 @@ import (
 
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/engine/executors"
-	"github.com/openparallax/openparallax/internal/sandbox"
 	"github.com/openparallax/openparallax/internal/storage"
+	"github.com/openparallax/openparallax/sandbox"
 	"github.com/spf13/cobra"
 )
 

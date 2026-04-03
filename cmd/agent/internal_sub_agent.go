@@ -9,9 +9,9 @@ import (
 
 	"github.com/openparallax/openparallax/internal/agent"
 	"github.com/openparallax/openparallax/internal/llm"
-	"github.com/openparallax/openparallax/internal/sandbox"
 	"github.com/openparallax/openparallax/internal/types"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
+	"github.com/openparallax/openparallax/sandbox"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

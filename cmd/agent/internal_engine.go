@@ -20,9 +20,9 @@ import (
 	"github.com/openparallax/openparallax/internal/engine/executors"
 	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/registry"
-	"github.com/openparallax/openparallax/internal/sandbox"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/internal/web"
+	"github.com/openparallax/openparallax/sandbox"
 	"github.com/spf13/cobra"
 )
 
