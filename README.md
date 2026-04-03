@@ -6,12 +6,14 @@
 
 Open-source security framework for autonomous AI systems. 3-tier defense pipeline, kernel sandboxing, tamper-evident audit, and composable modules — because an agent that can execute anything will eventually execute the wrong thing.
 
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Go 1.25+](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
-[![CGo](https://img.shields.io/badge/CGo-disabled-success?style=flat-square)](https://pkg.go.dev)
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?style=flat-square)](https://openparallax.dev/guide/installation)
+[![Zero CGo](https://img.shields.io/badge/CGo-disabled-success?style=flat-square)](https://pkg.go.dev)
+[![Platform](https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-grey?style=flat-square&logo=linux&logoColor=white)](https://docs.openparallax.dev/guide/installation)
+[![Security](https://img.shields.io/badge/Shield-3--tier%20pipeline-ff3366?style=flat-square)](https://docs.openparallax.dev/shield/)
+[![Single Binary](https://img.shields.io/badge/Deploy-single%20binary-orange?style=flat-square)](https://docs.openparallax.dev/guide/installation)
 
-[Documentation](https://openparallax.dev) &bull; [Quick Start](#quick-start) &bull; [Architecture](#architecture) &bull; [Modules](#modules) &bull; [Contributing](CONTRIBUTING.md)
+[Documentation](https://docs.openparallax.dev) &bull; [Quick Start](#quick-start) &bull; [Architecture](#architecture) &bull; [Modules](#modules) &bull; [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -21,22 +23,36 @@ Open-source security framework for autonomous AI systems. 3-tier defense pipelin
 
 ## One Binary. Zero Dependencies. Any Platform.
 
-A single static binary for Linux, macOS, and Windows. No Python. No Node.js. No Docker. No runtime dependencies. Download it, run it, done.
+A single static binary. No Python. No Node.js. No Docker. No runtime dependencies. Download it and run it.
+
+**Linux / macOS:**
 
 ```bash
-# Build from source (Linux, macOS, or Windows with Git Bash / WSL)
-git clone https://github.com/openparallax/openparallax.git
-cd openparallax
-make build-all
-
-# Initialize and start
-./dist/openparallax init
-./dist/openparallax start
+curl -sSL https://get.openparallax.dev | sh
+openparallax init
+openparallax start
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://get.openparallax.dev/install.ps1 | iex
+openparallax init
+openparallax start
+```
+
+**Package managers:**
+
+```bash
+brew install openparallax/tap/openparallax    # macOS (Homebrew)
+scoop install openparallax                     # Windows (Scoop)
+```
+
+> The install script detects your platform and architecture (`linux/darwin`, `amd64/arm64`), downloads the correct binary from GitHub releases, and places it in your PATH. No compilation needed.
 
 ## What It Does
 
-OpenParallax is a personal AI agent that runs on your machine — any machine. It connects to LLM providers (Anthropic, OpenAI, Google, Ollama, and any OpenAI-compatible API), executes 50+ tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
+OpenParallax is a personal AI agent that runs on your machine — any machine. It connects to LLM providers (Anthropic, OpenAI and any OpenAI-compatible API, Google, Ollama), executes 50+ tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
 
 - **Talk through CLI, web, or messaging apps** — terminal TUI, glassmorphism web UI, WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage
 - **50+ actions** — files, git, shell, browser, email, calendar, canvas, HTTP, scheduling
@@ -49,23 +65,34 @@ OpenParallax is a personal AI agent that runs on your machine — any machine. I
 
 ## Quick Start
 
-**Prerequisites:** Go 1.25+, at least one LLM API key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GOOGLE_AI_API_KEY`)
+### From Binary (recommended)
 
 ```bash
-make build-all                 # Build everything (Go + web frontend)
-./dist/openparallax init       # Interactive setup wizard
-./dist/openparallax start      # Launch agent + web UI
+openparallax init       # Interactive setup wizard
+openparallax start      # Launch agent + web UI
 ```
 
-The init wizard configures your LLM provider, Shield security provider, and embedding provider with connection testing. After init, `start` launches the engine, spawns the sandboxed agent, opens the CLI, and starts the web UI on port 3100.
+### From Source
+
+**Prerequisites:** Go 1.25+, Node.js 20+ (for web frontend)
+
+```bash
+git clone https://github.com/openparallax/openparallax.git
+cd openparallax
+make build-all
+./dist/openparallax init
+./dist/openparallax start
+```
+
+The `init` wizard configures your LLM provider, Shield security provider, and embedding provider with connection testing. After init, `start` launches the engine, spawns the sandboxed agent, opens the CLI, and starts the web UI on port 3100.
 
 ```bash
 # Other useful commands
-./dist/openparallax doctor     # 13-point health check
-./dist/openparallax status     # Workspace stats
-./dist/openparallax attach tui # Attach CLI to running agent
-./dist/openparallax logs -f    # Tail engine log
-./dist/openparallax audit --verify  # Verify audit chain integrity
+openparallax doctor          # 13-point health check
+openparallax status          # Workspace stats
+openparallax attach tui      # Attach CLI to running agent
+openparallax logs -f         # Tail engine log
+openparallax audit --verify  # Verify audit chain integrity
 ```
 
 ## Architecture
@@ -88,9 +115,7 @@ openparallax start              (Process Manager)
 
 **The Engine** is the security gate — it evaluates every tool proposal through Shield, checks IFC labels, takes Chronicle snapshots, logs to audit, and executes approved actions. The Agent never executes anything directly.
 
-This separation is the core thesis of the [research paper](https://github.com/openparallax/openparallax) — an agent that thinks and an agent that acts must never be the same process.
-
-**Why?** The Agent talks to external LLM APIs. If those APIs are compromised or the LLM is manipulated through prompt injection, the Agent could propose dangerous actions. The kernel sandbox + Shield pipeline ensures that even a fully compromised Agent cannot cause harm.
+This separation is the core thesis of the [research paper](https://github.com/openparallax/openparallax) — an agent that thinks and the system that acts must never be the same process.
 
 ### Message Pipeline
 
@@ -108,16 +133,16 @@ OpenParallax is composed of standalone modules. Use the whole system, or import 
 
 | Module | Description | Go | Python | Node.js |
 |--------|-------------|:---:|:------:|:-------:|
-| **[Shield](https://openparallax.dev/shield/)** | 3-tier AI security pipeline (policy + classifier + LLM evaluator) | &#10003; | &#10003; | &#10003; |
-| **[Memory](https://openparallax.dev/memory/)** | Semantic memory with pluggable backends (SQLite, pgvector, Qdrant, Pinecone, ...) | &#10003; | &#10003; | &#10003; |
-| **[Audit](https://openparallax.dev/audit/)** | Tamper-evident append-only logging with SHA-256 hash chains | &#10003; | &#10003; | &#10003; |
-| **[Sandbox](https://openparallax.dev/sandbox/)** | Kernel-level process isolation (Landlock, sandbox-exec, Job Objects) | &#10003; | | |
-| **[Channels](https://openparallax.dev/channels/)** | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage | &#10003; | &#10003; | &#10003; |
-| **[Chronicle](https://openparallax.dev/modules/chronicle)** | Copy-on-write workspace snapshots with rollback | &#10003; | | |
-| **[LLM](https://openparallax.dev/modules/llm)** | Anthropic, OpenAI + compatible APIs, Google, Ollama | &#10003; | | |
-| **[IFC](https://openparallax.dev/modules/ifc)** | Information flow control with sensitivity labels | &#10003; | | |
-| **[Crypto](https://openparallax.dev/modules/crypto)** | ID generation, hash chains, canary tokens | &#10003; | | |
-| **[MCP](https://openparallax.dev/modules/mcp)** | Model Context Protocol client integration | &#10003; | | |
+| **[Shield](https://docs.openparallax.dev/shield/)** | 3-tier AI security pipeline (policy + classifier + LLM evaluator) | &#10003; | &#10003; | &#10003; |
+| **[Memory](https://docs.openparallax.dev/memory/)** | Semantic memory with pluggable backends (SQLite, pgvector, Qdrant, Pinecone, ...) | &#10003; | &#10003; | &#10003; |
+| **[Audit](https://docs.openparallax.dev/audit/)** | Tamper-evident append-only logging with SHA-256 hash chains | &#10003; | &#10003; | &#10003; |
+| **[Sandbox](https://docs.openparallax.dev/sandbox/)** | Kernel-level process isolation (Landlock, sandbox-exec, Job Objects) | &#10003; | | |
+| **[Channels](https://docs.openparallax.dev/channels/)** | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage | &#10003; | &#10003; | &#10003; |
+| **[Chronicle](https://docs.openparallax.dev/modules/chronicle)** | Copy-on-write workspace snapshots with rollback | &#10003; | | |
+| **[LLM](https://docs.openparallax.dev/modules/llm)** | Anthropic, OpenAI + compatible APIs, Google, Ollama | &#10003; | | |
+| **[IFC](https://docs.openparallax.dev/modules/ifc)** | Information flow control with sensitivity labels | &#10003; | | |
+| **[Crypto](https://docs.openparallax.dev/modules/crypto)** | ID generation, hash chains, canary tokens | &#10003; | | |
+| **[MCP](https://docs.openparallax.dev/modules/mcp)** | Model Context Protocol client integration | &#10003; | | |
 
 ### Shield as a Standalone Product
 
@@ -212,7 +237,16 @@ Third-party API keys use standard names:
 | `OPENAI_API_KEY` | OpenAI (chat + embeddings) |
 | `GOOGLE_AI_API_KEY` | Google Gemini |
 
-OpenParallax-specific variables use the `OP_` prefix: `OP_LOG_LEVEL`, `OP_DATA_DIR`, `OP_WEB_PORT`, `OP_SHIELD_POLICY`, etc. See the [full reference](https://openparallax.dev/reference/env-vars).
+OpenParallax-specific variables use the `OP_` prefix: `OP_LOG_LEVEL`, `OP_DATA_DIR`, `OP_WEB_PORT`, `OP_SHIELD_POLICY`, etc. See the [full reference](https://docs.openparallax.dev/reference/env-vars).
+
+## Documentation
+
+Full documentation at **[docs.openparallax.dev](https://docs.openparallax.dev)** — 91+ pages covering:
+
+- **[User Guide](https://docs.openparallax.dev/guide/)** — installation, quickstart, configuration, every feature
+- **[Technical Docs](https://docs.openparallax.dev/technical/)** — architecture, pipeline, gRPC services, extending
+- **[Module Docs](https://docs.openparallax.dev/shield/)** — standalone usage for Shield, Memory, Audit, Sandbox, Channels
+- **[API Reference](https://docs.openparallax.dev/reference/config)** — config schema, events, actions, gRPC, REST, WebSocket
 
 ## Security
 
