@@ -40,6 +40,11 @@ Thumbs.db
 web/node_modules/
 web/dist/
 
+# Docs
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
 # Temporary
 tmp/
 *.tmp
