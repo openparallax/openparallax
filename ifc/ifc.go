@@ -1,4 +1,4 @@
-package shield
+package ifc
 
 import (
 	"path/filepath"
@@ -10,7 +10,6 @@ func ClassifySource(path string) *DataClassification {
 	normalized := strings.ToLower(filepath.ToSlash(path))
 	base := filepath.Base(normalized)
 
-	// Credentials and keys.
 	if isCredentialPath(normalized, base) {
 		return &DataClassification{
 			Sensitivity: SensitivityCritical,
@@ -19,7 +18,6 @@ func ClassifySource(path string) *DataClassification {
 		}
 	}
 
-	// SSH, GPG, cloud config.
 	if isSecurityPath(normalized) {
 		return &DataClassification{
 			Sensitivity: SensitivityRestricted,
@@ -28,7 +26,6 @@ func ClassifySource(path string) *DataClassification {
 		}
 	}
 
-	// Agent internal config.
 	if isAgentConfigPath(normalized, base) {
 		return &DataClassification{
 			Sensitivity: SensitivityConfidential,
@@ -37,7 +34,6 @@ func ClassifySource(path string) *DataClassification {
 		}
 	}
 
-	// Default: public.
 	return &DataClassification{
 		Sensitivity: SensitivityPublic,
 		SourcePath:  path,
@@ -55,17 +51,11 @@ func IsFlowAllowed(classification *DataClassification, destAction ActionType) bo
 	switch classification.Sensitivity {
 	case SensitivityPublic:
 		return true
-
 	case SensitivityInternal:
-		// Can flow to workspace, memory, local tools. Not to external services.
 		return !isExternalAction(destAction)
-
 	case SensitivityConfidential:
-		// Can flow to workspace only. Not to HTTP, email, shell, external.
 		return isWorkspaceOnlyAction(destAction)
-
 	case SensitivityRestricted, SensitivityCritical:
-		// Cannot flow anywhere beyond display. Read-only.
 		return false
 	}
 
@@ -103,10 +93,7 @@ func isCredentialPath(normalized, base string) bool {
 			return true
 		}
 	}
-	if strings.Contains(normalized, "api_key") || strings.Contains(normalized, "apikey") {
-		return true
-	}
-	return false
+	return strings.Contains(normalized, "api_key") || strings.Contains(normalized, "apikey")
 }
 
 func isSecurityPath(normalized string) bool {

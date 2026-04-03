@@ -1,4 +1,4 @@
-package shield
+package ifc
 
 import (
 	"testing"

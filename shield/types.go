@@ -1,26 +1,30 @@
 package shield
 
-import "time"
+import (
+	"time"
 
-// ActionType represents the category of action.
-type ActionType string
+	"github.com/openparallax/openparallax/ifc"
+)
 
-// Action type constants used by Shield for routing and evaluation.
+// ActionType is an alias for the public ifc.ActionType.
+type ActionType = ifc.ActionType
+
+// Action type constants — aliases to the ifc package.
 const (
-	ActionReadFile     ActionType = "read_file"
-	ActionWriteFile    ActionType = "write_file"
-	ActionDeleteFile   ActionType = "delete_file"
-	ActionMoveFile     ActionType = "move_file"
-	ActionCopyFile     ActionType = "copy_file"
-	ActionCreateDir    ActionType = "create_directory"
-	ActionListDir      ActionType = "list_directory"
-	ActionSearchFiles  ActionType = "search_files"
-	ActionExecCommand  ActionType = "execute_command"
-	ActionSendMessage  ActionType = "send_message"
-	ActionSendEmail    ActionType = "send_email"
-	ActionHTTPRequest  ActionType = "http_request"
-	ActionMemoryWrite  ActionType = "memory_write"
-	ActionMemorySearch ActionType = "memory_search"
+	ActionReadFile     = ifc.ActionReadFile
+	ActionWriteFile    = ifc.ActionWriteFile
+	ActionDeleteFile   = ifc.ActionDeleteFile
+	ActionMoveFile     = ifc.ActionMoveFile
+	ActionCopyFile     = ifc.ActionCopyFile
+	ActionCreateDir    = ifc.ActionCreateDir
+	ActionListDir      = ifc.ActionListDir
+	ActionSearchFiles  = ifc.ActionSearchFiles
+	ActionExecCommand  = ifc.ActionExecCommand
+	ActionSendMessage  = ifc.ActionSendMessage
+	ActionSendEmail    = ifc.ActionSendEmail
+	ActionHTTPRequest  = ifc.ActionHTTPRequest
+	ActionMemoryWrite  = ifc.ActionMemoryWrite
+	ActionMemorySearch = ifc.ActionMemorySearch
 )
 
 // ActionRequest represents a proposed action from the agent.
@@ -63,27 +67,20 @@ func (v *Verdict) IsExpired() bool {
 }
 
 // SensitivityLevel is the data sensitivity classification.
-type SensitivityLevel int
+// SensitivityLevel is an alias for the public ifc type.
+type SensitivityLevel = ifc.SensitivityLevel
 
+// DataClassification is an alias for the public ifc type.
+type DataClassification = ifc.DataClassification
+
+// Sensitivity level constants — aliases to the ifc package.
 const (
-	// SensitivityPublic is data with no access restrictions.
-	SensitivityPublic SensitivityLevel = 0
-	// SensitivityInternal is data restricted to internal use.
-	SensitivityInternal SensitivityLevel = 1
-	// SensitivityConfidential is data with limited distribution.
-	SensitivityConfidential SensitivityLevel = 2
-	// SensitivityRestricted is data requiring elevated access controls.
-	SensitivityRestricted SensitivityLevel = 3
-	// SensitivityCritical is data with the highest protection requirements.
-	SensitivityCritical SensitivityLevel = 4
+	SensitivityPublic       = ifc.SensitivityPublic
+	SensitivityInternal     = ifc.SensitivityInternal
+	SensitivityConfidential = ifc.SensitivityConfidential
+	SensitivityRestricted   = ifc.SensitivityRestricted
+	SensitivityCritical     = ifc.SensitivityCritical
 )
-
-// DataClassification is the IFC tag attached to data flowing through the pipeline.
-type DataClassification struct {
-	Sensitivity SensitivityLevel `json:"sensitivity"`
-	SourcePath  string           `json:"source_path,omitempty"`
-	ContentType string           `json:"content_type,omitempty"`
-}
 
 // EvaluatorConfig configures the Tier 2 LLM evaluator.
 type EvaluatorConfig struct {

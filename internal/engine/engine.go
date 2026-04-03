@@ -18,6 +18,7 @@ import (
 	"github.com/openparallax/openparallax/audit"
 	"github.com/openparallax/openparallax/chronicle"
 	"github.com/openparallax/openparallax/crypto"
+	"github.com/openparallax/openparallax/ifc"
 	"github.com/openparallax/openparallax/internal/agent"
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/engine/executors"
@@ -603,7 +604,7 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	}
 
 	// IFC check.
-	if action.DataClassification != nil && !shield.IsFlowAllowed(action.DataClassification, action.Type) {
+	if action.DataClassification != nil && !ifc.IsFlowAllowed(action.DataClassification, action.Type) {
 		return &pb.ToolResultDelivery{CallId: tp.CallId, Content: "Blocked: IFC violation", IsError: true}
 	}
 
@@ -1062,7 +1063,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 
 	// IFC check: if the action sends data externally and we've seen sensitive
 	// data in this session, block the flow.
-	if action.DataClassification != nil && !shield.IsFlowAllowed(action.DataClassification, action.Type) {
+	if action.DataClassification != nil && !ifc.IsFlowAllowed(action.DataClassification, action.Type) {
 		reason := "IFC violation: sensitive data cannot flow to this destination"
 		e.log.Info("ifc_blocked", "session", sid, "tool", tc.Name,
 			"sensitivity", action.DataClassification.Sensitivity, "source", action.DataClassification.SourcePath)
