@@ -1,7 +1,7 @@
 // Package tier2 implements the LLM-based evaluator for Shield's third evaluation
 // tier. It uses an independent LLM with canary token verification to detect
 // prompt injection of the evaluator itself.
-package tier2
+package shield
 
 import (
 	"fmt"

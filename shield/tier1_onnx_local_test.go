@@ -1,10 +1,9 @@
-package tier1
+package shield
 
 import (
 	"context"
 	"testing"
 
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,8 +12,8 @@ func TestLocalOnnxClientUnavailable(t *testing.T) {
 	client := NewLocalOnnxClient(0.85)
 	assert.False(t, client.IsAvailable())
 
-	_, err := client.Classify(context.Background(), &types.ActionRequest{
-		Type:    types.ActionExecCommand,
+	_, err := client.Classify(context.Background(), &ActionRequest{
+		Type:    ActionExecCommand,
 		Payload: map[string]any{"command": "ls"},
 	})
 	assert.Error(t, err)

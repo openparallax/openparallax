@@ -1,16 +1,14 @@
-package tier2
+package shield
 
 import (
 	"encoding/json"
 	"strings"
-
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // EvalResult is the Tier 2 evaluation result.
 type EvalResult struct {
 	// Decision is ALLOW or BLOCK.
-	Decision types.VerdictDecision
+	Decision VerdictDecision
 	// Confidence is the evaluator's confidence (0.0-1.0).
 	Confidence float64
 	// Reason explains the evaluation.
@@ -35,9 +33,9 @@ func ParseEvalResponse(response string) (*EvalResult, error) {
 		return nil, err
 	}
 
-	decision := types.VerdictAllow
+	decision := VerdictAllow
 	if strings.ToUpper(parsed.Decision) == "BLOCK" {
-		decision = types.VerdictBlock
+		decision = VerdictBlock
 	}
 
 	return &EvalResult{

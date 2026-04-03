@@ -5,18 +5,13 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/openparallax/openparallax/internal/shield/tier0"
-	"github.com/openparallax/openparallax/internal/shield/tier1"
-	"github.com/openparallax/openparallax/internal/shield/tier2"
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // GatewayConfig holds all tier implementations and settings.
 type GatewayConfig struct {
-	Policy      *tier0.PolicyEngine
-	Classifier  *tier1.DualClassifier
-	Evaluator   *tier2.Evaluator
+	Policy      *PolicyEngine
+	Classifier  *DualClassifier
+	Evaluator   *Evaluator
 	FailClosed  bool
 	RateLimit   int
 	VerdictTTL  int
@@ -42,7 +37,7 @@ func NewGateway(cfg GatewayConfig) *Gateway {
 }
 
 // Evaluate routes an action through the appropriate tiers and returns a verdict.
-func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *types.Verdict {
+func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict {
 	// Rate limiting.
 	if !g.rateLimiter.Allow() {
 		g.cfg.Log.Info("shield_rate_limit", "action", action.Type)
@@ -52,19 +47,19 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 	// Tier 0: Policy engine.
 	t0Result := g.cfg.Policy.Evaluate(action)
 	switch t0Result.Decision {
-	case tier0.Deny:
+	case Deny:
 		g.cfg.Log.Info("shield_tier0_deny", "action", action.Type, "policy", t0Result.Reason)
 		return g.block(action, 0, 1.0, fmt.Sprintf("policy deny: %s", t0Result.Reason))
-	case tier0.Allow:
+	case Allow:
 		g.cfg.Log.Info("shield_tier0_allow", "action", action.Type, "policy", t0Result.Reason)
 		// Only return immediately if no MinTier override requires higher evaluation.
 		if action.MinTier <= 0 {
 			return g.allow(action, 0, 1.0, fmt.Sprintf("policy allow: %s", t0Result.Reason))
 		}
 		g.cfg.Log.Info("shield_mintier_override", "action", action.Type, "min_tier", action.MinTier)
-	case tier0.Escalate:
+	case Escalate:
 		g.cfg.Log.Info("shield_tier0_escalate", "action", action.Type, "to_tier", t0Result.EscalateTo, "policy", t0Result.Reason)
-	case tier0.NoMatch:
+	case NoMatch:
 		g.cfg.Log.Debug("shield_tier0_nomatch", "action", action.Type)
 	}
 
@@ -77,7 +72,7 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 	}
 
 	// From Tier 0 escalation (policy).
-	if t0Result.Decision == tier0.Escalate && t0Result.EscalateTo > minTier {
+	if t0Result.Decision == Escalate && t0Result.EscalateTo > minTier {
 		minTier = t0Result.EscalateTo
 	}
 
@@ -94,10 +89,10 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 		case err != nil && g.cfg.FailClosed:
 			g.cfg.Log.Warn("shield_tier1_error", "action", action.Type, "error", err)
 			return g.block(action, 1, 0.5, "classifier error: "+err.Error())
-		case err == nil && t1Result.Decision == types.VerdictBlock:
+		case err == nil && t1Result.Decision == VerdictBlock:
 			g.cfg.Log.Info("shield_tier1_block", "action", action.Type, "reason", t1Result.Reason)
 			return g.blockResult(action, 1, t1Result.Confidence, t1Result.Reason)
-		case err == nil && t1Result.Decision == types.VerdictEscalate:
+		case err == nil && t1Result.Decision == VerdictEscalate:
 			g.cfg.Log.Info("shield_tier1_escalate", "action", action.Type, "reason", t1Result.Reason)
 			// Fall through to Tier 2.
 		case err == nil && minTier < 2:
@@ -132,16 +127,16 @@ func (g *Gateway) Evaluate(ctx context.Context, action *types.ActionRequest) *ty
 
 	g.cfg.Log.Info("shield_tier2_result", "action", action.Type, "decision", t2Result.Decision, "confidence", t2Result.Confidence)
 
-	if t2Result.Decision == types.VerdictBlock {
+	if t2Result.Decision == VerdictBlock {
 		return g.blockResult(action, 2, t2Result.Confidence, t2Result.Reason)
 	}
 
 	return g.allow(action, 2, t2Result.Confidence, t2Result.Reason)
 }
 
-func (g *Gateway) block(action *types.ActionRequest, tier int, conf float64, reason string) *types.Verdict {
-	return &types.Verdict{
-		Decision:    types.VerdictBlock,
+func (g *Gateway) block(action *ActionRequest, tier int, conf float64, reason string) *Verdict {
+	return &Verdict{
+		Decision:    VerdictBlock,
 		Tier:        tier,
 		Confidence:  conf,
 		Reasoning:   reason,
@@ -151,13 +146,13 @@ func (g *Gateway) block(action *types.ActionRequest, tier int, conf float64, rea
 	}
 }
 
-func (g *Gateway) blockResult(action *types.ActionRequest, tier int, conf float64, reason string) *types.Verdict {
+func (g *Gateway) blockResult(action *ActionRequest, tier int, conf float64, reason string) *Verdict {
 	return g.block(action, tier, conf, reason)
 }
 
-func (g *Gateway) allow(action *types.ActionRequest, tier int, conf float64, reason string) *types.Verdict {
-	return &types.Verdict{
-		Decision:    types.VerdictAllow,
+func (g *Gateway) allow(action *ActionRequest, tier int, conf float64, reason string) *Verdict {
+	return &Verdict{
+		Decision:    VerdictAllow,
 		Tier:        tier,
 		Confidence:  conf,
 		Reasoning:   reason,
@@ -168,13 +163,13 @@ func (g *Gateway) allow(action *types.ActionRequest, tier int, conf float64, rea
 }
 
 // actionTypeMinTier returns the minimum evaluation tier based on action type.
-func actionTypeMinTier(at types.ActionType) int {
+func actionTypeMinTier(at ActionType) int {
 	switch at {
-	case types.ActionExecCommand:
+	case ActionExecCommand:
 		return 1
-	case types.ActionSendEmail, types.ActionSendMessage, types.ActionHTTPRequest:
+	case ActionSendEmail, ActionSendMessage, ActionHTTPRequest:
 		return 1
-	case types.ActionMemoryWrite:
+	case ActionMemoryWrite:
 		return 1
 	default:
 		return 0

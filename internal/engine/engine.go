@@ -24,13 +24,13 @@ import (
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/oauth"
 	"github.com/openparallax/openparallax/internal/session"
-	"github.com/openparallax/openparallax/internal/shield"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
 	"github.com/openparallax/openparallax/llm"
 	"github.com/openparallax/openparallax/mcp"
 	"github.com/openparallax/openparallax/memory"
+	"github.com/openparallax/openparallax/shield"
 	"google.golang.org/grpc"
 )
 

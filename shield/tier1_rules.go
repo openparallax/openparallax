@@ -1,7 +1,7 @@
 // Package tier1 implements the dual classifier (ONNX + heuristic) for Shield's
 // second evaluation tier. It detects shell injection, prompt injection, path
 // traversal, data exfiltration, and other attack patterns.
-package tier1
+package shield
 
 import "github.com/openparallax/openparallax/platform"
 

@@ -3,19 +3,17 @@ package shield
 import (
 	"path/filepath"
 	"strings"
-
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // ClassifySource returns a DataClassification for data read from a path.
-func ClassifySource(path string) *types.DataClassification {
+func ClassifySource(path string) *DataClassification {
 	normalized := strings.ToLower(filepath.ToSlash(path))
 	base := filepath.Base(normalized)
 
 	// Credentials and keys.
 	if isCredentialPath(normalized, base) {
-		return &types.DataClassification{
-			Sensitivity: types.SensitivityCritical,
+		return &DataClassification{
+			Sensitivity: SensitivityCritical,
 			SourcePath:  path,
 			ContentType: "credential",
 		}
@@ -23,8 +21,8 @@ func ClassifySource(path string) *types.DataClassification {
 
 	// SSH, GPG, cloud config.
 	if isSecurityPath(normalized) {
-		return &types.DataClassification{
-			Sensitivity: types.SensitivityRestricted,
+		return &DataClassification{
+			Sensitivity: SensitivityRestricted,
 			SourcePath:  path,
 			ContentType: "credential",
 		}
@@ -32,16 +30,16 @@ func ClassifySource(path string) *types.DataClassification {
 
 	// Agent internal config.
 	if isAgentConfigPath(normalized, base) {
-		return &types.DataClassification{
-			Sensitivity: types.SensitivityConfidential,
+		return &DataClassification{
+			Sensitivity: SensitivityConfidential,
 			SourcePath:  path,
 			ContentType: "general",
 		}
 	}
 
 	// Default: public.
-	return &types.DataClassification{
-		Sensitivity: types.SensitivityPublic,
+	return &DataClassification{
+		Sensitivity: SensitivityPublic,
 		SourcePath:  path,
 		ContentType: "general",
 	}
@@ -49,24 +47,24 @@ func ClassifySource(path string) *types.DataClassification {
 
 // IsFlowAllowed checks if data with the given classification can flow to the
 // destination action type. Returns false if the flow violates IFC policy.
-func IsFlowAllowed(classification *types.DataClassification, destAction types.ActionType) bool {
+func IsFlowAllowed(classification *DataClassification, destAction ActionType) bool {
 	if classification == nil {
 		return true
 	}
 
 	switch classification.Sensitivity {
-	case types.SensitivityPublic:
+	case SensitivityPublic:
 		return true
 
-	case types.SensitivityInternal:
+	case SensitivityInternal:
 		// Can flow to workspace, memory, local tools. Not to external services.
 		return !isExternalAction(destAction)
 
-	case types.SensitivityConfidential:
+	case SensitivityConfidential:
 		// Can flow to workspace only. Not to HTTP, email, shell, external.
 		return isWorkspaceOnlyAction(destAction)
 
-	case types.SensitivityRestricted, types.SensitivityCritical:
+	case SensitivityRestricted, SensitivityCritical:
 		// Cannot flow anywhere beyond display. Read-only.
 		return false
 	}
@@ -74,21 +72,21 @@ func IsFlowAllowed(classification *types.DataClassification, destAction types.Ac
 	return true
 }
 
-func isExternalAction(at types.ActionType) bool {
+func isExternalAction(at ActionType) bool {
 	switch at {
-	case types.ActionHTTPRequest, types.ActionSendEmail, types.ActionSendMessage:
+	case ActionHTTPRequest, ActionSendEmail, ActionSendMessage:
 		return true
 	default:
 		return false
 	}
 }
 
-func isWorkspaceOnlyAction(at types.ActionType) bool {
+func isWorkspaceOnlyAction(at ActionType) bool {
 	switch at {
-	case types.ActionWriteFile, types.ActionReadFile, types.ActionListDir,
-		types.ActionSearchFiles, types.ActionCreateDir,
-		types.ActionCopyFile, types.ActionMoveFile,
-		types.ActionMemoryWrite, types.ActionMemorySearch:
+	case ActionWriteFile, ActionReadFile, ActionListDir,
+		ActionSearchFiles, ActionCreateDir,
+		ActionCopyFile, ActionMoveFile,
+		ActionMemoryWrite, ActionMemorySearch:
 		return true
 	default:
 		return false

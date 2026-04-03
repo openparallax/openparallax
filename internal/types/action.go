@@ -1,10 +1,12 @@
 // Package types defines the shared data structures used across all OpenParallax packages.
 package types
 
-import "time"
+import (
+	"github.com/openparallax/openparallax/shield"
+)
 
-// ActionType represents the category of action the agent can propose.
-type ActionType string
+// ActionType is an alias for the public shield type.
+type ActionType = shield.ActionType
 
 const (
 	// ActionReadFile reads a file from the filesystem.
@@ -177,33 +179,8 @@ var AllActionTypes = []ActionType{
 	ActionPDFRead, ActionSpreadsheetRead, ActionSpreadsheetWrite,
 }
 
-// ActionRequest represents a proposed action from the agent.
-type ActionRequest struct {
-	// RequestID is a unique identifier for this action proposal.
-	RequestID string `json:"request_id"`
-
-	// Type is the category of action.
-	Type ActionType `json:"type"`
-
-	// Payload contains action-specific parameters.
-	// Keys and structure vary by action type.
-	Payload map[string]any `json:"payload"`
-
-	// Hash is the SHA-256 of the canonicalized request.
-	// Computed at proposal time, verified before execution.
-	Hash string `json:"hash"`
-
-	// DataClassification is the IFC tag for data involved in this action.
-	DataClassification *DataClassification `json:"data_classification,omitempty"`
-
-	// MinTier is the minimum Shield tier required for this action.
-	// Set by the protection layer. Respected by the Shield gateway.
-	// 0 = no minimum (use normal routing).
-	MinTier int `json:"min_tier,omitempty"`
-
-	// Timestamp is when the action was proposed.
-	Timestamp time.Time `json:"timestamp"`
-}
+// ActionRequest is an alias for the public shield type.
+type ActionRequest = shield.ActionRequest
 
 // ActionResult is the outcome of executing an action.
 type ActionResult struct {

@@ -1,7 +1,7 @@
 // Package tier0 implements the YAML policy engine for Shield's first evaluation tier.
 // Policies define deny, verify, and allow rules that are matched against actions
 // using glob patterns on file paths and action type lists.
-package tier0
+package shield
 
 import (
 	"os"
@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/gobwas/glob"
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/platform"
 	"gopkg.in/yaml.v3"
 )
@@ -83,7 +82,7 @@ func NewPolicyEngine(policyPath string) (*PolicyEngine, error) {
 
 // Evaluate checks an action against policy rules.
 // Order: deny -> verify -> allow -> NoMatch.
-func (p *PolicyEngine) Evaluate(action *types.ActionRequest) PolicyResult {
+func (p *PolicyEngine) Evaluate(action *ActionRequest) PolicyResult {
 	for _, rule := range p.deny {
 		if rule.matches(action) {
 			return PolicyResult{Decision: Deny, Reason: rule.Name}
@@ -112,7 +111,7 @@ func (p *PolicyEngine) DenyCount() int { return len(p.deny) }
 func (p *PolicyEngine) AllowCount() int { return len(p.allow) }
 
 // matches checks if an action matches this rule's criteria.
-func (r *policyRule) matches(action *types.ActionRequest) bool {
+func (r *policyRule) matches(action *ActionRequest) bool {
 	// Check action type match.
 	if len(r.ActionTypes) > 0 {
 		matched := false
@@ -164,7 +163,7 @@ func (r *policyRule) matches(action *types.ActionRequest) bool {
 // extractPolicyPaths returns all filesystem paths from an action's payload.
 // Checks path, source, destination, dir, file, and target fields so that
 // copy/move operations are caught by both source and destination.
-func extractPolicyPaths(action *types.ActionRequest) []string {
+func extractPolicyPaths(action *ActionRequest) []string {
 	var paths []string
 	for _, key := range []string{"path", "source", "destination", "dir", "file", "target"} {
 		if v, ok := action.Payload[key].(string); ok && v != "" {

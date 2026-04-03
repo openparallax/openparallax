@@ -1,11 +1,10 @@
-package tier1
+package shield
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/platform"
 )
 
@@ -45,7 +44,7 @@ func (h *HeuristicEngine) RuleCount() int {
 // Evaluate checks an action against all heuristic rules.
 // Only scans security-relevant fields (command, path, url, source, destination)
 // to avoid false positives on file content being written.
-func (h *HeuristicEngine) Evaluate(action *types.ActionRequest) *ClassifierResult {
+func (h *HeuristicEngine) Evaluate(action *ActionRequest) *ClassifierResult {
 	texts := []string{string(action.Type)}
 	securityFields := []string{"command", "path", "source", "destination", "url", "pattern"}
 	for _, key := range securityFields {
@@ -69,7 +68,7 @@ func (h *HeuristicEngine) Evaluate(action *types.ActionRequest) *ClassifierResul
 
 	if highestSeverity == "" {
 		return &ClassifierResult{
-			Decision:   types.VerdictAllow,
+			Decision:   VerdictAllow,
 			Confidence: 0.7,
 			Reason:     "no heuristic rules matched",
 			Source:     "heuristic",
@@ -77,7 +76,7 @@ func (h *HeuristicEngine) Evaluate(action *types.ActionRequest) *ClassifierResul
 	}
 
 	return &ClassifierResult{
-		Decision:   types.VerdictBlock,
+		Decision:   VerdictBlock,
 		Confidence: severityToConfidence(highestSeverity),
 		Reason:     fmt.Sprintf("heuristic: %s (%s)", matchedRule, highestSeverity),
 		Source:     "heuristic",

@@ -4,10 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openparallax/openparallax/internal/shield/tier0"
-	"github.com/openparallax/openparallax/internal/shield/tier1"
-	"github.com/openparallax/openparallax/internal/shield/tier2"
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/llm"
 )
 
@@ -17,7 +13,7 @@ type Config struct {
 	OnnxThreshold    float64
 	HeuristicEnabled bool
 	ClassifierAddr   string
-	Evaluator        *types.EvaluatorConfig
+	Evaluator        *EvaluatorConfig
 	CanaryToken      string
 	PromptPath       string
 	FailClosed       bool
@@ -35,19 +31,19 @@ type Pipeline struct {
 // NewPipeline creates the evaluation pipeline from configuration.
 // This is the entry point for both embedded (in Engine) and standalone (Shield binary) use.
 func NewPipeline(cfg Config) (*Pipeline, error) {
-	policyEngine, err := tier0.NewPolicyEngine(cfg.PolicyFile)
+	policyEngine, err := NewPolicyEngine(cfg.PolicyFile)
 	if err != nil {
 		return nil, fmt.Errorf("policy engine init failed: %w", err)
 	}
 
 	// Try local ONNX classifier first (in-process, fastest).
 	// Fall back to HTTP sidecar if configured. Otherwise heuristic-only.
-	var onnxClient tier1.OnnxClient
+	var onnxClient OnnxClient
 	threshold := cfg.OnnxThreshold
 	if threshold == 0 {
 		threshold = 0.85
 	}
-	localClient := tier1.NewLocalOnnxClient(threshold)
+	localClient := NewLocalOnnxClient(threshold)
 	switch {
 	case localClient.IsAvailable():
 		onnxClient = localClient
@@ -55,7 +51,7 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 			cfg.Log.Info("onnx_classifier_loaded", "source", "local", "threshold", threshold)
 		}
 	case cfg.ClassifierAddr != "":
-		onnxClient = tier1.NewHTTPOnnxClient(cfg.ClassifierAddr)
+		onnxClient = NewHTTPOnnxClient(cfg.ClassifierAddr)
 		if cfg.Log != nil {
 			cfg.Log.Info("onnx_classifier_loaded", "source", "http", "addr", cfg.ClassifierAddr)
 		}
@@ -65,11 +61,11 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 				"message", "Shield running in heuristic-only mode. Run 'openparallax get-classifier' for enhanced protection.")
 		}
 	}
-	dualClassifier := tier1.NewDualClassifier(onnxClient, threshold, cfg.HeuristicEnabled)
+	dualClassifier := NewDualClassifier(onnxClient, threshold, cfg.HeuristicEnabled)
 
-	var evaluator *tier2.Evaluator
+	var evaluator *Evaluator
 	if cfg.Evaluator != nil && cfg.Evaluator.Provider != "" {
-		evalProvider, provErr := llm.NewProvider(types.LLMConfig{
+		evalProvider, provErr := llm.NewProvider(llm.Config{
 			Provider:  cfg.Evaluator.Provider,
 			Model:     cfg.Evaluator.Model,
 			APIKeyEnv: cfg.Evaluator.APIKeyEnv,
@@ -84,7 +80,7 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 			if promptPath == "" {
 				promptPath = "prompts/evaluator-v1.md"
 			}
-			evaluator, err = tier2.NewEvaluator(evalProvider, promptPath, cfg.CanaryToken)
+			evaluator, err = NewEvaluator(evalProvider, promptPath, cfg.CanaryToken)
 			if err != nil {
 				if cfg.Log != nil {
 					cfg.Log.Warn("tier2_init_failed", "error", err)
@@ -114,7 +110,7 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 }
 
 // Evaluate runs an ActionRequest through the evaluation pipeline.
-func (p *Pipeline) Evaluate(ctx context.Context, action *types.ActionRequest) *types.Verdict {
+func (p *Pipeline) Evaluate(ctx context.Context, action *ActionRequest) *Verdict {
 	return p.gateway.Evaluate(ctx, action)
 }
 

@@ -1,4 +1,4 @@
-package tier2
+package shield
 
 import (
 	"os"
@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/openparallax/openparallax/crypto"
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,7 +53,7 @@ func TestParseEvalResponseValid(t *testing.T) {
 	response := `{"decision": "ALLOW", "confidence": 0.95, "reasoning": "looks safe", "canary": "token123"}`
 	result, err := ParseEvalResponse(response)
 	require.NoError(t, err)
-	assert.Equal(t, types.VerdictAllow, result.Decision)
+	assert.Equal(t, VerdictAllow, result.Decision)
 	assert.InDelta(t, 0.95, result.Confidence, 0.001)
 	assert.Equal(t, "looks safe", result.Reason)
 }
@@ -63,7 +62,7 @@ func TestParseEvalResponseBlock(t *testing.T) {
 	response := `{"decision": "BLOCK", "confidence": 0.88, "reasoning": "dangerous"}`
 	result, err := ParseEvalResponse(response)
 	require.NoError(t, err)
-	assert.Equal(t, types.VerdictBlock, result.Decision)
+	assert.Equal(t, VerdictBlock, result.Decision)
 }
 
 func TestParseEvalResponseMalformedJSON(t *testing.T) {
@@ -75,7 +74,7 @@ func TestParseEvalResponseStripsCodeFences(t *testing.T) {
 	response := "```json\n{\"decision\": \"ALLOW\", \"confidence\": 0.9, \"reasoning\": \"ok\"}\n```"
 	result, err := ParseEvalResponse(response)
 	require.NoError(t, err)
-	assert.Equal(t, types.VerdictAllow, result.Decision)
+	assert.Equal(t, VerdictAllow, result.Decision)
 }
 
 func TestCanaryMissingMeansBlock(t *testing.T) {

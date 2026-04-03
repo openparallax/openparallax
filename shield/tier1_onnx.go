@@ -1,4 +1,4 @@
-package tier1
+package shield
 
 import (
 	"bytes"
@@ -8,14 +8,12 @@ import (
 	"io"
 	"net/http"
 	"time"
-
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // OnnxClient is the interface for the ONNX classifier sidecar.
 type OnnxClient interface {
 	// Classify sends the action to the ONNX sidecar for classification.
-	Classify(ctx context.Context, action *types.ActionRequest) (*ClassifierResult, error)
+	Classify(ctx context.Context, action *ActionRequest) (*ClassifierResult, error)
 	// IsAvailable returns true if the sidecar is reachable.
 	IsAvailable() bool
 }
@@ -40,7 +38,7 @@ func NewHTTPOnnxClient(addr string) *HTTPOnnxClient {
 }
 
 // Classify sends the action to the ONNX sidecar for classification.
-func (c *HTTPOnnxClient) Classify(ctx context.Context, action *types.ActionRequest) (*ClassifierResult, error) {
+func (c *HTTPOnnxClient) Classify(ctx context.Context, action *ActionRequest) (*ClassifierResult, error) {
 	if !c.available {
 		return nil, fmt.Errorf("ONNX classifier sidecar not available")
 	}
@@ -78,16 +76,16 @@ func (c *HTTPOnnxClient) Classify(ctx context.Context, action *types.ActionReque
 		return nil, err
 	}
 
-	var decision types.VerdictDecision
+	var decision VerdictDecision
 	switch {
 	case result.Label == "INJECTION" && result.Confidence >= 0.85:
-		decision = types.VerdictBlock
+		decision = VerdictBlock
 	case result.Label == "INJECTION":
 		// Below threshold but model suspects injection — escalate to Tier 2
 		// rather than allowing a potentially dangerous action through.
-		decision = types.VerdictEscalate
+		decision = VerdictEscalate
 	default:
-		decision = types.VerdictAllow
+		decision = VerdictAllow
 	}
 
 	return &ClassifierResult{

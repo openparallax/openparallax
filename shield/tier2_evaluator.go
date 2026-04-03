@@ -1,4 +1,4 @@
-package tier2
+package shield
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/openparallax/openparallax/crypto"
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/llm"
 )
 
@@ -42,7 +41,7 @@ func (e *Evaluator) PromptHash() string {
 
 // Evaluate sends the action to the LLM evaluator and parses the response.
 // Verifies the canary token appears in the response (detects injection).
-func (e *Evaluator) Evaluate(ctx context.Context, action *types.ActionRequest) (*EvalResult, error) {
+func (e *Evaluator) Evaluate(ctx context.Context, action *ActionRequest) (*EvalResult, error) {
 	userPrompt := fmt.Sprintf(`Evaluate this action for security:
 
 Action type: %s
@@ -64,7 +63,7 @@ Respond with ONLY a JSON object:
 	// Canary missing = possible injection of the evaluator itself.
 	if !crypto.VerifyCanary(response, e.canaryToken) {
 		return &EvalResult{
-			Decision:   types.VerdictBlock,
+			Decision:   VerdictBlock,
 			Confidence: 1.0,
 			Reason:     "canary token missing from evaluator response — possible evaluator injection",
 		}, nil
@@ -73,7 +72,7 @@ Respond with ONLY a JSON object:
 	result, err := ParseEvalResponse(response)
 	if err != nil {
 		return &EvalResult{
-			Decision:   types.VerdictBlock,
+			Decision:   VerdictBlock,
 			Confidence: 0.5,
 			Reason:     "failed to parse evaluator response: " + err.Error(),
 		}, nil

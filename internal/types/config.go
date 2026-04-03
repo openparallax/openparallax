@@ -3,6 +3,7 @@ package types
 import (
 	"github.com/openparallax/openparallax/llm"
 	"github.com/openparallax/openparallax/mcp"
+	"github.com/openparallax/openparallax/shield"
 )
 
 // AgentConfig is the complete agent configuration loaded from config.yaml.
@@ -205,20 +206,8 @@ type Tier3Config struct {
 	TimeoutSeconds int `yaml:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
 }
 
-// EvaluatorConfig configures the Tier 2 LLM evaluator.
-type EvaluatorConfig struct {
-	// Provider is the evaluator's LLM provider name.
-	Provider string `yaml:"provider" json:"provider"`
-
-	// Model is the evaluator's model identifier.
-	Model string `yaml:"model" json:"model"`
-
-	// APIKeyEnv is the environment variable name containing the evaluator's API key.
-	APIKeyEnv string `yaml:"api_key_env" json:"api_key_env"`
-
-	// BaseURL is an optional custom endpoint URL.
-	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
-}
+// EvaluatorConfig is an alias for the public shield type.
+type EvaluatorConfig = shield.EvaluatorConfig
 
 // IdentityConfig provides agent identity overrides.
 type IdentityConfig struct {

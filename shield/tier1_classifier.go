@@ -1,16 +1,14 @@
-package tier1
+package shield
 
 import (
 	"context"
 	"sync"
-
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // ClassifierResult is the output of Tier 1 classification.
 type ClassifierResult struct {
 	// Decision is ALLOW or BLOCK.
-	Decision types.VerdictDecision
+	Decision VerdictDecision
 	// Confidence is the classification confidence (0.0-1.0).
 	Confidence float64
 	// Reason explains the classification.
@@ -40,7 +38,7 @@ func NewDualClassifier(onnx OnnxClient, threshold float64, heuristicEnabled bool
 }
 
 // Classify runs both classifiers in parallel and returns the most severe result.
-func (d *DualClassifier) Classify(ctx context.Context, action *types.ActionRequest) (*ClassifierResult, error) {
+func (d *DualClassifier) Classify(ctx context.Context, action *ActionRequest) (*ClassifierResult, error) {
 	var onnxResult, heuristicResult *ClassifierResult
 	var wg sync.WaitGroup
 
@@ -69,11 +67,11 @@ func (d *DualClassifier) Classify(ctx context.Context, action *types.ActionReque
 }
 
 // decisionSeverity maps a verdict decision to a numeric severity for ranking.
-func decisionSeverity(d types.VerdictDecision) int {
+func decisionSeverity(d VerdictDecision) int {
 	switch d {
-	case types.VerdictBlock:
+	case VerdictBlock:
 		return 2
-	case types.VerdictEscalate:
+	case VerdictEscalate:
 		return 1
 	default:
 		return 0
@@ -84,7 +82,7 @@ func decisionSeverity(d types.VerdictDecision) int {
 func combine(onnx, heuristic *ClassifierResult) *ClassifierResult {
 	if onnx == nil && heuristic == nil {
 		return &ClassifierResult{
-			Decision:   types.VerdictAllow,
+			Decision:   VerdictAllow,
 			Confidence: 0.5,
 			Reason:     "no classifier available",
 			Source:     "none",

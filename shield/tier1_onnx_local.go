@@ -1,4 +1,4 @@
-package tier1
+package shield
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/openparallax/openparallax/internal/types"
 	ort "github.com/shota3506/onnxruntime-purego/onnxruntime"
 	"github.com/sugarme/tokenizer"
 	"github.com/sugarme/tokenizer/pretrained"
@@ -90,7 +89,7 @@ func NewLocalOnnxClient(threshold float64) *LocalOnnxClient {
 }
 
 // Classify runs inference on the action text and returns the classification result.
-func (c *LocalOnnxClient) Classify(_ context.Context, action *types.ActionRequest) (*ClassifierResult, error) {
+func (c *LocalOnnxClient) Classify(_ context.Context, action *ActionRequest) (*ClassifierResult, error) {
 	if !c.available {
 		return nil, fmt.Errorf("local ONNX classifier not available")
 	}
@@ -173,14 +172,14 @@ func (c *LocalOnnxClient) Classify(_ context.Context, action *types.ActionReques
 		confidence = float64(probs[1])
 	}
 
-	var decision types.VerdictDecision
+	var decision VerdictDecision
 	switch {
 	case label == "INJECTION" && confidence >= c.threshold:
-		decision = types.VerdictBlock
+		decision = VerdictBlock
 	case label == "INJECTION":
-		decision = types.VerdictEscalate
+		decision = VerdictEscalate
 	default:
-		decision = types.VerdictAllow
+		decision = VerdictAllow
 	}
 
 	return &ClassifierResult{

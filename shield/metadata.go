@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/platform"
 )
 
@@ -49,8 +48,8 @@ func NewMetadataEnricher() *MetadataEnricher {
 }
 
 // Enrich sets DataClassification on the action based on keyword and path analysis.
-func (m *MetadataEnricher) Enrich(action *types.ActionRequest) {
-	sensitivity := types.SensitivityPublic
+func (m *MetadataEnricher) Enrich(action *ActionRequest) {
+	sensitivity := SensitivityPublic
 
 	// Check path sensitivity.
 	path := extractActionPath(action)
@@ -60,12 +59,12 @@ func (m *MetadataEnricher) Enrich(action *types.ActionRequest) {
 
 	// Check keyword destructiveness in payload.
 	payloadText := formatPayloadText(action.Payload)
-	if m.isDestructive(payloadText) && sensitivity < types.SensitivityRestricted {
-		sensitivity = types.SensitivityRestricted
+	if m.isDestructive(payloadText) && sensitivity < SensitivityRestricted {
+		sensitivity = SensitivityRestricted
 	}
 
-	if sensitivity > types.SensitivityPublic {
-		action.DataClassification = &types.DataClassification{
+	if sensitivity > SensitivityPublic {
+		action.DataClassification = &DataClassification{
 			Sensitivity: sensitivity,
 			SourcePath:  path,
 		}
@@ -81,13 +80,13 @@ func (m *MetadataEnricher) isDestructive(text string) bool {
 	return false
 }
 
-func (m *MetadataEnricher) evaluatePathSensitivity(path string) types.SensitivityLevel {
+func (m *MetadataEnricher) evaluatePathSensitivity(path string) SensitivityLevel {
 	normalized := platform.NormalizePath(path)
 
 	for _, sp := range m.sensitivePaths {
 		spNorm := platform.NormalizePath(sp)
 		if strings.HasPrefix(normalized, spNorm) || normalized == spNorm {
-			return types.SensitivityCritical
+			return SensitivityCritical
 		}
 	}
 
@@ -99,21 +98,21 @@ func (m *MetadataEnricher) evaluatePathSensitivity(path string) types.Sensitivit
 	}
 	for _, pat := range credentialPatterns {
 		if strings.Contains(lower, pat) {
-			return types.SensitivityCritical
+			return SensitivityCritical
 		}
 	}
 
 	financialPatterns := []string{"financial", "tax", "bank", "invoice", "salary", "ssn", "passport"}
 	for _, pat := range financialPatterns {
 		if strings.Contains(lower, pat) {
-			return types.SensitivityRestricted
+			return SensitivityRestricted
 		}
 	}
 
-	return types.SensitivityPublic
+	return SensitivityPublic
 }
 
-func extractActionPath(action *types.ActionRequest) string {
+func extractActionPath(action *ActionRequest) string {
 	if p, ok := action.Payload["path"].(string); ok && p != "" {
 		return p
 	}
