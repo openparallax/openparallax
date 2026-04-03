@@ -133,6 +133,22 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	policyFile := resolveFilePath(cfg.Shield.PolicyFile, configDir, cfg.Workspace)
 	promptPath := resolveFilePath("prompts/evaluator-v1.md", configDir, cfg.Workspace)
 
+	// Validate security-critical files exist.
+	if _, statErr := os.Stat(policyFile); statErr != nil {
+		return nil, fmt.Errorf("shield policy file not found: %s — run 'openparallax init' to create it", policyFile)
+	}
+	if cfg.Shield.Evaluator.Provider != "" {
+		if _, statErr := os.Stat(promptPath); statErr != nil {
+			return nil, fmt.Errorf("shield evaluator prompt not found: %s — run 'openparallax init' to create it", promptPath)
+		}
+	}
+
+	// Warn if skills directory is empty.
+	skillsDir := filepath.Join(cfg.Workspace, "skills")
+	if entries, readErr := os.ReadDir(skillsDir); readErr != nil || len(entries) == 0 {
+		log.Warn("no_skills_found", "message", "no skills found — agent runs without domain-specific guidance")
+	}
+
 	shieldPipeline, err := shield.NewPipeline(shield.Config{
 		PolicyFile:       policyFile,
 		OnnxThreshold:    cfg.Shield.OnnxThreshold,
