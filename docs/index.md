@@ -49,53 +49,40 @@ features:
 }
 </style>
 
-## The Composable AI Agent Toolkit
+## One Binary. Zero Dependencies.
 
-OpenParallax is two things:
-
-1. **A complete personal AI agent** — install it, configure it, talk to it through CLI, web, or messaging apps. It reads your files, executes commands, manages your calendar, sends emails, and learns from every conversation.
-
-2. **A modular toolkit** — every security, memory, and infrastructure component is independently importable. Building your own AI agent? Use our [Shield](/shield/) for security, our [Memory](/memory/) for semantic search, our [Sandbox](/sandbox/) for process isolation — without buying into the full system.
-
-### Architecture at a Glance
-
-```
-Process Manager → Engine (privileged) → Agent (sandboxed)
-                     ↓                      ↓
-              Shield, Audit,          LLM reasoning,
-              Chronicle, IFC         context assembly,
-                     ↓               tool proposals
-              Channels, Web              ↓
-              (external clients)    gRPC ← Engine evaluates
-                                        → executes
-                                        → returns result
-```
-
-Every module in this diagram is a standalone Go package. The Engine wires them together for the full OpenParallax experience, but each one works independently. Read [The Ecosystem](/technical/ecosystem) for the full story.
-
-### Available in Go, Python, and Node.js
-
-Core modules ship as Go packages with cross-language wrappers via JSON-RPC bridges:
-
-| Module | Go | Python | Node.js | Standalone |
-|--------|:---:|:------:|:-------:|:----------:|
-| [Shield](/shield/) | &#10003; | &#10003; | &#10003; | &#10003; |
-| [Memory](/memory/) | &#10003; | &#10003; | &#10003; | |
-| [Audit](/audit/) | &#10003; | &#10003; | &#10003; | |
-| [Channels](/channels/) | &#10003; | &#10003; | &#10003; | |
-| [Sandbox](/sandbox/) | &#10003; | | | |
-| [Chronicle](/modules/chronicle) | &#10003; | | | |
-| [LLM](/modules/llm) | &#10003; | | | |
-
-### One Binary. Zero Dependencies. Any Platform.
-
-OpenParallax is a single static binary. No Python. No Node.js. No Docker. No runtime dependencies. Download one file, run it, and you have a fully functional AI agent with security, memory, and a web UI.
+OpenParallax is a single file. Download it, run three commands, and you have a fully functional AI agent with a web UI, security pipeline, and semantic memory. No Python, no Node.js, no Docker, no package managers — nothing to install first.
 
 ```bash
-# That's it. No package managers, no pip, no npm, no brew.
 curl -sSL https://get.openparallax.dev | sh
 openparallax init
 openparallax start
 ```
 
-Under the hood: pure Go with `CGO_ENABLED=0`. SQLite compiled to Go via `modernc.org/sqlite`. ONNX inference via `onnxruntime-purego`. The web UI is embedded in the binary via `go:embed`. Everything ships as one file — no installers, no PATH configuration, no version conflicts. It works on Linux, macOS, and Windows out of the box.
+That's it. Works on Linux, macOS, and Windows. The init wizard walks you through choosing your LLM provider and configuring security. After that, `start` launches the agent, opens the CLI, and starts the web UI.
+
+::: tip For Developers
+Building from source? See the [Quick Start guide](/guide/quickstart) for the full `git clone && make build-all` setup, or jump straight to the [Architecture](/technical/) if you want to understand how the pieces fit together.
+:::
+
+---
+
+## Two Products in One
+
+**Use it as a complete AI agent** — talk through CLI, web, or messaging apps. It reads your files, runs commands, manages your calendar, sends emails, and learns across conversations. Every action is secured by a 3-tier pipeline and every decision is audit-logged.
+
+**Use it as a module library** — every component is independently importable. Need security for your own agent? Use [Shield](/shield/). Need semantic memory? Use [Memory](/memory/). Need process isolation? Use [Sandbox](/sandbox/). No need to buy into the full system.
+
+### Modules
+
+| Module | What It Does | Go | Python | Node.js | Standalone |
+|--------|-------------|:---:|:------:|:-------:|:----------:|
+| [Shield](/shield/) | 3-tier AI security pipeline | &#10003; | &#10003; | &#10003; | &#10003; |
+| [Memory](/memory/) | Semantic memory with pluggable backends | &#10003; | &#10003; | &#10003; | |
+| [Audit](/audit/) | Tamper-evident hash chain logging | &#10003; | &#10003; | &#10003; | |
+| [Channels](/channels/) | WhatsApp, Telegram, Discord, Slack, Signal, Teams | &#10003; | &#10003; | &#10003; | |
+| [Sandbox](/sandbox/) | Kernel-level process isolation | &#10003; | | | |
+| [Chronicle](/modules/chronicle) | Copy-on-write snapshots with rollback | &#10003; | | | |
+| [LLM](/modules/llm) | Multi-provider abstraction | &#10003; | | | |
+
+Every module is a standalone Go package with zero dependencies on the rest of OpenParallax. Read [The Ecosystem](/technical/ecosystem) for the full story on why it's built this way.

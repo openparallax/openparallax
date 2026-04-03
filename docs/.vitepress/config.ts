@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
+  appearance: 'dark',
   title: 'OpenParallax',
   description: 'Open-source personal AI agent with composable security, memory, and messaging modules',
   head: [
@@ -34,6 +35,7 @@ export default defineConfig({
         ]
       },
       { text: 'Reference', link: '/reference/config' },
+      { text: 'Changelog', link: '/changelog' },
     ],
 
     sidebar: {
@@ -274,8 +276,8 @@ export default defineConfig({
     },
 
     footer: {
-      message: 'Released under the MIT License.',
-      copyright: 'Copyright 2024-present OpenParallax Contributors',
+      message: 'Released under the Apache License 2.0.',
+      copyright: 'Copyright 2026-present OpenParallax Contributors',
     },
 
     editLink: {
