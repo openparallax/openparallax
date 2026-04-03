@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/audit"
+	"github.com/openparallax/openparallax/audit"
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/spf13/cobra"

@@ -12,12 +12,11 @@ import (
 	"time"
 
 	"github.com/openparallax/openparallax/crypto"
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // Entry is the input for logging an audit event.
 type Entry struct {
-	EventType  types.AuditEventType
+	EventType  EventType
 	ActionType string
 	SessionID  string
 	Details    string
@@ -27,7 +26,7 @@ type Entry struct {
 
 // DBIndexer is an optional interface for indexing audit entries in SQLite.
 type DBIndexer interface {
-	InsertAuditEntry(entry *types.AuditEntry) error
+	InsertAuditEntry(entry *LogEntry) error
 }
 
 // Logger writes audit entries to an append-only JSONL file with hash chain.
@@ -69,7 +68,7 @@ func (l *Logger) Log(entry Entry) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	auditEntry := types.AuditEntry{
+	auditEntry := LogEntry{
 		ID:           crypto.NewID(),
 		EventType:    entry.EventType,
 		Timestamp:    time.Now().UnixMilli(),
@@ -122,7 +121,7 @@ func readLastHash(path string) string {
 	if len(lines) == 0 {
 		return ""
 	}
-	var entry types.AuditEntry
+	var entry LogEntry
 	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &entry); err != nil {
 		return ""
 	}

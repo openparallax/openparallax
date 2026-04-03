@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/openparallax/openparallax/crypto"
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // VerifyIntegrity checks the hash chain of an audit log file.
@@ -29,7 +28,7 @@ func VerifyIntegrity(path string) error {
 			continue
 		}
 
-		var entry types.AuditEntry
+		var entry LogEntry
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			return fmt.Errorf("line %d: invalid JSON: %w", i+1, err)
 		}
