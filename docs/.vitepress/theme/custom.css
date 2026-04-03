@@ -480,11 +480,12 @@ body {
 }
 
 .VPFlyout .VPMenu {
-  background: rgba(10, 14, 24, 0.95) !important;
-  border: 1px solid var(--op-glass-border) !important;
+  background: var(--bg-base) !important;
+  border: 1px solid var(--op-accent-border) !important;
   backdrop-filter: blur(var(--op-glass-blur)) !important;
   -webkit-backdrop-filter: blur(var(--op-glass-blur)) !important;
   border-radius: var(--op-radius-lg) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
 }
 
 /* Search dialog */
