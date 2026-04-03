@@ -4,14 +4,6 @@ outline: deep
 
 # ChromaDB
 
-<style>
-:root {
-  --vp-c-brand-1: #a855f7;
-  --vp-c-brand-2: #9333ea;
-  --vp-c-brand-3: #7e22ce;
-  --vp-c-brand-soft: rgba(168, 85, 247, 0.14);
-}
-</style>
 
 Simple, developer-friendly vector database popular in the AI/ML ecosystem.
 

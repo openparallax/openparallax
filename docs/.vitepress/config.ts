@@ -22,16 +22,31 @@ export default defineConfig({
       {
         text: 'Modules',
         items: [
-          { text: 'Shield', link: '/shield/' },
-          { text: 'Memory', link: '/memory/' },
-          { text: 'Audit', link: '/audit/' },
-          { text: 'Sandbox', link: '/sandbox/' },
-          { text: 'Channels', link: '/channels/' },
-          { text: 'Chronicle', link: '/modules/chronicle' },
-          { text: 'LLM', link: '/modules/llm' },
-          { text: 'IFC', link: '/modules/ifc' },
-          { text: 'Crypto', link: '/modules/crypto' },
-          { text: 'MCP', link: '/modules/mcp' },
+          {
+            text: 'Security',
+            items: [
+              { text: 'Shield', link: '/shield/' },
+              { text: 'Sandbox', link: '/sandbox/' },
+              { text: 'Audit', link: '/audit/' },
+            ]
+          },
+          {
+            text: 'Intelligence',
+            items: [
+              { text: 'Memory', link: '/memory/' },
+              { text: 'LLM', link: '/modules/llm' },
+              { text: 'Channels', link: '/channels/' },
+            ]
+          },
+          {
+            text: 'Infrastructure',
+            items: [
+              { text: 'Chronicle', link: '/modules/chronicle' },
+              { text: 'IFC', link: '/modules/ifc' },
+              { text: 'Crypto', link: '/modules/crypto' },
+              { text: 'MCP', link: '/modules/mcp' },
+            ]
+          },
         ]
       },
       { text: 'Reference', link: '/reference/config' },

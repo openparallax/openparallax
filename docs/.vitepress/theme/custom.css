@@ -462,6 +462,31 @@ body {
   border-color: var(--op-accent-border-active) !important;
 }
 
+/* Nav dropdown — multi-column for Modules menu */
+.VPFlyout .VPMenu .items {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 4px 16px !important;
+  min-width: 420px !important;
+}
+
+.VPFlyout .VPMenu .items .group .title {
+  color: var(--op-accent) !important;
+  font-size: 0.7em !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  padding: 6px 12px 2px !important;
+}
+
+.VPFlyout .VPMenu {
+  background: rgba(10, 14, 24, 0.95) !important;
+  border: 1px solid var(--op-glass-border) !important;
+  backdrop-filter: blur(var(--op-glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--op-glass-blur)) !important;
+  border-radius: var(--op-radius-lg) !important;
+}
+
 /* Search dialog */
 .VPLocalSearchBox .shell {
   background: rgba(10, 14, 24, 0.95) !important;

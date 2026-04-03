@@ -2,16 +2,7 @@
 outline: deep
 ---
 
-# Memory <Badge type="tip" text="standalone module" />
-
-<style>
-:root {
-  --vp-c-brand-1: #a855f7;
-  --vp-c-brand-2: #9333ea;
-  --vp-c-brand-3: #7e22ce;
-  --vp-c-brand-soft: rgba(168, 85, 247, 0.14);
-}
-</style>
+# Memory
 
 Semantic memory for AI agents. Dual search (FTS5 full-text + vector similarity), pluggable backends, embedding provider agnostic, zero CGo.
 
