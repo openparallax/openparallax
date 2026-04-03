@@ -489,8 +489,15 @@ body {
   padding: 6px 12px 2px !important;
 }
 
-/* Remove group separator borders in grid layout */
+/* Reset all group margins/padding to align in grid */
+.VPFlyout .VPMenu .items .group {
+  margin: 0 !important;
+  border-top: none !important;
+  padding: 0 !important;
+}
+
 .VPFlyout .VPMenu .items .group + .group {
+  margin-top: 0 !important;
   border-top: none !important;
   padding-top: 0 !important;
 }
