@@ -504,8 +504,13 @@ body {
   line-height: 28px !important;
 }
 
-/* Center the Modules dropdown under nav item */
+/* Center the dropdown under its parent nav item */
+.VPFlyout {
+  position: relative !important;
+}
+
 .VPFlyout .VPMenu {
+  right: auto !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
 }
