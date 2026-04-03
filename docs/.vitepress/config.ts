@@ -295,8 +295,8 @@ export default defineConfig({
     },
 
     footer: {
-      message: 'Released under the Apache License 2.0.',
-      copyright: 'Copyright 2026-present OpenParallax Contributors',
+      message: 'Released under the <a href="https://github.com/openparallax/openparallax/blob/main/LICENSE">Apache License 2.0</a>.',
+      copyright: '\u00A9 2026\u2013present OpenParallax Contributors',
     },
 
     editLink: {
