@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/gobwas/glob"
-	"github.com/openparallax/openparallax/internal/platform"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/platform"
 	"gopkg.in/yaml.v3"
 )
 

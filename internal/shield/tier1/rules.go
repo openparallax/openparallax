@@ -3,7 +3,7 @@
 // traversal, data exfiltration, and other attack patterns.
 package tier1
 
-import "github.com/openparallax/openparallax/internal/platform"
+import "github.com/openparallax/openparallax/platform"
 
 // CrossPlatformDetectionRules returns rules that detect attacks independent of OS.
 // These cover prompt injection, path traversal, data exfiltration, sensitive data

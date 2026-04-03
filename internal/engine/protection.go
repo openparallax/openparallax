@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/openparallax/openparallax/internal/platform"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/platform"
 )
 
 // ProtectionLevel defines how a file is protected from agent modification.

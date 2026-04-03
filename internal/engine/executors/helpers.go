@@ -3,8 +3,8 @@ package executors
 import (
 	"path/filepath"
 
-	"github.com/openparallax/openparallax/internal/platform"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/platform"
 )
 
 // ResolvePath resolves a raw payload value to an absolute path using

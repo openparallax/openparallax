@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/openparallax/openparallax/internal/platform"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/platform"
 )
 
 // HeuristicEngine evaluates actions against regex-based detection rules.

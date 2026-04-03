@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/openparallax/openparallax/crypto"
-	"github.com/openparallax/openparallax/internal/platform"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/platform"
 )
 
 // ShellExecutor runs shell commands with platform-aware shell selection and timeout.
