@@ -16,18 +16,23 @@ import (
 	mcptypes "github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/openparallax/openparallax/internal/llm"
-	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/types"
 )
+
+// Logger is the logging interface MCP requires.
+type Logger interface {
+	Info(event string, keysAndValues ...any)
+	Warn(event string, keysAndValues ...any)
+}
 
 // Manager manages all configured MCP server connections.
 type Manager struct {
 	clients map[string]*Client
-	log     *logging.Logger
+	log     Logger
 }
 
 // NewManager creates an MCP Manager from config.
-func NewManager(configs []types.MCPServerConfig, log *logging.Logger) *Manager {
+func NewManager(configs []types.MCPServerConfig, log Logger) *Manager {
 	clients := make(map[string]*Client)
 	for _, cfg := range configs {
 		timeout := time.Duration(cfg.IdleTimeout) * time.Second
@@ -104,7 +109,7 @@ func (m *Manager) ShutdownAll() {
 type Client struct {
 	config   types.MCPServerConfig
 	idle     time.Duration
-	log      *logging.Logger
+	log      Logger
 	conn     *mcpclient.Client
 	tools    []llm.ToolDefinition
 	lastCall time.Time
@@ -266,7 +271,7 @@ func convertMCPTools(tools []mcptypes.Tool) []llm.ToolDefinition {
 
 // TestServer spawns an MCP server briefly, discovers its tools, shuts it down,
 // and returns the tool names. Used by the settings UI to validate MCP config.
-func TestServer(ctx context.Context, cfg types.MCPServerConfig, log *logging.Logger) ([]string, error) {
+func TestServer(ctx context.Context, cfg types.MCPServerConfig, log Logger) ([]string, error) {
 	c := &Client{
 		config: cfg,
 		idle:   30 * time.Second,

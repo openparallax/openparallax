@@ -15,16 +15,26 @@ import (
 	"github.com/openparallax/openparallax/internal/types"
 )
 
+// Store is the persistence interface Memory requires for FTS5 indexing.
+type Store interface {
+	// IndexMemoryFile indexes a memory file for FTS5 search.
+	IndexMemoryFile(path string, content string)
+	// ClearMemoryIndex removes all FTS5 entries.
+	ClearMemoryIndex()
+	// SearchMemory performs FTS5 search across indexed memory content.
+	SearchMemory(query string, limit int) ([]storage.SearchResult, error)
+}
+
 // Manager handles memory file operations and search.
 type Manager struct {
 	workspace string
-	db        *storage.DB
+	store     Store
 	llm       llm.Provider
 }
 
 // NewManager creates a memory Manager and indexes all memory files on startup.
-func NewManager(workspace string, db *storage.DB, provider llm.Provider) *Manager {
-	m := &Manager{workspace: workspace, db: db, llm: provider}
+func NewManager(workspace string, store Store, provider llm.Provider) *Manager {
+	m := &Manager{workspace: workspace, store: store, llm: provider}
 	m.ReindexAll()
 	return m
 }
@@ -54,7 +64,7 @@ func (m *Manager) Append(fileType types.MemoryFileType, content string) error {
 	}
 
 	fullContent, _ := os.ReadFile(path)
-	m.db.IndexMemoryFile(string(fileType), string(fullContent))
+	m.store.IndexMemoryFile(string(fileType), string(fullContent))
 
 	return nil
 }
@@ -64,7 +74,7 @@ func (m *Manager) Search(query string, limit int) ([]storage.SearchResult, error
 	if limit <= 0 {
 		limit = 20
 	}
-	return m.db.SearchMemory(query, limit)
+	return m.store.SearchMemory(query, limit)
 }
 
 // LogAction appends one-line entries to the daily log after each action.
@@ -134,12 +144,12 @@ Conversation:
 
 // ReindexAll rebuilds the FTS5 index from all memory files on disk.
 func (m *Manager) ReindexAll() {
-	m.db.ClearMemoryIndex()
+	m.store.ClearMemoryIndex()
 
 	for _, ft := range types.AllMemoryFiles {
 		content, err := m.Read(ft)
 		if err == nil {
-			m.db.IndexMemoryFile(string(ft), content)
+			m.store.IndexMemoryFile(string(ft), content)
 		}
 	}
 
@@ -149,7 +159,7 @@ func (m *Manager) ReindexAll() {
 		if strings.HasSuffix(e.Name(), ".md") {
 			content, err := os.ReadFile(filepath.Join(logDir, e.Name()))
 			if err == nil {
-				m.db.IndexMemoryFile("memory/"+e.Name(), string(content))
+				m.store.IndexMemoryFile("memory/"+e.Name(), string(content))
 			}
 		}
 	}

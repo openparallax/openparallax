@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/openparallax/openparallax/internal/llm"
-	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/shield/tier0"
 	"github.com/openparallax/openparallax/internal/shield/tier1"
 	"github.com/openparallax/openparallax/internal/shield/tier2"
@@ -25,7 +24,7 @@ type Config struct {
 	RateLimit        int
 	VerdictTTL       int
 	DailyBudget      int
-	Log              *logging.Logger
+	Log              Logger
 }
 
 // Pipeline is the evaluation pipeline. Created once, used for all evaluations.
@@ -97,7 +96,7 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 
 	log := cfg.Log
 	if log == nil {
-		log = logging.Nop()
+		log = nopLogger{}
 	}
 
 	gateway := NewGateway(GatewayConfig{

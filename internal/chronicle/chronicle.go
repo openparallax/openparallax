@@ -10,21 +10,34 @@ import (
 	"time"
 
 	"github.com/openparallax/openparallax/internal/crypto"
-	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 )
+
+// Store is the persistence interface Chronicle requires.
+type Store interface {
+	// GetLastSnapshotHash returns the hash of the most recent snapshot.
+	GetLastSnapshotHash() string
+	// InsertSnapshot stores snapshot metadata.
+	InsertSnapshot(snap *types.SnapshotMetadata) error
+	// GetSnapshot retrieves a snapshot by ID.
+	GetSnapshot(id string) (*types.SnapshotMetadata, error)
+	// GetAllSnapshots returns all snapshots ordered by timestamp.
+	GetAllSnapshots() []types.SnapshotMetadata
+	// PruneSnapshots removes snapshots exceeding count or age limits.
+	PruneSnapshots(maxCount, maxAgeDays int)
+}
 
 // Chronicle manages state versioning with COW snapshots.
 type Chronicle struct {
 	workspace     string
 	snapshotDir   string
-	db            *storage.DB
+	store         Store
 	retentionMax  int
 	retentionDays int
 }
 
 // New creates a Chronicle instance for the given workspace.
-func New(workspace string, cfg types.ChronicleConfig, db *storage.DB) (*Chronicle, error) {
+func New(workspace string, cfg types.ChronicleConfig, store Store) (*Chronicle, error) {
 	snapshotDir := filepath.Join(workspace, ".openparallax", "chronicle", "snapshots")
 	if err := os.MkdirAll(snapshotDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create snapshot directory: %w", err)
@@ -33,7 +46,7 @@ func New(workspace string, cfg types.ChronicleConfig, db *storage.DB) (*Chronicl
 	return &Chronicle{
 		workspace:     workspace,
 		snapshotDir:   snapshotDir,
-		db:            db,
+		store:         store,
 		retentionMax:  cfg.MaxSnapshots,
 		retentionDays: cfg.MaxAgeDays,
 	}, nil
@@ -66,22 +79,22 @@ func (c *Chronicle) Snapshot(action *types.ActionRequest) (*types.SnapshotMetada
 		snap.FilesBackedUp = append(snap.FilesBackedUp, path)
 	}
 
-	snap.PreviousHash = c.db.GetLastSnapshotHash()
+	snap.PreviousHash = c.store.GetLastSnapshotHash()
 	canonical, _ := crypto.Canonicalize(snap)
 	snap.Hash = crypto.SHA256Hex(canonical)
 
-	if err := c.db.InsertSnapshot(snap); err != nil {
+	if err := c.store.InsertSnapshot(snap); err != nil {
 		return nil, fmt.Errorf("store snapshot metadata: %w", err)
 	}
 
-	c.db.PruneSnapshots(c.retentionMax, c.retentionDays)
+	c.store.PruneSnapshots(c.retentionMax, c.retentionDays)
 
 	return snap, nil
 }
 
 // Rollback restores files from a specific snapshot to their pre-action state.
 func (c *Chronicle) Rollback(snapshotID string) error {
-	snap, err := c.db.GetSnapshot(snapshotID)
+	snap, err := c.store.GetSnapshot(snapshotID)
 	if err != nil {
 		return types.ErrSnapshotNotFound
 	}
@@ -99,7 +112,7 @@ func (c *Chronicle) Rollback(snapshotID string) error {
 
 // Diff computes changes between a snapshot and the current file state.
 func (c *Chronicle) Diff(snapshotID string) (*types.Diff, error) {
-	snap, err := c.db.GetSnapshot(snapshotID)
+	snap, err := c.store.GetSnapshot(snapshotID)
 	if err != nil {
 		return nil, types.ErrSnapshotNotFound
 	}
@@ -134,7 +147,7 @@ func (c *Chronicle) Diff(snapshotID string) (*types.Diff, error) {
 
 // VerifyIntegrity checks the hash chain of all snapshots.
 func (c *Chronicle) VerifyIntegrity() error {
-	snapshots := c.db.GetAllSnapshots()
+	snapshots := c.store.GetAllSnapshots()
 	prevHash := ""
 	for _, snap := range snapshots {
 		if snap.PreviousHash != prevHash {
@@ -148,7 +161,7 @@ func (c *Chronicle) VerifyIntegrity() error {
 
 // List returns all snapshots ordered by timestamp.
 func (c *Chronicle) List() []types.SnapshotMetadata {
-	return c.db.GetAllSnapshots()
+	return c.store.GetAllSnapshots()
 }
 
 // Close is a no-op — Chronicle has no resources to release beyond the shared DB.

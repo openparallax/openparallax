@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/shield/tier0"
 	"github.com/openparallax/openparallax/internal/shield/tier1"
 	"github.com/openparallax/openparallax/internal/shield/tier2"
@@ -22,7 +21,7 @@ type GatewayConfig struct {
 	RateLimit   int
 	VerdictTTL  int
 	DailyBudget int
-	Log         *logging.Logger
+	Log         Logger
 }
 
 // Gateway orchestrates the evaluation pipeline.
