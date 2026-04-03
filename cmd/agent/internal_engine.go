@@ -13,6 +13,7 @@ import (
 
 	"github.com/openparallax/openparallax/internal/channels"
 	"github.com/openparallax/openparallax/internal/channels/discord"
+	"github.com/openparallax/openparallax/internal/channels/imessage"
 	signalch "github.com/openparallax/openparallax/internal/channels/signal"
 	"github.com/openparallax/openparallax/internal/channels/telegram"
 	"github.com/openparallax/openparallax/internal/channels/whatsapp"
@@ -168,6 +169,9 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	}
 	if sgAdapter := signalch.New(cfg.Channels.Signal, channelMgr, eng.Log()); sgAdapter != nil {
 		channelMgr.Register(sgAdapter)
+	}
+	if imAdapter := imessage.New(cfg.Channels.IMessage, channelMgr, eng.Log()); imAdapter != nil {
+		channelMgr.Register(imAdapter)
 	}
 	channelMgr.StartAll(channelCtx)
 

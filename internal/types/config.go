@@ -226,6 +226,15 @@ type ChannelsConfig struct {
 	Slack    *SlackConfig    `yaml:"slack,omitempty" json:"slack,omitempty"`
 	Signal   *SignalConfig   `yaml:"signal,omitempty" json:"signal,omitempty"`
 	Teams    *TeamsConfig    `yaml:"teams,omitempty" json:"teams,omitempty"`
+	IMessage *IMessageConfig `yaml:"imessage,omitempty" json:"imessage,omitempty"`
+}
+
+// IMessageConfig configures the iMessage channel adapter (macOS only).
+type IMessageConfig struct {
+	// Enabled controls whether the iMessage adapter starts.
+	Enabled bool `yaml:"enabled" json:"enabled"`
+	// AppleID is the Apple ID email used in Messages.app.
+	AppleID string `yaml:"apple_id" json:"apple_id"`
 }
 
 // WhatsAppConfig configures the WhatsApp channel adapter.
