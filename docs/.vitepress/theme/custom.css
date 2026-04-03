@@ -505,11 +505,7 @@ body {
 }
 
 /* Center the dropdown under its parent nav item */
-.VPFlyout {
-  position: relative !important;
-}
-
-.VPFlyout .VPMenu {
+.VPFlyout .menu {
   right: auto !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
