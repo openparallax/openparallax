@@ -1,6 +1,9 @@
 package types
 
-import "github.com/openparallax/openparallax/llm"
+import (
+	"github.com/openparallax/openparallax/llm"
+	"github.com/openparallax/openparallax/mcp"
+)
 
 // AgentConfig is the complete agent configuration loaded from config.yaml.
 type AgentConfig struct {
@@ -166,14 +169,8 @@ type MCPConfig struct {
 	Servers []MCPServerConfig `yaml:"servers,omitempty" json:"servers,omitempty"`
 }
 
-// MCPServerConfig defines a single MCP server connection.
-type MCPServerConfig struct {
-	Name        string            `yaml:"name" json:"name"`
-	Command     string            `yaml:"command" json:"command"`
-	Args        []string          `yaml:"args,omitempty" json:"args,omitempty"`
-	Env         map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
-	IdleTimeout int               `yaml:"idle_timeout,omitempty" json:"idle_timeout,omitempty"` // seconds, default 300
-}
+// MCPServerConfig is an alias for the public mcp.ServerConfig type.
+type MCPServerConfig = mcp.ServerConfig
 
 // LLMConfig is an alias for the public llm.Config type.
 type LLMConfig = llm.Config

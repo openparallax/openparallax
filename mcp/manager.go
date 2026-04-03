@@ -15,7 +15,6 @@ import (
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcptypes "github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/llm"
 )
 
@@ -32,7 +31,7 @@ type Manager struct {
 }
 
 // NewManager creates an MCP Manager from config.
-func NewManager(configs []types.MCPServerConfig, log Logger) *Manager {
+func NewManager(configs []ServerConfig, log Logger) *Manager {
 	clients := make(map[string]*Client)
 	for _, cfg := range configs {
 		timeout := time.Duration(cfg.IdleTimeout) * time.Second
@@ -107,7 +106,7 @@ func (m *Manager) ShutdownAll() {
 
 // Client manages a single MCP server process via the mcp-go SDK.
 type Client struct {
-	config   types.MCPServerConfig
+	config   ServerConfig
 	idle     time.Duration
 	log      Logger
 	conn     *mcpclient.Client
@@ -271,7 +270,7 @@ func convertMCPTools(tools []mcptypes.Tool) []llm.ToolDefinition {
 
 // TestServer spawns an MCP server briefly, discovers its tools, shuts it down,
 // and returns the tool names. Used by the settings UI to validate MCP config.
-func TestServer(ctx context.Context, cfg types.MCPServerConfig, log Logger) ([]string, error) {
+func TestServer(ctx context.Context, cfg ServerConfig, log Logger) ([]string, error) {
 	c := &Client{
 		config: cfg,
 		idle:   30 * time.Second,

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/mcp"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/mcp"
 )
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
