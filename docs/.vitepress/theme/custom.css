@@ -480,29 +480,35 @@ body {
   min-width: 420px !important;
 }
 
-.VPFlyout .VPMenu .items .group .title {
+/* Force all groups to same top alignment */
+.VPFlyout .VPMenu .items > .VPMenuGroup {
+  margin: 0 -12px !important;
+  padding: 0 12px !important;
+  border-top: none !important;
+}
+
+.VPFlyout .VPMenu .items > .VPMenuGroup + .VPMenuGroup {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border-top: none !important;
+}
+
+/* Group headers */
+.VPFlyout .VPMenu .items .VPMenuGroup .title {
   color: var(--op-accent) !important;
   font-size: 0.7em !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.08em !important;
   padding: 6px 12px 2px !important;
+  line-height: 28px !important;
 }
 
-/* Reset all group margins/padding to align in grid */
-.VPFlyout .VPMenu .items .group {
-  margin: 0 !important;
-  border-top: none !important;
-  padding: 0 !important;
+/* Center the Modules dropdown under nav item */
+.VPFlyout .VPMenu {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
 }
-
-.VPFlyout .VPMenu .items .group + .group {
-  margin-top: 0 !important;
-  border-top: none !important;
-  padding-top: 0 !important;
-}
-
-/* Flyout menu uses --vp-c-bg-elv (set to opaque #0c1020 above) */
 
 /* Search dialog */
 .VPLocalSearchBox .shell {
