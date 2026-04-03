@@ -1,0 +1,117 @@
+# Strict policy: Maximum security.
+# Evaluates everything through higher tiers. Blocks destructive operations
+# by default. Suitable for environments handling sensitive data.
+
+deny:
+  - name: block_sensitive_system_paths
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+      - copy_directory
+      - move_directory
+      - delete_directory
+    paths:
+      - "~/.ssh/**"
+      - "~/.aws/**"
+      - "~/.gnupg/**"
+      - "~/.kube/**"
+      - "~/.docker/**"
+      - "/etc/shadow"
+      - "/etc/sudoers"
+      - "/etc/ssh/**"
+      - "/root/**"
+      - "C:\\Windows\\System32\\config\\**"
+
+  - name: block_destructive_file_ops
+    action_types:
+      - delete_file
+      - delete_directory
+
+  - name: block_git_force_push
+    action_types:
+      - git_push
+
+  - name: block_browser_interactions
+    action_types:
+      - browser_click
+      - browser_type
+
+  - name: block_identity_deletion
+    action_types:
+      - delete_file
+      - delete_directory
+    paths:
+      - "**/SOUL.md"
+      - "**/IDENTITY.md"
+      - "**/TOOLS.md"
+      - "**/BOOT.md"
+
+verify:
+  - name: evaluate_all_writes
+    action_types:
+      - write_file
+      - move_file
+      - copy_file
+      - copy_directory
+      - move_directory
+      - create_directory
+      - memory_write
+      - canvas_create
+      - canvas_update
+    tier_override: 2
+
+  - name: evaluate_shell_commands
+    action_types:
+      - execute_command
+    tier_override: 2
+
+  - name: evaluate_all_communication
+    action_types:
+      - send_message
+      - send_email
+      - http_request
+    tier_override: 2
+
+  - name: evaluate_git_operations
+    action_types:
+      - git_commit
+      - git_pull
+      - git_branch
+      - git_checkout
+    tier_override: 1
+
+  - name: evaluate_schedule_changes
+    action_types:
+      - create_schedule
+      - delete_schedule
+    tier_override: 2
+
+  - name: evaluate_calendar_changes
+    action_types:
+      - create_event
+      - update_event
+      - delete_event
+    tier_override: 2
+
+  - name: evaluate_browser_navigation
+    action_types:
+      - browser_navigate
+      - browser_extract
+      - browser_screenshot
+    tier_override: 1
+
+allow:
+  - name: allow_read_operations
+    action_types:
+      - read_file
+      - list_directory
+      - search_files
+      - memory_search
+      - git_status
+      - git_diff
+      - git_log
+      - read_calendar
+      - list_schedules
