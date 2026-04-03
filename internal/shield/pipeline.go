@@ -41,11 +41,32 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 		return nil, fmt.Errorf("policy engine init failed: %w", err)
 	}
 
+	// Try local ONNX classifier first (in-process, fastest).
+	// Fall back to HTTP sidecar if configured. Otherwise heuristic-only.
 	var onnxClient tier1.OnnxClient
-	if cfg.ClassifierAddr != "" {
-		onnxClient = tier1.NewHTTPOnnxClient(cfg.ClassifierAddr)
+	threshold := cfg.OnnxThreshold
+	if threshold == 0 {
+		threshold = 0.85
 	}
-	dualClassifier := tier1.NewDualClassifier(onnxClient, cfg.OnnxThreshold, cfg.HeuristicEnabled)
+	localClient := tier1.NewLocalOnnxClient(threshold)
+	switch {
+	case localClient.IsAvailable():
+		onnxClient = localClient
+		if cfg.Log != nil {
+			cfg.Log.Info("onnx_classifier_loaded", "source", "local", "threshold", threshold)
+		}
+	case cfg.ClassifierAddr != "":
+		onnxClient = tier1.NewHTTPOnnxClient(cfg.ClassifierAddr)
+		if cfg.Log != nil {
+			cfg.Log.Info("onnx_classifier_loaded", "source", "http", "addr", cfg.ClassifierAddr)
+		}
+	default:
+		if cfg.Log != nil {
+			cfg.Log.Warn("onnx_classifier_unavailable",
+				"message", "Shield running in heuristic-only mode. Run 'openparallax get-classifier' for enhanced protection.")
+		}
+	}
+	dualClassifier := tier1.NewDualClassifier(onnxClient, threshold, cfg.HeuristicEnabled)
 
 	var evaluator *tier2.Evaluator
 	if cfg.Evaluator != nil && cfg.Evaluator.Provider != "" {
