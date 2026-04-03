@@ -10,10 +10,10 @@ import (
 
 	"github.com/openparallax/openparallax/internal/agent"
 	"github.com/openparallax/openparallax/internal/config"
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
+	"github.com/openparallax/openparallax/llm"
 	"github.com/openparallax/openparallax/sandbox"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"

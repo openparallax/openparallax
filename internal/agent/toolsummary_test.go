@@ -3,7 +3,7 @@ package agent
 import (
 	"testing"
 
-	"github.com/openparallax/openparallax/internal/llm"
+	"github.com/openparallax/openparallax/llm"
 	"github.com/stretchr/testify/assert"
 )
 

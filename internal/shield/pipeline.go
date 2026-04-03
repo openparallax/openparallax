@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/shield/tier0"
 	"github.com/openparallax/openparallax/internal/shield/tier1"
 	"github.com/openparallax/openparallax/internal/shield/tier2"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // Config holds pipeline configuration.

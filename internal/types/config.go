@@ -1,5 +1,7 @@
 package types
 
+import "github.com/openparallax/openparallax/llm"
+
 // AgentConfig is the complete agent configuration loaded from config.yaml.
 type AgentConfig struct {
 	// Workspace is the root directory for the agent's workspace files.
@@ -173,20 +175,8 @@ type MCPServerConfig struct {
 	IdleTimeout int               `yaml:"idle_timeout,omitempty" json:"idle_timeout,omitempty"` // seconds, default 300
 }
 
-// LLMConfig configures the agent's LLM provider.
-type LLMConfig struct {
-	// Provider is the LLM provider name: "anthropic", "openai", "google", or "ollama".
-	Provider string `yaml:"provider" json:"provider"`
-
-	// Model is the model identifier (e.g., "claude-sonnet-4-20250514").
-	Model string `yaml:"model" json:"model"`
-
-	// APIKeyEnv is the environment variable name containing the API key.
-	APIKeyEnv string `yaml:"api_key_env" json:"api_key_env"`
-
-	// BaseURL is an optional custom endpoint URL for OpenAI-compatible providers.
-	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
-}
+// LLMConfig is an alias for the public llm.Config type.
+type LLMConfig = llm.Config
 
 // ShieldConfig configures the Shield evaluation pipeline.
 type ShieldConfig struct {

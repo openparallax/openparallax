@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/llm"
+	"github.com/openparallax/openparallax/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -18,10 +18,10 @@ import (
 	"github.com/openparallax/openparallax/internal/channels/whatsapp"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/engine/executors"
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/registry"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/internal/web"
+	"github.com/openparallax/openparallax/llm"
 	"github.com/openparallax/openparallax/sandbox"
 	"github.com/spf13/cobra"
 )

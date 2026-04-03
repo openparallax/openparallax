@@ -15,8 +15,8 @@ import (
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcptypes "github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // Logger is the logging interface MCP requires.

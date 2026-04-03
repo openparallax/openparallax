@@ -12,7 +12,7 @@ import (
 
 	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
-	"github.com/openparallax/openparallax/internal/llm"
+	"github.com/openparallax/openparallax/llm"
 	"github.com/openparallax/openparallax/sandbox"
 )
 

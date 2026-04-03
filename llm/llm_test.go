@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +51,7 @@ func getTestProvider(t *testing.T) Provider {
 
 func TestFactoryCreatesAnthropicProvider(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
-	p, err := NewProvider(types.LLMConfig{
+	p, err := NewProvider(Config{
 		Provider:  "anthropic",
 		Model:     "claude-sonnet-4-20250514",
 		APIKeyEnv: "ANTHROPIC_API_KEY",
@@ -64,7 +63,7 @@ func TestFactoryCreatesAnthropicProvider(t *testing.T) {
 
 func TestFactoryCreatesOpenAIProvider(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
-	p, err := NewProvider(types.LLMConfig{
+	p, err := NewProvider(Config{
 		Provider:  "openai",
 		Model:     "gpt-4o",
 		APIKeyEnv: "OPENAI_API_KEY",
@@ -75,7 +74,7 @@ func TestFactoryCreatesOpenAIProvider(t *testing.T) {
 
 func TestFactoryCreatesOpenAIWithBaseURL(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
-	p, err := NewProvider(types.LLMConfig{
+	p, err := NewProvider(Config{
 		Provider:  "openai",
 		Model:     "custom-model",
 		APIKeyEnv: "OPENAI_API_KEY",
@@ -88,7 +87,7 @@ func TestFactoryCreatesOpenAIWithBaseURL(t *testing.T) {
 
 func TestFactoryCreatesGoogleProvider(t *testing.T) {
 	t.Setenv("GOOGLE_API_KEY", "test-key")
-	p, err := NewProvider(types.LLMConfig{
+	p, err := NewProvider(Config{
 		Provider:  "google",
 		Model:     "gemini-2.0-flash",
 		APIKeyEnv: "GOOGLE_API_KEY",
@@ -98,7 +97,7 @@ func TestFactoryCreatesGoogleProvider(t *testing.T) {
 }
 
 func TestFactoryCreatesOllamaProvider(t *testing.T) {
-	p, err := NewProvider(types.LLMConfig{
+	p, err := NewProvider(Config{
 		Provider: "ollama",
 		Model:    "llama3.2",
 	})
@@ -107,7 +106,7 @@ func TestFactoryCreatesOllamaProvider(t *testing.T) {
 }
 
 func TestFactoryDefaultsOllamaBaseURL(t *testing.T) {
-	p, err := NewProvider(types.LLMConfig{
+	p, err := NewProvider(Config{
 		Provider: "ollama",
 		Model:    "llama3.2",
 	})
@@ -118,7 +117,7 @@ func TestFactoryDefaultsOllamaBaseURL(t *testing.T) {
 }
 
 func TestFactoryErrorsOnUnknownProvider(t *testing.T) {
-	_, err := NewProvider(types.LLMConfig{
+	_, err := NewProvider(Config{
 		Provider: "unknown",
 		Model:    "test",
 	})
@@ -128,7 +127,7 @@ func TestFactoryErrorsOnUnknownProvider(t *testing.T) {
 
 func TestFactoryErrorsOnMissingAPIKey(t *testing.T) {
 	t.Setenv("NONEXISTENT_KEY", "")
-	_, err := NewProvider(types.LLMConfig{
+	_, err := NewProvider(Config{
 		Provider:  "openai",
 		Model:     "gpt-4o",
 		APIKeyEnv: "DEFINITELY_NOT_SET_KEY_12345",

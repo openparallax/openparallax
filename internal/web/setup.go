@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // SetupServer serves the web UI in setup mode when no config exists.

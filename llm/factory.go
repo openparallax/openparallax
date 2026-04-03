@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"os"
 	"time"
-
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // NewProvider creates an LLM provider from configuration.
 // The provider is lazily initialized — only the configured provider's SDK is used.
-func NewProvider(cfg types.LLMConfig) (Provider, error) {
+func NewProvider(cfg Config) (Provider, error) {
 	apiKey := ""
 	if cfg.APIKeyEnv != "" {
 		apiKey = os.Getenv(cfg.APIKeyEnv)
@@ -40,7 +38,7 @@ func NewProvider(cfg types.LLMConfig) (Provider, error) {
 
 // APIHost returns the host:port for the LLM API endpoint. Used by the
 // sandbox to whitelist outbound connections.
-func APIHost(cfg types.LLMConfig) string {
+func APIHost(cfg Config) string {
 	switch cfg.Provider {
 	case "anthropic":
 		return "api.anthropic.com:443"
@@ -95,7 +93,7 @@ func indexByte(s string, b byte) int {
 
 // TestConnection creates a provider from config and sends a minimal test
 // prompt to verify connectivity. Returns nil on success.
-func TestConnection(cfg types.LLMConfig, apiKey string) error {
+func TestConnection(cfg Config, apiKey string) error {
 	var p Provider
 	var err error
 

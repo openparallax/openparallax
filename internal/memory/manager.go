@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // Store is the persistence interface Memory requires for FTS5 indexing.

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // ToolGroup defines a named set of tools that can be loaded on demand.

@@ -8,9 +8,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/openparallax/openparallax/crypto"
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // Store manages session lifecycle. Normal sessions persist in SQLite.

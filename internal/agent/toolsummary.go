@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/openparallax/openparallax/internal/llm"
+	"github.com/openparallax/openparallax/llm"
 )
 
 const defaultStalenessThreshold = 4

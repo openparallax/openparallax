@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/openparallax/openparallax/crypto"
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // Evaluator uses an independent LLM to evaluate actions for security risks.

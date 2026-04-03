@@ -15,11 +15,11 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/engine/executors"
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/registry"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/templates"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 	"github.com/spf13/cobra"
 )
 

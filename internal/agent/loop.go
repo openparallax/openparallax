@@ -7,9 +7,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/types"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // LoopConfig configures the reasoning loop.

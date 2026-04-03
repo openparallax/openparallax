@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/memory"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // Compactor compresses conversation history when approaching context limits.

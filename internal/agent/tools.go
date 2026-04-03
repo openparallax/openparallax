@@ -2,9 +2,9 @@ package agent
 
 import (
 	"github.com/openparallax/openparallax/internal/engine/executors"
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/session"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
 )
 
 // GenerateToolDefinitions converts executor ToolSchemas into LLM ToolDefinitions.

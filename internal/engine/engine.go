@@ -21,7 +21,6 @@ import (
 	"github.com/openparallax/openparallax/internal/chronicle"
 	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/engine/executors"
-	"github.com/openparallax/openparallax/internal/llm"
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/mcp"
 	"github.com/openparallax/openparallax/internal/memory"
@@ -31,6 +30,7 @@ import (
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
+	"github.com/openparallax/openparallax/llm"
 	"google.golang.org/grpc"
 )
 
