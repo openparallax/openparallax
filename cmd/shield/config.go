@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/openparallax/openparallax/mcp"
 	"github.com/openparallax/openparallax/shield"
 	"gopkg.in/yaml.v3"
 )
@@ -47,6 +48,12 @@ type ShieldConfig struct {
 	Audit struct {
 		File string `yaml:"file"`
 	} `yaml:"audit"`
+
+	// MCP configures upstream MCP servers for proxy mode.
+	MCP struct {
+		Servers     []mcp.ServerConfig `yaml:"servers"`
+		ToolMapping map[string]string  `yaml:"tool_mapping"`
+	} `yaml:"mcp"`
 
 	// LogLevel sets the logging verbosity.
 	LogLevel string `yaml:"log_level"`

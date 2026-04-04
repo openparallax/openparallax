@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/storage"
@@ -23,6 +24,7 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/sessions/{id}", s.handleUpdateSession)
 	mux.HandleFunc("GET /api/sessions/{id}/messages", s.handleGetMessages)
 	mux.HandleFunc("GET /api/artifacts", s.handleListArtifacts)
+	mux.HandleFunc("GET /api/artifacts/{id}/download", s.handleDownloadArtifact)
 	mux.HandleFunc("GET /api/tools", s.handleListTools)
 	mux.HandleFunc("GET /api/sessions/search", s.handleSearchSessions)
 	mux.HandleFunc("POST /api/restart", s.handleRestart)
@@ -34,6 +36,9 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/memory/search", s.handleMemorySearch)
 	mux.HandleFunc("GET /api/memory/{type}", s.handleReadMemory)
 	mux.HandleFunc("GET /api/sub-agents", s.handleListSubAgents)
+	mux.HandleFunc("GET /api/metrics", s.handleMetrics)
+	mux.HandleFunc("GET /api/metrics/session/{id}", s.handleSessionMetrics)
+	mux.HandleFunc("GET /api/metrics/daily", s.handleDailyTokens)
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
@@ -43,6 +48,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	}
 	sessionCount, _ := s.engine.DB().SessionCount()
 
+	s.log.Debug("api_status", "session_count", sessionCount)
 	avatar := s.engine.Config().Identity.Avatar
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agent_name":    agentName,
@@ -58,21 +64,49 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) handleListArtifacts(w http.ResponseWriter, _ *http.Request) {
 	artifacts, err := s.engine.DB().ListArtifacts()
 	if err != nil {
+		s.log.Error("api_list_artifacts_failed", "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if artifacts == nil {
 		artifacts = []types.Artifact{}
 	}
+	s.log.Debug("api_list_artifacts", "count", len(artifacts))
 	writeJSON(w, http.StatusOK, artifacts)
+}
+
+func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	artifact, err := s.engine.DB().GetArtifact(id)
+	if err != nil {
+		s.log.Debug("api_download_artifact_not_found", "artifact", id)
+		writeError(w, http.StatusNotFound, "artifact not found")
+		return
+	}
+
+	if artifact.StoragePath == "" {
+		writeError(w, http.StatusNotFound, "artifact has no persisted file")
+		return
+	}
+
+	filename := artifact.Title
+	if filename == "" {
+		filename = artifact.ID
+	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	s.log.Info("api_download_artifact", "artifact", id, "path", artifact.StoragePath)
+	http.ServeFile(w, r, artifact.StoragePath)
 }
 
 func (s *Server) handleListSessions(w http.ResponseWriter, _ *http.Request) {
 	sessions, err := s.engine.DB().ListSessions()
 	if err != nil {
+		s.log.Error("api_list_sessions_failed", "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.log.Debug("api_list_sessions", "count", len(sessions))
 	writeJSON(w, http.StatusOK, sessions)
 }
 
@@ -94,10 +128,12 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		Mode: mode,
 	}
 	if err := s.engine.DB().InsertSession(sess); err != nil {
+		s.log.Error("api_session_create_failed", "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	s.log.Info("api_session_created", "session", sess.ID, "mode", sess.Mode)
 	writeJSON(w, http.StatusCreated, sess)
 }
 
@@ -105,18 +141,22 @@ func (s *Server) handleGetSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	sess, err := s.engine.DB().GetSession(id)
 	if err != nil {
+		s.log.Debug("api_get_session_not_found", "session", id)
 		writeError(w, http.StatusNotFound, "session not found")
 		return
 	}
+	s.log.Debug("api_get_session", "session", id)
 	writeJSON(w, http.StatusOK, sess)
 }
 
 func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.engine.DB().DeleteSession(id); err != nil {
+		s.log.Error("api_session_delete_failed", "session", id, "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.log.Info("api_session_deleted", "session", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -126,14 +166,17 @@ func (s *Server) handleUpdateSession(w http.ResponseWriter, r *http.Request) {
 		Title string `json:"title"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.log.Warn("api_session_update_bad_request", "session", id, "error", err)
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 
 	if err := s.engine.DB().UpdateSessionTitle(id, body.Title); err != nil {
+		s.log.Error("api_session_update_failed", "session", id, "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.log.Info("api_session_updated", "session", id)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -141,9 +184,14 @@ func (s *Server) handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	messages, err := s.engine.DB().GetMessages(id)
 	if err != nil {
+		s.log.Error("api_get_messages_failed", "session", id, "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if messages == nil {
+		messages = []types.Message{}
+	}
+	s.log.Debug("api_get_messages", "session", id, "count", len(messages))
 	writeJSON(w, http.StatusOK, messages)
 }
 
@@ -157,9 +205,14 @@ func (s *Server) handleMemorySearch(w http.ResponseWriter, r *http.Request) {
 	limit := 10
 	results, err := s.engine.Memory().Search(query, limit)
 	if err != nil {
+		s.log.Error("api_memory_search_failed", "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if results == nil {
+		results = []memory.SearchResult{}
+	}
+	s.log.Debug("api_memory_search", "results", len(results))
 	writeJSON(w, http.StatusOK, results)
 }
 
@@ -167,9 +220,11 @@ func (s *Server) handleReadMemory(w http.ResponseWriter, r *http.Request) {
 	fileType := r.PathValue("type")
 	content, err := s.engine.Memory().Read(memory.FileType(fileType))
 	if err != nil {
+		s.log.Debug("api_read_memory_not_found", "type", fileType)
 		writeError(w, http.StatusNotFound, "memory file not found: "+fileType)
 		return
 	}
+	s.log.Debug("api_read_memory", "type", fileType, "size", len(content))
 	writeJSON(w, http.StatusOK, map[string]string{
 		"type":    fileType,
 		"content": content,
@@ -184,17 +239,23 @@ func (s *Server) handleSearchSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	results, err := s.engine.DB().SearchSessions(query, 20)
 	if err != nil {
+		s.log.Error("api_search_sessions_failed", "error", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
 		results = []storage.SearchSessionResult{}
 	}
+	s.log.Debug("api_search_sessions", "results", len(results))
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 
 func (s *Server) handleListTools(w http.ResponseWriter, _ *http.Request) {
 	tools := s.engine.ToolList()
+	if tools == nil {
+		tools = []map[string]string{}
+	}
+	s.log.Debug("api_list_tools", "count", len(tools))
 	writeJSON(w, http.StatusOK, tools)
 }
 
@@ -222,6 +283,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	levelFilter := r.URL.Query().Get("level")
 	eventFilter := r.URL.Query().Get("event")
 
+	s.log.Debug("api_logs", "lines", lines, "level", levelFilter, "event", eventFilter)
 	logPath := s.engine.LogPath()
 	f, err := os.Open(logPath)
 	if err != nil {
@@ -281,6 +343,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	s.log.Debug("api_audit", "lines", lines)
 	auditPath := s.engine.AuditPath()
 	f, err := os.Open(auditPath)
 	if err != nil {
@@ -354,9 +417,57 @@ func writeError(w http.ResponseWriter, status int, message string) {
 func (s *Server) handleListSubAgents(w http.ResponseWriter, _ *http.Request) {
 	mgr := s.engine.SubAgentManager()
 	if mgr == nil {
+		s.log.Debug("api_list_sub_agents", "count", 0)
 		writeJSON(w, http.StatusOK, []any{})
 		return
 	}
 	agents := mgr.List()
+	s.log.Debug("api_list_sub_agents", "count", len(agents))
 	writeJSON(w, http.StatusOK, agents)
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	period := r.URL.Query().Get("period")
+	now := time.Now()
+	var from, to string
+
+	switch period {
+	case "weekly":
+		from = now.AddDate(0, 0, -7).Format("2006-01-02")
+	case "monthly":
+		from = now.AddDate(0, -1, 0).Format("2006-01-02")
+	case "yearly":
+		from = now.AddDate(-1, 0, 0).Format("2006-01-02")
+	default:
+		from = now.Format("2006-01-02")
+	}
+	to = now.Format("2006-01-02")
+
+	summary := s.engine.DB().GetMetricsSummary(from, to)
+	s.log.Debug("api_metrics", "period", period, "from", from, "to", to)
+	writeJSON(w, http.StatusOK, summary)
+}
+
+func (s *Server) handleSessionMetrics(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	usage := s.engine.DB().GetSessionTokenUsage(id)
+	s.log.Debug("api_session_metrics", "session", id)
+	writeJSON(w, http.StatusOK, usage)
+}
+
+func (s *Server) handleDailyTokens(w http.ResponseWriter, r *http.Request) {
+	days := 30
+	if d := r.URL.Query().Get("days"); d != "" {
+		if n, err := strconv.Atoi(d); err == nil && n > 0 && n <= 365 {
+			days = n
+		}
+	}
+	from := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
+	to := time.Now().Format("2006-01-02")
+	data := s.engine.DB().GetDailyTokens(from, to)
+	if data == nil {
+		data = []map[string]any{}
+	}
+	s.log.Debug("api_daily_tokens", "days", days, "entries", len(data))
+	writeJSON(w, http.StatusOK, data)
 }

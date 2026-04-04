@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/llm"
 )
 
@@ -77,7 +76,7 @@ func (m *Manager) Search(query string, limit int) ([]SearchResult, error) {
 }
 
 // LogAction appends one-line entries to the daily log after each action.
-func (m *Manager) LogAction(actions []*types.ActionRequest, results []*types.ActionResult) {
+func (m *Manager) LogAction(actions []*ActionEntry, results []*ResultEntry) {
 	today := time.Now().Format("2006-01-02")
 	logDir := filepath.Join(m.workspace, "memory")
 	_ = os.MkdirAll(logDir, 0o755)

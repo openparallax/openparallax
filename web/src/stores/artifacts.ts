@@ -11,16 +11,19 @@ const MAX_TABS = 6;
 
 export const artifactTabs = writable<ArtifactTab[]>([]);
 export const activeTabId = writable<string | null>(null);
+export const artifactPanelOpen = writable(false);
+export const artifactPanelView = writable<'source' | 'preview'>('preview');
 
 export const activeTab = derived(
   [artifactTabs, activeTabId],
   ([$tabs, $id]) => $tabs.find(t => t.id === $id) || null,
 );
 
-export function openArtifactTab(artifact: Artifact) {
+export function openArtifactTab(artifact: Artifact, showPanel = true) {
   artifactTabs.update(tabs => {
     if (tabs.some(t => t.id === artifact.id)) {
       activeTabId.set(artifact.id);
+      if (showPanel) artifactPanelOpen.set(true);
       return tabs;
     }
     let next = [...tabs, { id: artifact.id, artifact }];
@@ -30,6 +33,7 @@ export function openArtifactTab(artifact: Artifact) {
       next = next.filter(t => t.id !== oldest.id);
     }
     activeTabId.set(artifact.id);
+    if (showPanel) artifactPanelOpen.set(true);
     return next;
   });
 }

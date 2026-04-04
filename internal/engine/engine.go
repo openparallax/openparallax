@@ -384,6 +384,10 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		return fmt.Errorf("expected AgentReady, got %T", firstEvent.Event)
 	}
 	e.log.Info("agent_connected", "id", ready.AgentId)
+	_ = e.audit.Log(audit.Entry{
+		EventType: types.AuditSessionStarted,
+		Details:   "agent connected: " + ready.AgentId,
+	})
 
 	// Store the agent stream for forwarding messages.
 	e.mu.Lock()
@@ -393,6 +397,11 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		e.mu.Lock()
 		e.agentStream = nil
 		e.mu.Unlock()
+		e.log.Info("agent_disconnected", "id", ready.AgentId)
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditSessionEnded,
+			Details:   "agent disconnected: " + ready.AgentId,
+		})
 	}()
 
 	// Read agent events in a loop.
@@ -461,6 +470,7 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 
 		case *pb.AgentEvent_MemoryFlush:
 			if ev.MemoryFlush.Content != "" {
+				e.log.Debug("memory_flush", "content_len", len(ev.MemoryFlush.Content))
 				_ = e.memory.Append(memory.MemoryMain, ev.MemoryFlush.Content)
 			}
 
@@ -468,6 +478,8 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 			rc := ev.ResponseComplete
 			sid := rc.SessionId
 			mid := rc.MessageId
+			e.log.Info("agent_response_complete", "session", sid,
+				"content_len", len(rc.Content), "thoughts", len(rc.Thoughts))
 
 			// Convert thoughts.
 			var thoughts []types.Thought
@@ -505,6 +517,13 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 
 		case *pb.AgentEvent_AgentError:
 			ae := ev.AgentError
+			e.log.Error("agent_error", "session", ae.SessionId, "code", ae.Code, "message", ae.Message)
+			_ = e.audit.Log(audit.Entry{
+				EventType:  types.AuditShieldError,
+				SessionID:  ae.SessionId,
+				ActionType: ae.Code,
+				Details:    ae.Message,
+			})
 			e.broadcaster.Broadcast(&PipelineEvent{
 				SessionID: ae.SessionId, MessageID: ae.MessageId,
 				Type:  EventError,
@@ -644,6 +663,7 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	})
 
 	if result.Artifact != nil {
+		e.PersistArtifact(result.Artifact, sid)
 		e.broadcaster.Broadcast(&PipelineEvent{
 			SessionID: sid, MessageID: mid, Type: EventActionArtifact,
 			ActionArtifact: &ActionArtifactEvent{Artifact: result.Artifact},
@@ -652,8 +672,8 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 
 	// Log to daily action log.
 	e.memory.LogAction(
-		[]*types.ActionRequest{action},
-		[]*types.ActionResult{result},
+		[]*memory.ActionEntry{{Type: string(action.Type)}},
+		[]*memory.ResultEntry{{Success: result.Success, Summary: result.Summary}},
 	)
 
 	content := result.Output
@@ -671,30 +691,39 @@ func (e *Engine) ProcessMessageForWeb(ctx context.Context, sender EventSender, s
 	e.storeMessage(sid, mid, "user", content)
 
 	// Subscribe this WS connection for events on this session.
-	clientID := "ws-" + mid
+	// Use a stable client ID derived from the sender pointer so that
+	// multiple messages on the same connection reuse (replace) the same
+	// subscription instead of stacking duplicates.
+	clientID := fmt.Sprintf("ws-%p", sender)
 	e.broadcaster.Subscribe(clientID, sid, sender)
-	defer e.broadcaster.Unsubscribe(clientID)
 
 	// Try forwarding to Agent (new architecture).
 	e.mu.Lock()
 	hasAgent := e.agentStream != nil
 	e.mu.Unlock()
 
+	e.log.Info("process_web_message", "session", sid, "has_agent", hasAgent, "content_len", len(content))
+
 	if hasAgent {
 		if err := e.forwardToAgent(sid, mid, content, mode, "web"); err != nil {
+			e.log.Error("forward_to_agent_failed", "session", sid, "error", err)
 			return e.sendErrorEvent(sender, sid, mid, "AGENT_UNAVAILABLE", err.Error())
 		}
+		e.log.Info("forwarded_to_agent", "session", sid)
 		// Wait for completion or disconnect.
 		<-ctx.Done()
+		e.log.Info("web_ctx_done", "session", sid)
 		return nil
 	}
 
+	e.log.Info("fallback_in_process", "session", sid)
 	// Fallback: run the old in-process pipeline during migration.
 	return e.processMessageCore(ctx, sender, sid, mid, content, mode)
 }
 
 // processMessageCore is the shared pipeline logic for both gRPC and WebSocket.
 func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid, mid, content string, mode types.SessionMode) error {
+	start := time.Now()
 	isOTR := mode == types.SessionOTR
 
 	e.storeMessage(sid, mid, "user", content)
@@ -792,8 +821,8 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 
 	// Main orchestration loop.
 	var toolResults []llm.ToolResult
-	var executedActions []*types.ActionRequest
-	var executedResults []*types.ActionResult
+	var executedActions []*memory.ActionEntry
+	var executedResults []*memory.ResultEntry
 	var thoughts []types.Thought
 	var reasoningBuf strings.Builder
 	rounds := 0
@@ -885,13 +914,17 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 				Detail:  tcDetail,
 			})
 
-			executedActions = append(executedActions, &types.ActionRequest{Type: types.ActionType(tc.Name), Payload: tc.Arguments})
-			executedResults = append(executedResults, &types.ActionResult{Success: !result.IsError, Summary: executors.Truncate(result.Content, 100)})
+			executedActions = append(executedActions, &memory.ActionEntry{Type: tc.Name})
+			executedResults = append(executedResults, &memory.ResultEntry{Success: !result.IsError, Summary: executors.Truncate(result.Content, 100)})
 		}
 	}
 
 	redactor.Flush()
 	fullResponse := toolStream.FullText()
+
+	e.log.Info("response_complete", "session", sid, "rounds", rounds,
+		"response_len", len(fullResponse), "thoughts", len(thoughts),
+		"tools_executed", len(executedActions))
 
 	// Store assistant message with thoughts (reasoning + tool calls).
 	assistantMsg := &types.Message{
@@ -946,12 +979,32 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 		"cache_read_tokens", usage.CacheReadTokens,
 		"tool_def_tokens", usage.ToolDefinitionTokens,
 		"history_msgs", len(messages), "tools_sent", len(tools))
+
+	// Persist token usage metrics.
+	_ = e.db.InsertLLMUsage(storage.LLMUsageEntry{
+		SessionID:           sid,
+		MessageID:           mid,
+		Provider:            e.llm.Name(),
+		Model:               e.llm.Model(),
+		InputTokens:         usage.InputTokens,
+		OutputTokens:        usage.OutputTokens,
+		CacheReadTokens:     usage.CacheReadTokens,
+		CacheCreationTokens: usage.CacheCreationTokens,
+		ToolDefTokens:       usage.ToolDefinitionTokens,
+		Rounds:              rounds,
+		DurationMs:          time.Since(start).Milliseconds(),
+	})
+	e.db.IncrementDailyMetric("llm_calls", 1)
+	e.db.IncrementDailyMetric("tokens_input", usage.InputTokens)
+	e.db.IncrementDailyMetric("tokens_output", usage.OutputTokens)
+	e.db.IncrementDailyMetric("messages_processed", 1)
+
 	return nil
 }
 
 func truncateForLog(s string) string {
-	if len(s) > 100 {
-		return s[:100] + "..."
+	if len(s) > 120 {
+		return s[:120] + "..."
 	}
 	return s
 }
@@ -975,6 +1028,10 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	allowed, protection, protReason := CheckProtection(action, e.cfg.Workspace)
 	if !allowed {
 		e.log.Warn("protection_blocked", "session", sid, "tool", tc.Name, "reason", protReason)
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditSelfProtection, SessionID: sid,
+			ActionType: string(action.Type), Details: protReason,
+		})
 		_ = sender.SendEvent(&PipelineEvent{
 			SessionID: sid, MessageID: mid, Type: EventActionCompleted,
 			ActionCompleted: &ActionCompletedEvent{ToolName: tc.Name, Success: false, Summary: "Blocked: " + protReason},
@@ -1018,7 +1075,15 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	}
 
 	// Shield evaluation.
+	shieldStart := time.Now()
 	verdict := e.shield.Evaluate(ctx, action)
+	shieldMs := time.Since(shieldStart).Milliseconds()
+
+	e.log.Info("shield_verdict", "session", sid, "tool", tc.Name,
+		"decision", verdict.Decision, "tier", verdict.Tier,
+		"confidence", verdict.Confidence, "ms", shieldMs,
+		"reasoning", truncateForLog(verdict.Reasoning))
+
 	_ = sender.SendEvent(&PipelineEvent{
 		SessionID: sid, MessageID: mid, Type: EventShieldVerdict,
 		ShieldVerdict: &ShieldVerdictEvent{
@@ -1029,11 +1094,28 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	_ = e.audit.Log(audit.Entry{
 		EventType: types.AuditActionEvaluated, SessionID: sid,
 		ActionType: string(action.Type),
-		Details:    fmt.Sprintf("%s (tier %d): %s", verdict.Decision, verdict.Tier, verdict.Reasoning),
+		Details:    fmt.Sprintf("%s (tier %d, %.0f%%): %s", verdict.Decision, verdict.Tier, verdict.Confidence*100, verdict.Reasoning),
 	})
 
+	// Track shield metrics.
+	e.db.IncrementDailyMetric("shield_"+strings.ToLower(string(verdict.Decision)), 1)
+	e.db.IncrementDailyMetric(fmt.Sprintf("shield_t%d", verdict.Tier), 1)
+
+	// Audit rate limit and budget exhaustion specifically.
+	if strings.Contains(verdict.Reasoning, "rate limit") {
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditRateLimitHit, SessionID: sid,
+			ActionType: string(action.Type), Details: verdict.Reasoning,
+		})
+	}
+	if strings.Contains(verdict.Reasoning, "budget exhausted") {
+		_ = e.audit.Log(audit.Entry{
+			EventType: types.AuditBudgetExhausted, SessionID: sid,
+			ActionType: string(action.Type), Details: verdict.Reasoning,
+		})
+	}
+
 	if verdict.Decision == types.VerdictBlock {
-		e.log.Info("shield_blocked", "session", sid, "tool", tc.Name, "reason", verdict.Reasoning)
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: verdict.Reasoning,
@@ -1046,20 +1128,22 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	}
 
 	if verdict.Decision == types.VerdictEscalate {
-		e.log.Info("shield_escalate", "session", sid, "tool", tc.Name)
 		return llm.ToolResult{CallID: tc.ID, Content: "Action requires human approval — escalation is not available in this session", IsError: true}
 	}
 
 	// Hash verification.
 	if verifyErr := e.verifier.Verify(action); verifyErr != nil {
-		e.log.Error("hash_verify_failed", "session", sid, "tool", tc.Name)
+		e.log.Error("hash_verify_failed", "session", sid, "tool", tc.Name, "error", verifyErr)
 		return llm.ToolResult{CallID: tc.ID, Content: "Integrity check failed", IsError: true}
 	}
+	e.log.Debug("hash_verified", "session", sid, "tool", tc.Name, "hash", action.Hash[:16])
 
 	// Chronicle snapshot (Normal mode only).
 	if !isOTR {
-		if _, snapErr := e.chronicle.Snapshot(&chronicle.ActionRequest{Type: string(action.Type), Payload: action.Payload}); snapErr != nil {
+		if snapMeta, snapErr := e.chronicle.Snapshot(&chronicle.ActionRequest{Type: string(action.Type), Payload: action.Payload}); snapErr != nil {
 			e.log.Warn("chronicle_snapshot_failed", "session", sid, "error", snapErr)
+		} else if snapMeta != nil {
+			e.log.Debug("chronicle_snapshot", "session", sid, "tool", tc.Name, "snapshot_id", snapMeta.ID)
 		}
 	}
 
@@ -1067,7 +1151,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	// data in this session, block the flow.
 	if action.DataClassification != nil && !ifc.IsFlowAllowed(action.DataClassification, action.Type) {
 		reason := "IFC violation: sensitive data cannot flow to this destination"
-		e.log.Info("ifc_blocked", "session", sid, "tool", tc.Name,
+		e.log.Warn("ifc_blocked", "session", sid, "tool", tc.Name,
 			"sensitivity", action.DataClassification.Sensitivity, "source", action.DataClassification.SourcePath)
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditActionBlocked, SessionID: sid,
@@ -1105,13 +1189,16 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 		result.DurationMs = time.Since(start).Milliseconds()
 	}
 
+	e.db.IncrementDailyMetric("tool_calls", 1)
 	if result.Success {
+		e.db.IncrementDailyMetric("tool_success", 1)
 		e.log.Info("executor_complete", "session", sid, "tool", tc.Name, "success", true, "ms", result.DurationMs)
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditActionExecuted, SessionID: sid,
 			ActionType: string(action.Type), Details: result.Summary,
 		})
 	} else {
+		e.db.IncrementDailyMetric("tool_failed", 1)
 		e.log.Info("executor_complete", "session", sid, "tool", tc.Name, "success", false, "error", result.Error)
 		_ = e.audit.Log(audit.Entry{
 			EventType: types.AuditActionFailed, SessionID: sid,
@@ -1125,6 +1212,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	})
 
 	if result.Artifact != nil {
+		e.PersistArtifact(result.Artifact, sid)
 		_ = sender.SendEvent(&PipelineEvent{
 			SessionID: sid, MessageID: mid, Type: EventActionArtifact,
 			ActionArtifact: &ActionArtifactEvent{Artifact: result.Artifact},
@@ -1595,6 +1683,44 @@ func (e *Engine) LogPath() string {
 // AuditPath returns the path to the audit JSONL file.
 func (e *Engine) AuditPath() string {
 	return filepath.Join(e.cfg.Workspace, ".openparallax", "audit.jsonl")
+}
+
+// PersistArtifact saves artifact content to the workspace filesystem and stores
+// metadata in SQLite. The file is written to {workspace}/.openparallax/artifacts/{id}/{filename}.
+func (e *Engine) PersistArtifact(artifact *types.Artifact, sessionID string) {
+	if artifact == nil || artifact.Content == "" {
+		return
+	}
+
+	artifact.SessionID = sessionID
+
+	// Derive a safe filename from the title or fall back to the artifact ID.
+	filename := artifact.Title
+	if filename == "" {
+		filename = artifact.ID
+	}
+
+	dir := filepath.Join(e.cfg.Workspace, ".openparallax", "artifacts", artifact.ID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		e.log.Error("artifact_persist_mkdir_failed", "artifact", artifact.ID, "error", err)
+		return
+	}
+
+	storagePath := filepath.Join(dir, filename)
+	if err := os.WriteFile(storagePath, []byte(artifact.Content), 0o644); err != nil {
+		e.log.Error("artifact_persist_write_failed", "artifact", artifact.ID, "error", err)
+		return
+	}
+
+	artifact.StoragePath = storagePath
+	artifact.SizeBytes = int64(len(artifact.Content))
+
+	if err := e.db.InsertArtifact(artifact); err != nil {
+		e.log.Error("artifact_persist_db_failed", "artifact", artifact.ID, "error", err)
+		return
+	}
+
+	e.log.Info("artifact_persisted", "artifact", artifact.ID, "path", storagePath, "size", artifact.SizeBytes)
 }
 
 // --- Conversion helpers ---

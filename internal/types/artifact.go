@@ -5,6 +5,9 @@ type Artifact struct {
 	// ID is a unique identifier.
 	ID string `json:"id"`
 
+	// SessionID links the artifact to its originating session.
+	SessionID string `json:"session_id,omitempty"`
+
 	// Type is "file", "command_output", "diff", or "error".
 	Type string `json:"type"`
 
@@ -26,4 +29,7 @@ type Artifact struct {
 	// PreviewType determines how the frontend renders this artifact.
 	// Values: "code", "markdown", "html", "image", "text", "terminal", "diff"
 	PreviewType string `json:"preview_type"`
+
+	// StoragePath is the on-disk path where the artifact content is persisted.
+	StoragePath string `json:"storage_path,omitempty"`
 }

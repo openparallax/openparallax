@@ -1,14 +1,22 @@
 <script lang="ts">
-  import { onMount, afterUpdate } from 'svelte';
-  import { getLogs, getAudit } from '../lib/api';
+  import { onMount, afterUpdate, tick } from 'svelte';
+  import { getLogs, getAudit, getMetrics, getDailyTokens } from '../lib/api';
   import { logEntries, setLogEntries, consoleLive } from '../stores/console';
   import type { LogEntry } from '../stores/console';
 
-  type Tab = 'live' | 'audit';
-  let activeTab: Tab = 'live';
+  type Tab = 'metrics' | 'live' | 'audit';
+  let activeTab: Tab = 'metrics';
 
   type Filter = 'all' | 'shield' | 'tools' | 'llm' | 'memory' | 'errors';
   let activeFilterList: Filter[] = ['all'];
+  const filterOptions: { id: Filter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'shield', label: 'Shield' },
+    { id: 'tools', label: 'Tools' },
+    { id: 'llm', label: 'LLM' },
+    { id: 'memory', label: 'Memory' },
+    { id: 'errors', label: 'Errors' },
+  ];
   let searchQuery = '';
   let debounceTimer: ReturnType<typeof setTimeout>;
 
@@ -21,6 +29,24 @@
   let auditTotal = 0;
   let expandedEntries: Set<number> = new Set();
 
+  let auditEl: HTMLDivElement;
+  let auditAutoScroll = false;
+
+  type AuditFilter = 'all' | 'executed' | 'blocked' | 'failed' | 'sessions';
+  let activeAuditFilter: AuditFilter = 'all';
+  const auditFilterOptions: { id: AuditFilter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'executed', label: 'Executed' },
+    { id: 'blocked', label: 'Blocked' },
+    { id: 'failed', label: 'Failed' },
+    { id: 'sessions', label: 'Sessions' },
+  ];
+
+  let metricsSummary: any = null;
+  let dailyTokenData: any[] = [];
+  let metricsPeriod: string = 'daily';
+  let metricsLoading = false;
+
   onMount(async () => {
     try {
       const data = await getLogs(200);
@@ -30,6 +56,7 @@
     } catch {
       /* engine may not be ready */
     }
+    loadMetrics();
   });
 
   afterUpdate(() => {
@@ -55,9 +82,9 @@
   function matchesFilter(entry: LogEntry, filters: Filter[]): boolean {
     if (filters.includes('all')) return true;
     const evt = entry.event || '';
-    if (filters.includes('shield') && (evt.includes('shield') || evt.includes('ifc'))) return true;
-    if (filters.includes('tools') && (evt.includes('tool') || evt.includes('executor'))) return true;
-    if (filters.includes('llm') && (evt.includes('llm') || evt.includes('compaction'))) return true;
+    if (filters.includes('shield') && (evt.includes('shield') || evt.includes('ifc') || evt.includes('protection') || evt.includes('otr'))) return true;
+    if (filters.includes('tools') && (evt.includes('tool') || evt.includes('executor') || evt.includes('mcp'))) return true;
+    if (filters.includes('llm') && (evt.includes('llm') || evt.includes('compaction') || evt.includes('message_complete') || evt.includes('response_complete'))) return true;
     if (filters.includes('memory') && evt.includes('memory')) return true;
     if (filters.includes('errors') && (entry.level === 'warn' || entry.level === 'error')) return true;
     return false;
@@ -92,6 +119,17 @@
     autoScroll = true;
   }
 
+  function handleAuditScroll() {
+    if (!auditEl) return;
+    const dist = auditEl.scrollHeight - auditEl.scrollTop - auditEl.clientHeight;
+    auditAutoScroll = dist >= 50;
+  }
+
+  function scrollAuditToBottom() {
+    if (auditEl) auditEl.scrollTo({ top: auditEl.scrollHeight, behavior: 'smooth' });
+    auditAutoScroll = false;
+  }
+
   function toggleExpand(idx: number) {
     if (expandedEntries.has(idx)) {
       expandedEntries.delete(idx);
@@ -111,12 +149,40 @@
     } catch {
       auditEntries = [];
     }
+    await tick();
+    if (auditEl) {
+      auditEl.scrollTop = auditEl.scrollHeight;
+    }
+  }
+
+  async function loadMetrics() {
+    metricsLoading = true;
+    try {
+      const [summary, daily] = await Promise.all([
+        getMetrics(metricsPeriod),
+        getDailyTokens(metricsPeriod === 'daily' ? 7 : metricsPeriod === 'weekly' ? 30 : metricsPeriod === 'monthly' ? 90 : 365),
+      ]);
+      metricsSummary = summary;
+      dailyTokenData = daily || [];
+    } catch {
+      metricsSummary = null;
+      dailyTokenData = [];
+    }
+    metricsLoading = false;
+  }
+
+  function setMetricsPeriod(period: string) {
+    metricsPeriod = period;
+    loadMetrics();
   }
 
   function switchTab(tab: Tab) {
     activeTab = tab;
     if (tab === 'audit' && auditEntries.length === 0) {
       loadAudit();
+    }
+    if (tab === 'metrics' && !metricsSummary) {
+      loadMetrics();
     }
   }
 
@@ -211,7 +277,15 @@
       case 5: return 'EXECUTED';
       case 6: return 'FAILED';
       case 7: return 'SHIELD_ERROR';
+      case 8: return 'CANARY_OK';
+      case 9: return 'CANARY_MISSING';
+      case 10: return 'RATE_LIMIT';
+      case 11: return 'BUDGET_OUT';
       case 12: return 'SELF_PROTECT';
+      case 13: return 'TXN_BEGIN';
+      case 14: return 'TXN_COMMIT';
+      case 15: return 'TXN_ROLLBACK';
+      case 16: return 'INTEGRITY';
       case 17: return 'SESSION_START';
       case 18: return 'SESSION_END';
       default: return `EVENT_${eventType}`;
@@ -227,6 +301,14 @@
   }
 
   $: auditTriplets = groupAuditEntries(auditEntries);
+
+  $: filteredAuditTriplets = auditTriplets.filter(t => {
+    if (activeAuditFilter === 'all') return true;
+    if (activeAuditFilter === 'sessions') {
+      return t.entries.some((e: any) => e.event_type === 17 || e.event_type === 18);
+    }
+    return t.outcome === activeAuditFilter;
+  });
 
   function groupAuditEntries(entries: any[]): AuditTriplet[] {
     const groups: AuditTriplet[] = [];
@@ -286,18 +368,155 @@
     }
     expandedTriplets = new Set(expandedTriplets);
   }
+
+  function formatNumber(n: number): string {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    return String(n);
+  }
+
+  function formatPct(n: number): string {
+    return n.toFixed(1) + '%';
+  }
+
+  $: chartMax = dailyTokenData.length > 0
+    ? Math.max(...dailyTokenData.map((d: any) => (d.input_tokens || 0) + (d.output_tokens || 0)), 1)
+    : 1;
+
+  function chartBarHeight(tokens: number): string {
+    return Math.max((tokens / chartMax) * 100, 1) + '%';
+  }
+
+  function formatChartDate(dateStr: string): string {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
 </script>
 
 <div class="console">
-  {#if activeTab === 'live'}
+  {#if activeTab === 'metrics'}
     <div class="console-header">
       <div class="filter-bar">
-        {#each [['all','All'],['shield','Shield'],['tools','Tools'],['llm','LLM'],['memory','Memory'],['errors','Errors']] as [id, label]}
+        {#each [['daily','Today'],['weekly','Week'],['monthly','Month'],['yearly','Year']] as [id, label]}
           <button
             class="filter-btn"
-            class:active={activeFilterList.includes(id)}
-            on:click={() => toggleFilter(id)}
+            class:active={metricsPeriod === id}
+            on:click={() => setMetricsPeriod(id)}
           >{label}</button>
+        {/each}
+      </div>
+      <button class="filter-btn" on:click={() => loadMetrics()}>Refresh</button>
+    </div>
+
+    <div class="metrics-content">
+      {#if metricsLoading}
+        <div class="empty-state">Loading metrics...</div>
+      {:else if !metricsSummary}
+        <div class="empty-state">No metrics data available</div>
+      {:else}
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Token Usage</div>
+            <div class="metric-value">{formatNumber(metricsSummary.total_tokens || 0)}</div>
+            <div class="metric-sub">
+              <span class="metric-input">{formatNumber(metricsSummary.input_tokens || 0)} in</span>
+              <span class="metric-sep">/</span>
+              <span class="metric-output">{formatNumber(metricsSummary.output_tokens || 0)} out</span>
+            </div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">LLM Calls</div>
+            <div class="metric-value">{formatNumber(metricsSummary.llm_calls || 0)}</div>
+            <div class="metric-sub">requests</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Messages</div>
+            <div class="metric-value">{formatNumber(metricsSummary.messages || 0)}</div>
+            <div class="metric-sub">exchanges</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Sessions</div>
+            <div class="metric-value">{formatNumber(metricsSummary.sessions || 0)}</div>
+            <div class="metric-sub">active</div>
+          </div>
+        </div>
+
+        <div class="metrics-grid wide">
+          <div class="metric-card wide">
+            <div class="metric-label">Shield</div>
+            <div class="metric-row">
+              <div class="metric-stat">
+                <span class="stat-value allow">{metricsSummary.shield_allow || 0}</span>
+                <span class="stat-label">allow</span>
+              </div>
+              <div class="metric-stat">
+                <span class="stat-value block">{metricsSummary.shield_block || 0}</span>
+                <span class="stat-label">block</span>
+              </div>
+              <div class="metric-stat">
+                <span class="stat-value escalate">{metricsSummary.shield_escalate || 0}</span>
+                <span class="stat-label">escalate</span>
+              </div>
+            </div>
+            <div class="metric-tiers">
+              <span class="tier-badge">T0: {metricsSummary.shield_t0 || 0}</span>
+              <span class="tier-badge">T1: {metricsSummary.shield_t1 || 0}</span>
+              <span class="tier-badge">T2: {metricsSummary.shield_t2 || 0}</span>
+            </div>
+          </div>
+          <div class="metric-card wide">
+            <div class="metric-label">Tools</div>
+            <div class="metric-row">
+              <div class="metric-stat">
+                <span class="stat-value">{metricsSummary.tool_calls || 0}</span>
+                <span class="stat-label">total</span>
+              </div>
+              <div class="metric-stat">
+                <span class="stat-value allow">{metricsSummary.tool_success_rate != null ? formatPct(metricsSummary.tool_success_rate) : '---'}</span>
+                <span class="stat-label">success</span>
+              </div>
+              <div class="metric-stat">
+                <span class="stat-value block">{metricsSummary.tool_failed || 0}</span>
+                <span class="stat-label">failed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {#if dailyTokenData.length > 0}
+          <div class="chart-section">
+            <div class="chart-label">Daily Tokens</div>
+            <div class="chart-container">
+              {#each dailyTokenData as day}
+                <div class="chart-col" title="{formatChartDate(day.date)}: {formatNumber((day.input_tokens || 0) + (day.output_tokens || 0))} tokens">
+                  <div class="chart-bar-stack" style="height: {chartBarHeight((day.input_tokens || 0) + (day.output_tokens || 0))}">
+                    <div class="chart-bar output" style="height: {(day.output_tokens || 0) / Math.max((day.input_tokens || 0) + (day.output_tokens || 0), 1) * 100}%"></div>
+                    <div class="chart-bar input" style="height: {(day.input_tokens || 0) / Math.max((day.input_tokens || 0) + (day.output_tokens || 0), 1) * 100}%"></div>
+                  </div>
+                  <span class="chart-date">{formatChartDate(day.date)}</span>
+                </div>
+              {/each}
+            </div>
+            <div class="chart-legend">
+              <span class="legend-item"><span class="legend-swatch input"></span>Input</span>
+              <span class="legend-item"><span class="legend-swatch output"></span>Output</span>
+            </div>
+          </div>
+        {/if}
+      {/if}
+    </div>
+
+  {:else if activeTab === 'live'}
+    <div class="console-header">
+      <div class="filter-bar">
+        {#each filterOptions as opt}
+          <button
+            class="filter-btn"
+            class:active={activeFilterList.includes(opt.id)}
+            on:click={() => toggleFilter(opt.id)}
+          >{opt.label}</button>
         {/each}
       </div>
       <div class="search-and-live">
@@ -339,6 +558,15 @@
 
   {:else}
     <div class="console-header">
+      <div class="filter-bar">
+        {#each auditFilterOptions as opt}
+          <button
+            class="filter-btn"
+            class:active={activeAuditFilter === opt.id}
+            on:click={() => { activeAuditFilter = opt.id; }}
+          >{opt.label}</button>
+        {/each}
+      </div>
       <div class="audit-status">
         {#if auditChainValid}
           <span class="chain-valid">&check; Chain valid &middot; {auditTotal} entries</span>
@@ -348,11 +576,11 @@
       </div>
     </div>
 
-    <div class="log-entries">
-      {#if auditTriplets.length === 0}
+    <div class="log-entries" bind:this={auditEl} on:scroll={handleAuditScroll}>
+      {#if filteredAuditTriplets.length === 0}
         <div class="empty-state">No audit entries yet</div>
       {:else}
-        {#each auditTriplets as triplet, i (i)}
+        {#each filteredAuditTriplets as triplet, i (i)}
           <button
             class="triplet-row"
             class:executed={triplet.outcome === 'executed'}
@@ -394,9 +622,14 @@
         {/each}
       {/if}
     </div>
+
+    {#if auditAutoScroll}
+      <button class="jump-bottom" on:click={scrollAuditToBottom}>&darr; Jump to bottom</button>
+    {/if}
   {/if}
 
   <div class="console-tabs">
+    <button class="console-tab" class:active={activeTab === 'metrics'} on:click={() => switchTab('metrics')}>Metrics</button>
     <button class="console-tab" class:active={activeTab === 'live'} on:click={() => switchTab('live')}>Live Log</button>
     <button class="console-tab" class:active={activeTab === 'audit'} on:click={() => switchTab('audit')}>Audit Trail</button>
   </div>
@@ -703,5 +936,203 @@
     text-align: center;
     padding: 60px 0;
     font-family: 'Exo 2', sans-serif;
+  }
+
+  /* Metrics styles */
+  .metrics-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .metrics-grid.wide {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .metric-card {
+    padding: 12px 14px;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius, 8px);
+    background: var(--accent-ghost);
+    backdrop-filter: blur(8px);
+  }
+
+  .metric-label {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+
+  .metric-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1.2;
+  }
+
+  .metric-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-top: 4px;
+  }
+  .metric-input { color: var(--accent-dim); }
+  .metric-sep { color: var(--text-tertiary); margin: 0 2px; }
+  .metric-output { color: var(--text-tertiary); }
+
+  .metric-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 6px;
+  }
+
+  .metric-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .stat-value.allow { color: var(--success); }
+  .stat-value.block { color: var(--error); }
+  .stat-value.escalate { color: var(--warning); }
+
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+  }
+
+  .metric-tiers {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .tier-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-dim);
+    background: var(--accent-ghost);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--accent-border);
+  }
+
+  .chart-section {
+    margin-top: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius, 8px);
+    background: var(--accent-ghost);
+  }
+
+  .chart-label {
+    font-family: 'Exo 2', sans-serif;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+
+  .chart-container {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 100px;
+    padding-bottom: 20px;
+    position: relative;
+  }
+
+  .chart-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    min-width: 0;
+    position: relative;
+  }
+
+  .chart-bar-stack {
+    width: 100%;
+    max-width: 24px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 2px 2px 0 0;
+    overflow: hidden;
+    margin-top: auto;
+  }
+
+  .chart-bar {
+    width: 100%;
+    min-height: 1px;
+  }
+  .chart-bar.input {
+    background: var(--accent);
+    opacity: 0.9;
+  }
+  .chart-bar.output {
+    background: var(--accent-dim);
+    opacity: 0.5;
+  }
+
+  .chart-date {
+    position: absolute;
+    bottom: -18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    transform: rotate(-45deg);
+    transform-origin: top left;
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+    justify-content: flex-end;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+
+  .legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+  .legend-swatch.input {
+    background: var(--accent);
+    opacity: 0.9;
+  }
+  .legend-swatch.output {
+    background: var(--accent-dim);
+    opacity: 0.5;
   }
 </style>

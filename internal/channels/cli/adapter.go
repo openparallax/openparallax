@@ -90,6 +90,7 @@ type model struct {
 	stream        string
 	thinking      bool
 	quitting      bool
+	pendingDelete bool
 	tabCycleIndex int
 	ready         bool
 	width         int
@@ -202,7 +203,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.syncViewport()
 				return m, nil
 			case lower == "/delete":
-				m.handleDeleteSession()
+				if m.pendingDelete {
+					m.executeDeleteSession()
+				} else {
+					m.handleDeleteSession()
+				}
 				m.syncViewport()
 				return m, nil
 			case lower == "/restart":
@@ -619,12 +624,20 @@ func (m *model) handleStatus() {
 	m.addLine(m.dimStyle(fmt.Sprintf("  Mode:      %s", mode)))
 }
 
-// handleDeleteSession removes the current session.
+// handleDeleteSession prompts for confirmation before deleting.
 func (m *model) handleDeleteSession() {
 	if m.db == nil {
 		m.addLine(m.errStyle("Delete unavailable: no database connection."))
 		return
 	}
+	m.pendingDelete = true
+	m.addLine(m.dimStyle("Delete this session and all its messages? This cannot be undone."))
+	m.addLine(m.dimStyle("Type /delete again to confirm."))
+}
+
+// executeDeleteSession performs the actual deletion after confirmation.
+func (m *model) executeDeleteSession() {
+	m.pendingDelete = false
 	if err := m.db.DeleteSession(m.sessionID); err != nil {
 		m.addLine(m.errStyle("Failed to delete session: " + err.Error()))
 		return

@@ -14,6 +14,7 @@ import (
 )
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
+	s.log.Debug("api_get_settings")
 	cfg := s.engine.Config()
 	shieldStatus := s.engine.ShieldStatus()
 
@@ -62,6 +63,7 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	var body map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.log.Warn("api_settings_update_bad_request", "error", err)
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
@@ -183,10 +185,11 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	// Write config to disk.
 	if len(changed) > 0 {
 		if err := writeConfigToDisk(s.engine.ConfigPath(), cfg); err != nil {
+			s.log.Error("api_settings_write_failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to write config: "+err.Error())
 			return
 		}
-		s.log.Info("settings_updated", "changed", strings.Join(changed, ","))
+		s.log.Info("api_settings_updated", "changed", strings.Join(changed, ","))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -206,15 +209,18 @@ func (s *Server) handleTestMCP(w http.ResponseWriter, r *http.Request) {
 		Env     map[string]string `json:"env"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.log.Warn("api_test_mcp_bad_request", "error", err)
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
 
 	if body.Command == "" {
+		s.log.Warn("api_test_mcp_bad_request", "error", "command is required")
 		writeError(w, http.StatusBadRequest, "command is required")
 		return
 	}
 
+	s.log.Info("api_test_mcp", "name", body.Name, "command", body.Command)
 	cfg := types.MCPServerConfig{
 		Name:    body.Name,
 		Command: body.Command,
@@ -228,6 +234,7 @@ func (s *Server) handleTestMCP(w http.ResponseWriter, r *http.Request) {
 
 	p, err := mcp.TestServer(ctx, cfg, s.log)
 	if err != nil {
+		s.log.Warn("api_test_mcp_failed", "name", body.Name, "error", err)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": false,
 			"error":   err.Error(),
@@ -235,6 +242,7 @@ func (s *Server) handleTestMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.log.Info("api_test_mcp_success", "name", body.Name, "tools", len(p))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
 		"tools":   p,
@@ -246,7 +254,10 @@ func isKeyConfigured(envName string) bool {
 	if envName == "" {
 		return false
 	}
-	return os.Getenv(envName) != ""
+	if os.Getenv(envName) != "" {
+		return true
+	}
+	return os.Getenv("OP_"+envName) != ""
 }
 
 // policyName extracts the policy name from a file path.

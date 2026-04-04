@@ -138,17 +138,28 @@ func (db *DB) UpdateSessionTitle(id, title string) error {
 	return err
 }
 
-// ListArtifacts returns all artifacts across all sessions.
+// ListArtifacts returns all artifacts from both the dedicated artifacts table
+// and legacy artifacts_json embedded in messages.
 func (db *DB) ListArtifacts() ([]types.Artifact, error) {
+	// Primary source: dedicated artifacts table.
+	persisted, err := db.ListPersistedArtifacts()
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(persisted))
+	for _, a := range persisted {
+		seen[a.ID] = true
+	}
+
+	// Secondary source: legacy artifacts_json in messages (for backward compat).
 	rows, err := db.conn.Query(
 		`SELECT artifacts_json FROM messages WHERE artifacts_json IS NOT NULL AND artifacts_json != '' AND artifacts_json != 'null' ORDER BY timestamp DESC`,
 	)
 	if err != nil {
-		return nil, err
+		return persisted, nil
 	}
 	defer func() { _ = rows.Close() }()
 
-	var all []types.Artifact
 	for rows.Next() {
 		var raw string
 		if err := rows.Scan(&raw); err != nil {
@@ -158,9 +169,14 @@ func (db *DB) ListArtifacts() ([]types.Artifact, error) {
 		if err := json.Unmarshal([]byte(raw), &artifacts); err != nil {
 			continue
 		}
-		all = append(all, artifacts...)
+		for _, a := range artifacts {
+			if !seen[a.ID] {
+				seen[a.ID] = true
+				persisted = append(persisted, a)
+			}
+		}
 	}
-	return all, rows.Err()
+	return persisted, rows.Err()
 }
 
 // SearchSessionResult is a session search match with optional content snippet.

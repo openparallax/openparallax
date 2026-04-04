@@ -136,7 +136,7 @@ The audit logger is safe for concurrent use. All writes are serialized through a
 
 The audit module has minimal dependencies. You can use it independently of the rest of OpenParallax:
 
-- **Go**: Import `github.com/openparallax/openparallax/internal/audit` directly
+- **Go**: Import `github.com/openparallax/openparallax/audit` directly
 - **Python**: `pip install openparallax-audit` (wrapper around the Go library via shared object)
 - **Node.js**: `npm install @openparallax/audit` (wrapper around the Go library via N-API)
 

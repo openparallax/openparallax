@@ -63,7 +63,26 @@
 
   function viewArtifact(artifact: Artifact) {
     openArtifactTab(artifact);
-    activeNavItem.set('chat');
+  }
+
+  function artifactIcon(artifact: Artifact): string {
+    switch (artifact.preview_type) {
+      case 'html': return '\uD83C\uDF10';
+      case 'markdown': return '\uD83D\uDCDD';
+      case 'image': return '\uD83D\uDDBC';
+      case 'video': return '\uD83C\uDFA5';
+      default: return '\uD83D\uDCC4';
+    }
+  }
+
+  function artifactLang(artifact: Artifact): string {
+    return artifact.language || artifact.preview_type || 'file';
+  }
+
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   }
 </script>
 
@@ -88,8 +107,13 @@
         <span class="cursor"></span>
       {/if}
       {#each messageArtifacts as artifact (artifact.id)}
-        <button class="artifact-ref" on:click={() => viewArtifact(artifact)}>
-          &#x1F4C4; {artifact.title} &rarr; View in canvas
+        <button class="artifact-card" on:click={() => viewArtifact(artifact)}>
+          <span class="artifact-card-icon">{artifactIcon(artifact)}</span>
+          <div class="artifact-card-info">
+            <span class="artifact-card-title">{artifact.title}</span>
+            <span class="artifact-card-meta">{artifactLang(artifact)}{artifact.size_bytes ? ' \u00B7 ' + formatBytes(artifact.size_bytes) : ''}</span>
+          </div>
+          <span class="artifact-card-arrow">&rsaquo;</span>
         </button>
       {/each}
     </div>
@@ -158,9 +182,9 @@
   }
 
   .message.atlas .msg-bubble {
-    background: var(--accent-ghost);
-    border: 1px solid var(--accent-border);
-    border-left: 2px solid var(--accent-border-active);
+    background: transparent;
+    border: none;
+    max-width: 100%;
   }
 
   .message.user .msg-bubble {
@@ -195,27 +219,6 @@
     margin-left: 1px;
     animation: blink 1s infinite;
     vertical-align: text-bottom;
-  }
-
-  .artifact-ref {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    background: var(--accent-ghost);
-    border: 1px solid var(--accent-border);
-    border-radius: 4px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--accent);
-    cursor: pointer;
-    transition: all 150ms ease;
-    margin-top: 8px;
-  }
-
-  .artifact-ref:hover {
-    border-color: var(--accent-border-active);
-    box-shadow: var(--accent-glow);
   }
 
   .context-backdrop {
@@ -253,4 +256,73 @@
     transition: background 100ms ease;
   }
   .context-item:hover { background: var(--accent-ghost); }
+
+  .artifact-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px 14px;
+    background: var(--bg-inset);
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    text-align: left;
+    transition: all 200ms ease;
+  }
+  .artifact-card:hover {
+    border-color: var(--accent-border-active);
+    background: var(--bg-surface-hover);
+    box-shadow: var(--accent-glow);
+  }
+
+  .artifact-card-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-ghost);
+    border-radius: 6px;
+  }
+
+  .artifact-card-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .artifact-card-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .artifact-card-meta {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-dim);
+    text-transform: uppercase;
+  }
+
+  .artifact-card-arrow {
+    font-size: 20px;
+    color: var(--accent-dim);
+    flex-shrink: 0;
+    transition: transform 150ms ease;
+  }
+  .artifact-card:hover .artifact-card-arrow {
+    transform: translateX(3px);
+    color: var(--accent);
+  }
 </style>

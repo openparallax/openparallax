@@ -2,7 +2,10 @@
 // platform adapters (Telegram, WhatsApp, Discord, Signal).
 package channels
 
-import "context"
+import (
+	"context"
+	"os"
+)
 
 // ChannelAdapter receives messages from an external platform and routes them
 // through the engine pipeline.
@@ -74,6 +77,15 @@ func MaxMessageLen(platform string) int {
 	default:
 		return 4096
 	}
+}
+
+// ResolveEnv reads an environment variable, falling back to an OP_-prefixed
+// version if the original is not set.
+func ResolveEnv(name string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return os.Getenv("OP_" + name)
 }
 
 // SplitMessage splits a long message at paragraph boundaries respecting maxLen.

@@ -38,8 +38,9 @@ const profileTemplate = `(version 1)
 (allow network-outbound
     %CONNECT_RULES%)
 
-; Allow basic process operations
+; Allow executing only the agent binary itself — no child process spawning
 (allow process-exec (literal "%AGENT_BINARY%"))
+(deny process-fork)
 (allow sysctl-read)
 (allow mach-lookup
     (global-name "com.apple.system.logger")

@@ -3,7 +3,6 @@ package sandbox
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -190,16 +189,33 @@ func probeFileWrite(dir string) ProbeResult {
 		Error: "sandbox did not block write access"}
 }
 
-// probeNetwork tests whether outbound TCP to an external host is blocked.
-func probeNetwork(host string) ProbeResult {
-	conn, err := net.DialTimeout("tcp", host, 2*time.Second)
-	if err != nil {
-		// Connection refused, timeout, or permission denied — all count as blocked.
-		return ProbeResult{Name: "network", Status: "blocked", Target: host}
+// RequiredFailed returns the names of required probes that failed.
+// Required probes vary by platform:
+//   - Linux: file_read, file_write (filesystem must be enforced)
+//   - macOS: all probes (sandbox-exec enforces everything)
+//   - Windows: process_spawn (only Job Object capability)
+func (r *CanaryResult) RequiredFailed() []string {
+	required := requiredProbes()
+	var failed []string
+	for _, p := range r.Probes {
+		if p.Status == "failed" && required[p.Name] {
+			failed = append(failed, p.Name)
+		}
 	}
-	_ = conn.Close()
-	return ProbeResult{Name: "network", Status: "failed", Target: host,
-		Error: "sandbox did not block outbound connection"}
+	return failed
+}
+
+// AdvisoryFailed returns the names of advisory probes that failed.
+// These are logged as warnings but do not prevent startup.
+func (r *CanaryResult) AdvisoryFailed() []string {
+	required := requiredProbes()
+	var failed []string
+	for _, p := range r.Probes {
+		if p.Status == "failed" && !required[p.Name] {
+			failed = append(failed, p.Name)
+		}
+	}
+	return failed
 }
 
 // WriteCanaryResult writes the canary probe result to a JSON file in the

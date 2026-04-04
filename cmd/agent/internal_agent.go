@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/openparallax/openparallax/internal/agent"
 	"github.com/openparallax/openparallax/internal/config"
@@ -19,6 +21,24 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+// agentLog writes a structured JSON log line to stderr. The engine captures
+// agent stderr and appends it to engine.log, so the format matches the
+// engine's own structured log entries.
+func agentLog(level, event string, kvs ...any) {
+	data := make(map[string]any, len(kvs)/2)
+	for i := 0; i+1 < len(kvs); i += 2 {
+		data[fmt.Sprintf("%v", kvs[i])] = kvs[i+1]
+	}
+	entry := map[string]any{
+		"timestamp": time.Now().Format(time.RFC3339Nano),
+		"level":     level,
+		"event":     event,
+		"data":      data,
+	}
+	b, _ := json.Marshal(entry)
+	fmt.Fprintln(os.Stderr, string(b))
+}
 
 var (
 	agentGRPCAddr  string
@@ -70,27 +90,30 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 			AllowProcessSpawn: false,
 		})
 		if sbErr != nil {
-			fmt.Fprintf(os.Stderr, "sandbox: failed to apply: %s\n", sbErr)
+			agentLog("error", "sandbox_apply_failed", "error", sbErr.Error())
 		}
 	}
 
 	// Canary probes: verify sandbox enforcement per platform.
 	canary := sandbox.VerifyCanary()
 	_ = sandbox.WriteCanaryResult(agentWorkspace, canary)
-	fmt.Fprintf(os.Stderr, "sandbox: %s\n", canary.Summary)
+	agentLog("info", "sandbox_canary", "status", canary.Status, "summary", canary.Summary)
 
-	switch canary.Status {
-	case "sandboxed":
-		// All applicable probes blocked — proceed.
-	case "unsandboxed", "partial":
-		// Sandbox failed to enforce — refuse to start.
-		return fmt.Errorf("sandbox verification failed: %s", canary.Summary)
-	case "unavailable":
-		// No sandbox mechanism available — warn but allow on unsupported platforms.
-		fmt.Fprintf(os.Stderr, "sandbox: WARNING — no sandbox available on this platform, running unprotected\n")
+	if canary.Status == "unavailable" {
+		agentLog("warn", "sandbox_unavailable", "detail", "no sandbox available on this platform, running unprotected")
+	} else {
+		// Check required probes — must all pass or agent refuses to start.
+		if reqFailed := canary.RequiredFailed(); len(reqFailed) > 0 {
+			return fmt.Errorf("sandbox verification failed: required probes failed: %v", reqFailed)
+		}
+		// Advisory probes — warn but continue.
+		if advFailed := canary.AdvisoryFailed(); len(advFailed) > 0 {
+			agentLog("warn", "sandbox_advisory_failed", "probes", advFailed)
+		}
 	}
 
 	// Create LLM provider.
+	agentLog("info", "llm_provider_init", "provider", cfg.LLM.Provider, "model", cfg.LLM.Model)
 	provider, err := llm.NewProvider(cfg.LLM)
 	if err != nil {
 		return fmt.Errorf("llm provider: %w", err)
@@ -114,6 +137,7 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 	}()
 
 	// Connect to Engine gRPC.
+	agentLog("info", "grpc_connect", "address", agentGRPCAddr)
 	conn, err := grpc.NewClient(agentGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("connect to engine: %w", err)
@@ -142,30 +166,64 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 		ContextWindow: 128000,
 	}
 
-	// Main directive loop: wait for Engine to send ProcessRequest directives.
+	// directiveCh carries tool results from the stream reader to the active
+	// processMessage call. Buffered so the reader doesn't block.
+	directiveCh := make(chan *pb.EngineDirective, 4)
+
+	// Stream reader goroutine: reads all directives and routes them.
+	// ProcessRequest and Shutdown are handled in the main goroutine;
+	// ToolResult/ToolDefs are forwarded to the active processMessage.
+	processCh := make(chan *pb.ProcessRequest, 1)
+	doneCh := make(chan struct{})
+
+	go func() {
+		defer close(doneCh)
+		for {
+			directive, recvErr := stream.Recv()
+			if recvErr != nil {
+				return
+			}
+			switch d := directive.Directive.(type) {
+			case *pb.EngineDirective_Process:
+				processCh <- d.Process
+			case *pb.EngineDirective_Shutdown:
+				return
+			default:
+				// ToolResult, ToolDefs — forward to active processMessage.
+				select {
+				case directiveCh <- directive:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	// Main directive loop.
 	for {
-		directive, recvErr := stream.Recv()
-		if recvErr != nil {
-			if ctx.Err() != nil {
+		select {
+		case req, ok := <-processCh:
+			if !ok {
 				return nil
 			}
-			return fmt.Errorf("recv directive: %w", recvErr)
-		}
+			processMessage(ctx, stream, directiveCh, loopCfg, req, db)
 
-		switch d := directive.Directive.(type) {
-		case *pb.EngineDirective_Process:
-			processMessage(ctx, stream, loopCfg, d.Process, db)
+		case <-doneCh:
+			return nil
 
-		case *pb.EngineDirective_Shutdown:
+		case <-ctx.Done():
 			return nil
 		}
 	}
 }
 
 // processMessage runs the LLM reasoning loop for a single message.
+// directiveCh receives ToolResult/ToolDefs directives from the outer stream
+// reader goroutine; processMessage does not read from the gRPC stream directly.
 func processMessage(
 	ctx context.Context,
 	stream pb.AgentService_RunSessionClient,
+	directiveCh <-chan *pb.EngineDirective,
 	cfg agent.LoopConfig,
 	req *pb.ProcessRequest,
 	db *storage.DB,
@@ -177,6 +235,8 @@ func processMessage(
 		mode = types.SessionOTR
 	}
 
+	agentLog("info", "process_message", "session", sid, "message", mid, "content_len", len(req.Content), "mode", mode)
+
 	// Load history from DB (read-only).
 	var history []llm.ChatMessage
 	if db != nil {
@@ -186,42 +246,44 @@ func processMessage(
 			}
 		}
 	}
+	agentLog("info", "history_loaded", "session", sid, "count", len(history))
 
-	// Result channel for tool execution responses from the Engine.
+	// Result channel: converts directives from the outer reader into ToolResults
+	// that the RunLoop expects.
 	resultCh := make(chan agent.ToolResult, 1)
 
-	// Start a goroutine to read ToolResultDelivery directives from the stream
-	// and feed them into resultCh.
 	toolCtx, toolCancel := context.WithCancel(ctx)
 	defer toolCancel()
 
 	go func() {
 		defer close(resultCh)
 		for {
-			directive, err := stream.Recv()
-			if err != nil {
-				return
-			}
-			switch d := directive.Directive.(type) {
-			case *pb.EngineDirective_ToolResult:
-				select {
-				case resultCh <- agent.ToolResult{
-					CallID:  d.ToolResult.CallId,
-					Content: d.ToolResult.Content,
-					IsError: d.ToolResult.IsError,
-				}:
-				case <-toolCtx.Done():
+			select {
+			case directive, ok := <-directiveCh:
+				if !ok {
 					return
 				}
-			case *pb.EngineDirective_ToolDefs:
-				// Tool definitions delivered as a result for load_tools.
-				summary := formatToolDefsSummary(d.ToolDefs.Tools)
-				select {
-				case resultCh <- agent.ToolResult{Content: summary}:
-				case <-toolCtx.Done():
-					return
+				switch d := directive.Directive.(type) {
+				case *pb.EngineDirective_ToolResult:
+					agentLog("info", "tool_result_received", "call_id", d.ToolResult.CallId, "is_error", d.ToolResult.IsError, "content_len", len(d.ToolResult.Content))
+					select {
+					case resultCh <- agent.ToolResult{
+						CallID:  d.ToolResult.CallId,
+						Content: d.ToolResult.Content,
+						IsError: d.ToolResult.IsError,
+					}:
+					case <-toolCtx.Done():
+						return
+					}
+				case *pb.EngineDirective_ToolDefs:
+					summary := formatToolDefsSummary(d.ToolDefs.Tools)
+					select {
+					case resultCh <- agent.ToolResult{Content: summary}:
+					case <-toolCtx.Done():
+						return
+					}
 				}
-			case *pb.EngineDirective_Shutdown:
+			case <-toolCtx.Done():
 				return
 			}
 		}
@@ -231,7 +293,20 @@ func processMessage(
 	tools := []llm.ToolDefinition{{
 		Name:        "load_tools",
 		Description: "Request additional tool groups. Call with {\"groups\": [\"files\", \"shell\", ...]} to load tools.",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"groups": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Tool group names to load (e.g. files, shell, git, browser, memory).",
+				},
+			},
+			"required": []string{"groups"},
+		},
 	}}
+
+	agentLog("info", "run_loop_start", "session", sid, "tool_count", len(tools), "provider", cfg.Provider.Name(), "max_rounds", cfg.MaxRounds)
 
 	// Run the reasoning loop.
 	agent.RunLoop(ctx, cfg, sid, mid, req.Content, mode, history, tools,
@@ -247,6 +322,7 @@ func processMessage(
 				})
 
 			case agent.EventToolProposal:
+				agentLog("info", "tool_proposal", "session", sid, "call_id", event.Proposal.CallID, "tool", event.Proposal.ToolName)
 				_ = stream.Send(&pb.AgentEvent{
 					Event: &pb.AgentEvent_ToolProposal{
 						ToolProposal: &pb.ToolCallProposed{
@@ -276,6 +352,7 @@ func processMessage(
 				})
 
 			case agent.EventComplete:
+				agentLog("info", "response_complete", "session", sid, "content_len", len(event.Content), "thought_count", len(event.Thoughts))
 				var pbThoughts []*pb.Thought
 				for _, t := range event.Thoughts {
 					pbThoughts = append(pbThoughts, &pb.Thought{
@@ -295,6 +372,7 @@ func processMessage(
 				})
 
 			case agent.EventLoopError:
+				agentLog("error", "loop_error", "session", sid, "code", event.ErrorCode, "message", event.ErrorMessage)
 				_ = stream.Send(&pb.AgentEvent{
 					Event: &pb.AgentEvent_AgentError{
 						AgentError: &pb.AgentError{

@@ -127,7 +127,7 @@ openparallax audit --lines 20
 ### Go
 
 ```go
-import "github.com/openparallax/openparallax/internal/audit"
+import "github.com/openparallax/openparallax/audit"
 
 err := audit.VerifyIntegrity("/workspace/.openparallax/audit.jsonl")
 if err != nil {

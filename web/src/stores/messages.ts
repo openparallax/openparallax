@@ -74,9 +74,9 @@ export function completeToolCall(result: { tool_name: string; success: boolean; 
   });
 }
 
-export function addArtifact(artifact: Artifact) {
+export function addArtifact(artifact: Artifact, showPanel = true) {
   artifacts.update(a => [...a, artifact]);
-  openArtifactTab(artifact);
+  openArtifactTab(artifact, showPanel);
 }
 
 export function finalizeResponse(content: string, thoughts?: Thought[]) {
@@ -86,7 +86,26 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
   const pending = get(pendingToolCalls);
   let finalThoughts: Thought[] | undefined;
 
-  if (pending.length > 0) {
+  if (thoughts && thoughts.length > 0) {
+    // Server-side thoughts include interleaved reasoning + tool_call entries.
+    // Enrich tool_call entries with shield/result details from pending calls.
+    finalThoughts = thoughts.map(t => {
+      if (t.stage !== 'tool_call' || !t.summary) return t;
+      const tc = pending.find(p => t.summary.includes(p.toolName));
+      if (!tc) return t;
+      return {
+        ...t,
+        detail: {
+          ...t.detail,
+          tool_name: tc.toolName,
+          success: tc.result?.success,
+          shield: tc.shieldVerdict?.decision,
+          shield_tier: tc.shieldVerdict?.tier,
+          result_summary: tc.result?.summary,
+        },
+      };
+    });
+  } else if (pending.length > 0) {
     finalThoughts = pending.map(tc => ({
       stage: 'tool_call' as const,
       summary: `${tc.toolName} — ${tc.summary}`,
@@ -99,8 +118,6 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
         result_summary: tc.result?.summary,
       },
     }));
-  } else if (thoughts && thoughts.length > 0) {
-    finalThoughts = thoughts;
   }
 
   messages.update(msgs => [...msgs, {

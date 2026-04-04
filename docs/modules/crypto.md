@@ -2,7 +2,7 @@
 
 The `crypto` package provides four cryptographic capabilities used throughout OpenParallax: ID generation, action hashing, hash chains, and canary tokens. All implementations use Go's standard library (`crypto/rand`, `crypto/sha256`, `crypto/subtle`) with zero external cryptographic dependencies.
 
-Package: `github.com/openparallax/openparallax/internal/crypto`
+Package: `github.com/openparallax/openparallax/crypto`
 
 ## 1. ID Generation
 
@@ -338,7 +338,7 @@ These are different mechanisms with similar names:
 
 | | Canary Token | Canary Probe |
 |---|---|---|
-| **Location** | `internal/crypto/canary.go` | `internal/sandbox/canary.go` |
+| **Location** | `crypto/canary.go` | `internal/sandbox/canary.go` |
 | **Purpose** | Detect prompt injection in Tier 2 evaluator responses | Verify kernel sandbox is actually enforcing restrictions |
 | **How it works** | Random string embedded in evaluator prompt, verified in response | Platform-specific tests (file access, network, spawn) that should fail if sandbox is working |
 | **Used by** | Shield Tier 2 | Sandbox subsystem, `openparallax doctor` |
@@ -394,10 +394,10 @@ plaintext, err := crypto.Decrypt(key, ciphertext)
 
 | File | Purpose |
 |---|---|
-| `internal/crypto/random.go` | NewID (UUID v4), RandomHex |
-| `internal/crypto/hash.go` | SHA256Hex, Canonicalize, HashAction, marshalSorted |
-| `internal/crypto/canary.go` | GenerateCanary, VerifyCanary |
-| `internal/crypto/encrypt.go` | DeriveKey, Encrypt, Decrypt |
-| `internal/audit/logger.go` | Audit logger with hash chain |
-| `internal/audit/integrity.go` | VerifyIntegrity for chain verification |
+| `crypto/random.go` | NewID (UUID v4), RandomHex |
+| `crypto/hash.go` | SHA256Hex, Canonicalize, HashAction, marshalSorted |
+| `crypto/canary.go` | GenerateCanary, VerifyCanary |
+| `crypto/encrypt.go` | DeriveKey, Encrypt, Decrypt |
+| `audit/logger.go` | Audit logger with hash chain |
+| `audit/integrity.go` | VerifyIntegrity for chain verification |
 | `internal/engine/verifier.go` | Verifier for TOCTOU hash checks |

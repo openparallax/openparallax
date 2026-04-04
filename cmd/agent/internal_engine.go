@@ -219,13 +219,16 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 
 	select {
 	case <-am.done:
-		// Agent exited. If it was a clean exit (/quit), shut everything
-		// down. If the agent crashed, keep the web server running so the
-		// user can access Settings, Logs, and Doctor from the UI.
-		if !am.cleanExit && webServer != nil {
-			eng.Log().Warn("agent_crashed",
-				"message", "CLI agent exited — web UI remains available for diagnostics")
-			// Wait for a signal before shutting down.
+		// Agent exited. Keep the web server running so the user can
+		// continue using the web UI. Only shut down on signal.
+		if webServer != nil {
+			if am.cleanExit {
+				eng.Log().Info("agent_exited",
+					"message", "CLI agent exited — web UI remains available")
+			} else {
+				eng.Log().Warn("agent_crashed",
+					"message", "CLI agent exited — web UI remains available for diagnostics")
+			}
 			<-sigCh
 		}
 	case <-sigCh:
@@ -304,13 +307,17 @@ func (am *agentManager) spawnAgent() error {
 		return fmt.Errorf("agent spawn: %w", err)
 	}
 
+	am.done = make(chan struct{})
 	go am.monitor()
 	return nil
 }
 
 // monitor watches the Agent process and respawns on crash (max 5 in 60s).
 func (am *agentManager) monitor() {
-	defer close(am.done)
+	am.mu.Lock()
+	done := am.done
+	am.mu.Unlock()
+	defer close(done)
 
 	for {
 		am.mu.Lock()

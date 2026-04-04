@@ -92,3 +92,15 @@ export async function putSettings(data: Record<string, any>): Promise<{ success:
 export async function testMCPServer(config: { name: string; command: string; args?: string[]; env?: Record<string, string> }): Promise<{ success: boolean; tools?: string[]; error?: string }> {
   return fetchJSON('/settings/test-mcp', { method: 'POST', body: JSON.stringify(config) });
 }
+
+export async function getMetrics(period: string = 'daily'): Promise<any> {
+  return fetchJSON(`/metrics?period=${period}`);
+}
+
+export async function getDailyTokens(days: number = 30): Promise<any[]> {
+  return fetchJSON(`/metrics/daily?days=${days}`);
+}
+
+export async function getSessionMetrics(sessionId: string): Promise<any> {
+  return fetchJSON(`/metrics/session/${sessionId}`);
+}

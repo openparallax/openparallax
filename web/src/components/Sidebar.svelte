@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { MessageSquare, FileText, Brain, Eye, Plus, Settings, ChevronDown, RotateCw, Search } from 'lucide-svelte';
+  import { MessageSquare, FileText, Eye, Plus, Settings, ChevronDown, RotateCw, Search } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { activeNavItem, settingsOpen, sidebarOpen } from '../stores/settings';
   import { clearMessages, loadMessages } from '../stores/messages';
   import { clearArtifactTabs } from '../stores/artifacts';
-  import { listSessions, createSession, getMessages, searchSessions } from '../lib/api';
+  import { listSessions, createSession, getMessages, searchSessions, getStatus } from '../lib/api';
 
   let sessionSearch = '';
   let searchResults: { session_id: string; title: string; match_type: string; snippet?: string }[] | null = null;
@@ -32,13 +32,24 @@
   const navItems = [
     { id: 'chat' as const, label: 'Chat', icon: MessageSquare },
     { id: 'artifacts' as const, label: 'Artifacts', icon: FileText },
-    { id: 'memory' as const, label: 'Memory', icon: Brain },
     { id: 'console' as const, label: 'Console', icon: Eye },
   ];
 
   let showNewSessionDropdown = false;
+  let agentLogo = '\u2B21';
 
   onMount(async () => {
+    try {
+      const status = await getStatus();
+      if (status.agent_avatar) {
+        agentLogo = status.agent_avatar;
+      } else if (status.agent_name) {
+        agentLogo = status.agent_name.charAt(0).toUpperCase();
+      }
+    } catch {
+      /* engine not ready */
+    }
+
     try {
       const list = await listSessions();
       sessions.set(list);
@@ -98,6 +109,8 @@
     const target = $sessions.find(s => s.id === id);
     currentSessionId.set(id);
     currentMode.set(target?.mode === 'otr' ? 'otr' : 'normal');
+    activeNavItem.set('chat');
+    sidebarOpen.set(false);
     clearMessages();
     clearArtifactTabs();
     if (prevOTR && prevOTR !== id) {
@@ -119,7 +132,7 @@
 
 <div class="sidebar glass" class:mobile-open={$sidebarOpen}>
   <div class="sidebar-header">
-    <div class="sidebar-logo">&#x2B21;</div>
+    <div class="sidebar-logo">{agentLogo}</div>
     <span class="sidebar-title">OpenParallax</span>
   </div>
 

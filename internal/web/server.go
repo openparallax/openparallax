@@ -32,6 +32,7 @@ type Server struct {
 
 	connsMu sync.Mutex
 	conns   map[*websocket.Conn]context.Context
+	senders map[*websocket.Conn]engine.EventSender
 }
 
 // ServerConfig holds web server configuration.
@@ -49,11 +50,12 @@ func NewServer(eng *engine.Engine, log *logging.Logger, cfg ServerConfig) *Serve
 	}
 
 	s := &Server{
-		engine: eng,
-		log:    log,
-		port:   cfg.Port,
-		host:   host,
-		conns:  make(map[*websocket.Conn]context.Context),
+		engine:  eng,
+		log:     log,
+		port:    cfg.Port,
+		host:    host,
+		conns:   make(map[*websocket.Conn]context.Context),
+		senders: make(map[*websocket.Conn]engine.EventSender),
 	}
 
 	// Enable auth for non-localhost bindings.
@@ -79,11 +81,30 @@ func (s *Server) registerConn(conn *websocket.Conn, ctx context.Context) {
 	s.conns[conn] = ctx
 }
 
-// unregisterConn removes a WebSocket connection.
+// unregisterConn removes a WebSocket connection and its event sender.
 func (s *Server) unregisterConn(conn *websocket.Conn) {
 	s.connsMu.Lock()
-	defer s.connsMu.Unlock()
+	sender := s.senders[conn]
 	delete(s.conns, conn)
+	delete(s.senders, conn)
+	s.connsMu.Unlock()
+
+	if sender != nil {
+		clientID := fmt.Sprintf("ws-%p", sender)
+		s.engine.Broadcaster().Unsubscribe(clientID)
+	}
+}
+
+// getOrCreateSender returns the stable EventSender for a WebSocket connection.
+func (s *Server) getOrCreateSender(conn *websocket.Conn, ctx context.Context) engine.EventSender {
+	s.connsMu.Lock()
+	defer s.connsMu.Unlock()
+	if sender, ok := s.senders[conn]; ok {
+		return sender
+	}
+	sender := newWSEventSender(ctx, conn)
+	s.senders[conn] = sender
+	return sender
 }
 
 // broadcastLogEntry sends a log entry to all connected WebSocket clients.

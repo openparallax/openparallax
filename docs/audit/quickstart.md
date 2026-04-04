@@ -19,8 +19,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/openparallax/openparallax/internal/audit"
-    "github.com/openparallax/openparallax/internal/types"
+    "github.com/openparallax/openparallax/audit"
 )
 
 func main() {
@@ -34,7 +33,7 @@ func main() {
 
     // Log a proposed action.
     err = logger.Log(audit.Entry{
-        EventType:  types.AuditActionProposed,
+        EventType:  audit.AuditActionProposed,
         ActionType: "write_file",
         SessionID:  "session-001",
         Details:    `{"path":"/workspace/main.go","content":"package main"}`,
@@ -45,7 +44,7 @@ func main() {
 
     // Log the execution result.
     err = logger.Log(audit.Entry{
-        EventType:  types.AuditActionExecuted,
+        EventType:  audit.AuditActionExecuted,
         ActionType: "write_file",
         SessionID:  "session-001",
         Details:    `{"path":"/workspace/main.go","bytes_written":27}`,
@@ -56,7 +55,7 @@ func main() {
 
     // Log a blocked action.
     err = logger.Log(audit.Entry{
-        EventType:  types.AuditActionBlocked,
+        EventType:  audit.AuditActionBlocked,
         ActionType: "run_command",
         SessionID:  "session-001",
         Details:    `{"command":"rm -rf /","reason":"denied by policy"}`,
@@ -99,7 +98,7 @@ for _, e := range entries {
 ```go
 // Read only blocked actions.
 blocked, err := audit.ReadEntries("./audit.jsonl", audit.Query{
-    EventType: types.AuditActionBlocked,
+    EventType: audit.AuditActionBlocked,
     Limit:     50,
 })
 ```

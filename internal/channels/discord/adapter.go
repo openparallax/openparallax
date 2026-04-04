@@ -35,7 +35,7 @@ func New(cfg *types.DiscordConfig, manager *channels.Manager, log *logging.Logge
 	if cfg == nil || !cfg.Enabled {
 		return nil
 	}
-	token := os.Getenv(cfg.TokenEnv)
+	token := channels.ResolveEnv(cfg.TokenEnv)
 	if token == "" {
 		return nil
 	}

@@ -2,7 +2,7 @@
 
 The Go audit package is the canonical implementation. All other language wrappers call into the compiled Go library.
 
-Package: `github.com/openparallax/openparallax/internal/audit`
+Package: `github.com/openparallax/openparallax/audit`
 
 ## NewLogger
 
@@ -26,7 +26,7 @@ defer logger.Close()
 
 ```go
 type Entry struct {
-    EventType  types.AuditEventType
+    EventType  audit.AuditEventType
     ActionType string
     SessionID  string
     Details    string
@@ -66,7 +66,7 @@ Thread-safe. Concurrent calls are serialized through a mutex.
 
 ```go
 err := logger.Log(audit.Entry{
-    EventType:  types.AuditActionProposed,
+    EventType:  audit.AuditActionProposed,
     ActionType: "run_command",
     SessionID:  "sess-123",
     Details:    `{"command":"ls -la","working_dir":"/workspace"}`,
@@ -90,7 +90,7 @@ The `DBIndexer` interface requires a single method:
 
 ```go
 type DBIndexer interface {
-    InsertAuditEntry(entry *types.AuditEntry) error
+    InsertAuditEntry(entry *audit.AuditEntry) error
 }
 ```
 
@@ -133,7 +133,7 @@ An empty or nonexistent file passes verification (no entries to verify).
 ## ReadEntries
 
 ```go
-func ReadEntries(path string, q Query) ([]types.AuditEntry, error)
+func ReadEntries(path string, q Query) ([]audit.AuditEntry, error)
 ```
 
 Reads audit entries from the JSONL file, applying optional filters. Returns entries in reverse chronological order (most recent first).
@@ -141,7 +141,7 @@ Reads audit entries from the JSONL file, applying optional filters. Returns entr
 ```go
 type Query struct {
     SessionID string
-    EventType types.AuditEventType
+    EventType audit.AuditEventType
     Limit     int
 }
 ```
@@ -159,12 +159,12 @@ entries, err := audit.ReadEntries(path, audit.Query{Limit: 20})
 // Get all blocked actions in a specific session.
 blocked, err := audit.ReadEntries(path, audit.Query{
     SessionID: "sess-123",
-    EventType: types.AuditActionBlocked,
+    EventType: audit.AuditActionBlocked,
 })
 
 // Get the 5 most recent Shield errors.
 errors, err := audit.ReadEntries(path, audit.Query{
-    EventType: types.AuditShieldError,
+    EventType: audit.AuditShieldError,
     Limit:     5,
 })
 ```
@@ -177,7 +177,7 @@ When `Log` is called, the following happens internally:
 
 ```go
 // 1. Build the AuditEntry with chain fields
-auditEntry := types.AuditEntry{
+auditEntry := audit.AuditEntry{
     ID:           crypto.NewID(),        // UUID v4
     EventType:    entry.EventType,
     Timestamp:    time.Now().UnixMilli(),
@@ -220,7 +220,7 @@ func readLastHash(path string) string {
     if len(lines) == 0 {
         return ""
     }
-    var entry types.AuditEntry
+    var entry audit.AuditEntry
     json.Unmarshal([]byte(lines[len(lines)-1]), &entry)
     return entry.Hash
 }

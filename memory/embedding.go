@@ -35,9 +35,9 @@ func NewEmbeddingProvider(cfg EmbeddingConfig) EmbeddingProvider {
 			return cfg.APIKey
 		}
 		if cfg.APIKeyEnv != "" {
-			return os.Getenv(cfg.APIKeyEnv)
+			return resolveEnv(cfg.APIKeyEnv)
 		}
-		return os.Getenv(defaultEnv)
+		return resolveEnv(defaultEnv)
 	}
 
 	switch cfg.Provider {
@@ -259,4 +259,13 @@ func (e *googleEmbedder) Embed(ctx context.Context, texts []string) ([][]float32
 		embeddings = append(embeddings, result.Embedding.Values)
 	}
 	return embeddings, nil
+}
+
+// resolveEnv reads an environment variable, falling back to an OP_-prefixed
+// version if the original is not set.
+func resolveEnv(name string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return os.Getenv("OP_" + name)
 }

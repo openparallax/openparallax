@@ -123,7 +123,11 @@ function handleEvent(event: WSEvent) {
 
     case 'action_artifact':
       if (event.action_artifact) {
-        addArtifact(event.action_artifact.artifact);
+        const art = event.action_artifact.artifact;
+        const visualTypes = ['html', 'markdown', 'image', 'video'];
+        const isVisual = visualTypes.includes(art.preview_type) ||
+          (art.preview_type === 'code' && art.language === 'svg');
+        addArtifact(art, isVisual);
       }
       break;
 

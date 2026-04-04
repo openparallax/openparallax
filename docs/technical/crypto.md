@@ -1,6 +1,6 @@
 # Cryptographic Primitives
 
-The `internal/crypto` package provides cryptographic utilities for ID generation, action hashing, audit chain integrity, canary token management, and encryption. All implementations use Go's `crypto/rand` for randomness and `crypto/sha256` for hashing. Zero external cryptographic dependencies beyond the standard library and `golang.org/x/crypto/bcrypt` (used in web auth, not in this package).
+The `crypto` package provides cryptographic utilities for ID generation, action hashing, audit chain integrity, canary token management, and encryption. All implementations use Go's `crypto/rand` for randomness and `crypto/sha256` for hashing. Zero external cryptographic dependencies beyond the standard library and `golang.org/x/crypto/bcrypt` (used in web auth, not in this package).
 
 ## ID Generation
 
@@ -236,17 +236,17 @@ The canary defends against a specific attack: an adversary crafts content (e.g.,
 
 These are different mechanisms with similar names:
 
-- **Canary token** (`internal/crypto/canary.go`): A random string embedded in the Shield evaluator prompt and verified in responses. Detects prompt injection.
+- **Canary token** (`crypto/canary.go`): A random string embedded in the Shield evaluator prompt and verified in responses. Detects prompt injection.
 - **Canary probes** (`internal/sandbox/canary.go`): Platform-specific tests that verify the kernel sandbox is actually enforced. Detects sandbox failures.
 
 ## Key Source Files
 
 | File | Purpose |
 |---|---|
-| `internal/crypto/random.go` | NewID (UUID v4), RandomHex |
-| `internal/crypto/hash.go` | SHA256Hex, Canonicalize, HashAction |
-| `internal/crypto/canary.go` | GenerateCanary, VerifyCanary |
-| `internal/crypto/encrypt.go` | Encryption utilities |
-| `internal/audit/logger.go` | Audit logger with hash chain |
-| `internal/audit/integrity.go` | VerifyIntegrity for chain verification |
+| `crypto/random.go` | NewID (UUID v4), RandomHex |
+| `crypto/hash.go` | SHA256Hex, Canonicalize, HashAction |
+| `crypto/canary.go` | GenerateCanary, VerifyCanary |
+| `crypto/encrypt.go` | Encryption utilities |
+| `audit/logger.go` | Audit logger with hash chain |
+| `audit/integrity.go` | VerifyIntegrity for chain verification |
 | `internal/engine/verifier.go` | Verifier for TOCTOU hash checks |

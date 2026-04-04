@@ -196,11 +196,16 @@
         ? `Shield: ${shield.active ? 'Active' : 'Down'} · Tier 2: ${shield.tier2_used}/${shield.tier2_budget} calls today`
         : 'Shield: Unknown';
       const msgCount = $messages.length;
+      const sb = s.sandbox;
+      const sandboxLine = sb?.active
+        ? `Sandbox: ${sb.mode}${sb.version ? ' v' + sb.version : ''} · Filesystem: ${sb.filesystem ? 'restricted' : 'open'} · Network: ${sb.network ? 'restricted' : 'open'}`
+        : `Sandbox: Inactive${sb?.reason ? ' (' + sb.reason + ')' : ''}`;
 
       addSystemMessage(`**System Status**
 - **Session:** ${msgCount} messages
 - **Model:** ${s.model || 'Not configured'}
 - **${shieldLine}**
+- **${sandboxLine}**
 - **Workspace:** ${s.workspace || 'Unknown'}`);
     } catch {
       addSystemMessage('Failed to fetch system status. Engine may be unreachable.');
@@ -359,14 +364,14 @@
   <div class="input-footer">
     <span>Shift+Enter for multiline</span>
     {#if sandboxStatus?.active}
-      <span class="sandbox-badge sandboxed">
+      <span class="sandbox-badge sandboxed" title="{sandboxStatus.mode}{sandboxStatus.version ? ' v' + sandboxStatus.version : ''} — FS: {sandboxStatus.filesystem ? 'restricted' : 'open'}, Net: {sandboxStatus.network ? 'restricted' : 'open'}">
         <ShieldCheck size={11} />
-        Sandboxed
+        {sandboxStatus.mode}{sandboxStatus.version ? ' v' + sandboxStatus.version : ''}{#if sandboxStatus.filesystem} · FS{/if}{#if sandboxStatus.network} · Net{/if}
       </span>
     {:else}
-      <span class="sandbox-badge unsandboxed">
+      <span class="sandbox-badge unsandboxed" title={sandboxStatus?.reason || 'Sandbox unavailable'}>
         <AlertTriangle size={11} />
-        Unsandboxed
+        {sandboxStatus?.reason || 'Unsandboxed'}
       </span>
     {/if}
   </div>

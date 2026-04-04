@@ -90,6 +90,7 @@ export interface SandboxStatusData {
 
 export interface StatusResponse {
   agent_name: string;
+  agent_avatar?: string;
   model: string;
   session_count: number;
   workspace?: string;

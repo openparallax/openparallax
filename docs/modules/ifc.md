@@ -174,12 +174,12 @@ In OTR (Off-The-Record) sessions, IFC checks still apply. OTR prevents data from
 
 ## Go API
 
-Package: `github.com/openparallax/openparallax/internal/shield`
+Package: `github.com/openparallax/openparallax/shield`
 
 ### ClassifySource
 
 ```go
-func ClassifySource(path string) *types.DataClassification
+func ClassifySource(path string) *shield.DataClassification
 ```
 
 Returns a `DataClassification` for data read from a path. The classification includes the sensitivity level, source path, and content type. Path matching is case-insensitive and uses forward slashes on all platforms.
@@ -187,30 +187,30 @@ Returns a `DataClassification` for data read from a path. The classification inc
 ```go
 // SSH key -- Restricted
 class := shield.ClassifySource("/home/user/.ssh/id_rsa")
-// class.Sensitivity == types.SensitivityRestricted
+// class.Sensitivity == shield.SensitivityRestricted
 // class.ContentType == "credential"
 // class.SourcePath == "/home/user/.ssh/id_rsa"
 
 // Environment file -- Critical
 class = shield.ClassifySource("/workspace/.env")
-// class.Sensitivity == types.SensitivityCritical
+// class.Sensitivity == shield.SensitivityCritical
 // class.ContentType == "credential"
 
 // Regular source code -- Public
 class = shield.ClassifySource("/workspace/main.go")
-// class.Sensitivity == types.SensitivityPublic
+// class.Sensitivity == shield.SensitivityPublic
 // class.ContentType == "general"
 
 // Agent config -- Confidential
 class = shield.ClassifySource("/workspace/config.yaml")
-// class.Sensitivity == types.SensitivityConfidential
+// class.Sensitivity == shield.SensitivityConfidential
 // class.ContentType == "general"
 ```
 
 ### IsFlowAllowed
 
 ```go
-func IsFlowAllowed(classification *types.DataClassification, destAction types.ActionType) bool
+func IsFlowAllowed(classification *shield.DataClassification, destAction shield.ActionType) bool
 ```
 
 Checks if data with the given classification can flow to the destination action type. Returns `true` if the flow is allowed, `false` if it violates IFC policy. Returns `true` if `classification` is `nil` (unclassified data is treated as Public).
@@ -218,22 +218,22 @@ Checks if data with the given classification can flow to the destination action 
 ```go
 // Critical data cannot flow anywhere
 class := shield.ClassifySource("/workspace/.env")
-shield.IsFlowAllowed(class, types.ActionHTTPRequest)  // false
-shield.IsFlowAllowed(class, types.ActionSendEmail)     // false
-shield.IsFlowAllowed(class, types.ActionWriteFile)      // false
+shield.IsFlowAllowed(class, shield.ActionHTTPRequest)  // false
+shield.IsFlowAllowed(class, shield.ActionSendEmail)     // false
+shield.IsFlowAllowed(class, shield.ActionWriteFile)      // false
 
 // Internal data cannot flow to external services
 class = shield.ClassifySource("/workspace/internal-doc.md")
-class.Sensitivity = types.SensitivityInternal
-shield.IsFlowAllowed(class, types.ActionWriteFile)      // true
-shield.IsFlowAllowed(class, types.ActionMemoryWrite)    // true
-shield.IsFlowAllowed(class, types.ActionHTTPRequest)    // false
-shield.IsFlowAllowed(class, types.ActionSendEmail)      // false
+class.Sensitivity = shield.SensitivityInternal
+shield.IsFlowAllowed(class, shield.ActionWriteFile)      // true
+shield.IsFlowAllowed(class, shield.ActionMemoryWrite)    // true
+shield.IsFlowAllowed(class, shield.ActionHTTPRequest)    // false
+shield.IsFlowAllowed(class, shield.ActionSendEmail)      // false
 
 // Public data can flow anywhere
 class = shield.ClassifySource("/workspace/readme.md")
-shield.IsFlowAllowed(class, types.ActionHTTPRequest)    // true
-shield.IsFlowAllowed(class, types.ActionSendEmail)      // true
+shield.IsFlowAllowed(class, shield.ActionHTTPRequest)    // true
+shield.IsFlowAllowed(class, shield.ActionSendEmail)      // true
 ```
 
 ### DataClassification
@@ -322,7 +322,7 @@ const (
 
 | File | Purpose |
 |---|---|
-| `internal/shield/ifc.go` | ClassifySource, IsFlowAllowed, path classification functions |
-| `internal/shield/metadata.go` | MetadataEnricher that attaches DataClassification to actions |
-| `internal/types/ifc.go` | SensitivityLevel, DataClassification type definitions |
+| `shield/ifc.go` | ClassifySource, IsFlowAllowed, path classification functions |
+| `shield/metadata.go` | MetadataEnricher that attaches DataClassification to actions |
+| `shield/ifc_types.go` | SensitivityLevel, DataClassification type definitions |
 | `internal/engine/engine.go` | Pipeline IFC check integration |

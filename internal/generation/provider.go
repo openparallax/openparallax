@@ -131,5 +131,8 @@ func resolveKey(envName string) string {
 	if envName == "" {
 		return ""
 	}
-	return os.Getenv(envName)
+	if v := os.Getenv(envName); v != "" {
+		return v
+	}
+	return os.Getenv("OP_" + envName)
 }

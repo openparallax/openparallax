@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -43,7 +42,7 @@ func New(cfg *types.TelegramConfig, manager *channels.Manager, log *logging.Logg
 	if cfg == nil || !cfg.Enabled {
 		return nil
 	}
-	token := os.Getenv(cfg.TokenEnv)
+	token := channels.ResolveEnv(cfg.TokenEnv)
 	if token == "" {
 		return nil
 	}

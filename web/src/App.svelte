@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Sidebar from './components/Sidebar.svelte';
-  import ArtifactCanvas from './components/ArtifactCanvas.svelte';
   import ChatPanel from './components/ChatPanel.svelte';
+  import ArtifactBrowser from './components/ArtifactBrowser.svelte';
+  import ConsoleViewer from './components/ConsoleViewer.svelte';
   import Particles from './components/Particles.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
   import SetupWizard from './components/SetupWizard.svelte';
@@ -21,36 +22,27 @@
   let setupRequired = false;
 
   let sidebarWidth = parseInt(localStorage.getItem('op_sidebar_w') || '240');
-  let chatWidth = parseInt(localStorage.getItem('op_chat_w') || '380');
-  let resizing: 'sidebar' | 'chat' | null = null;
+  let resizing: 'sidebar' | null = null;
 
-  function startResize(panel: 'sidebar' | 'chat') {
-    return (e: MouseEvent) => {
-      e.preventDefault();
-      resizing = panel;
-      const startX = e.clientX;
-      const startW = panel === 'sidebar' ? sidebarWidth : chatWidth;
+  function startSidebarResize(e: MouseEvent) {
+    e.preventDefault();
+    resizing = 'sidebar';
+    const startX = e.clientX;
+    const startW = sidebarWidth;
 
-      function onMove(ev: MouseEvent) {
-        const delta = ev.clientX - startX;
-        if (panel === 'sidebar') {
-          sidebarWidth = Math.max(180, Math.min(320, startW + delta));
-        } else {
-          chatWidth = Math.max(300, Math.min(500, startW - delta));
-        }
-      }
+    function onMove(ev: MouseEvent) {
+      sidebarWidth = Math.max(180, Math.min(320, startW + (ev.clientX - startX)));
+    }
 
-      function onUp() {
-        resizing = null;
-        localStorage.setItem('op_sidebar_w', String(sidebarWidth));
-        localStorage.setItem('op_chat_w', String(chatWidth));
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-      }
+    function onUp() {
+      resizing = null;
+      localStorage.setItem('op_sidebar_w', String(sidebarWidth));
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
 
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   }
 
   onMount(async () => {
@@ -79,7 +71,6 @@
 
   function handleSetupComplete() {
     setupRequired = false;
-    // Reload to pick up the now-running engine.
     window.location.reload();
   }
 
@@ -117,6 +108,8 @@
       /* ignore */
     }
   }
+
+  $: showChat = $activeNavItem === 'chat';
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -157,13 +150,20 @@
     <div class="sidebar-wrap" style="--sw:{sidebarWidth}px">
       <Sidebar />
     </div>
-    <div class="resize-handle" on:mousedown={startResize('sidebar')} role="separator" aria-label="Resize sidebar"></div>
-    <div class="canvas-wrap" class:mobile-hidden={$activeNavItem === 'chat'} class:mobile-show={$activeNavItem !== 'chat'}>
-      <ArtifactCanvas />
-    </div>
-    <div class="resize-handle" on:mousedown={startResize('chat')} role="separator" aria-label="Resize chat"></div>
-    <div class="chat-wrap" style="--cw:{chatWidth}px" class:mobile-hidden={$activeNavItem !== 'chat'}>
-      <ChatPanel />
+    <div class="resize-handle" on:mousedown={startSidebarResize} role="separator" aria-label="Resize sidebar"></div>
+
+    <div class="main-area">
+      {#if showChat}
+        <ChatPanel />
+      {:else if $activeNavItem === 'artifacts'}
+        <div class="alt-view glass">
+          <ArtifactBrowser />
+        </div>
+      {:else if $activeNavItem === 'console'}
+        <div class="alt-view glass">
+          <ConsoleViewer />
+        </div>
+      {/if}
     </div>
   </div>
 </div>
@@ -189,7 +189,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
-    padding: 100px 140px;
+    padding: 60px 80px;
     gap: var(--gap);
     transition: padding 300ms ease;
   }
@@ -313,16 +313,19 @@
     flex-shrink: 0;
   }
 
-  .canvas-wrap {
+  .main-area {
     flex: 1;
-    min-width: 0;
     display: flex;
+    min-width: 0;
+    gap: 0;
   }
 
-  .chat-wrap {
-    width: var(--cw, 380px);
-    min-width: var(--cw, 380px);
-    flex-shrink: 0;
+  .alt-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 20px;
   }
 
   .resize-handle {
@@ -348,9 +351,7 @@
 
   @media (max-width: 1200px) {
     .app { padding: 30px 40px; }
-    .resize-handle { display: none; }
     .sidebar-wrap { width: 56px !important; min-width: 56px !important; }
-    .chat-wrap { width: 340px !important; min-width: 340px !important; }
   }
 
   @media (max-width: 800px) {
@@ -360,9 +361,13 @@
     .agent-subtitle { display: none; }
     .hamburger { display: flex; }
     .sidebar-wrap { width: 0 !important; min-width: 0 !important; overflow: visible; }
-    .chat-wrap { width: 100% !important; min-width: 0 !important; flex: 1; }
-    .canvas-wrap { flex: 1; min-width: 0; }
-    .mobile-hidden { display: none !important; }
-    .mobile-show { display: flex !important; flex: 1; }
+    .resize-handle { display: none; }
+  }
+
+  @media (max-width: 480px) {
+    .app { padding: 4px; }
+    .app-header { padding: 4px 8px; }
+    .agent-name { font-size: 20px; }
+    .status-badge { padding: 3px 8px; font-size: 10px; }
   }
 </style>

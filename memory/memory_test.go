@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/openparallax/openparallax/internal/storage"
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,10 +104,10 @@ func TestReindexAll(t *testing.T) {
 func TestDailyLog(t *testing.T) {
 	mgr, dir := openTestManager(t)
 
-	actions := []*types.ActionRequest{
-		{Type: types.ActionReadFile, Payload: map[string]any{"path": "test.txt"}},
+	actions := []*ActionEntry{
+		{Type: "read_file"},
 	}
-	results := []*types.ActionResult{
+	results := []*ResultEntry{
 		{Success: true, Summary: "read test.txt (100 bytes)"},
 	}
 
@@ -133,8 +132,8 @@ func TestDailyLogCreatesDirectory(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "memory dir should not exist yet")
 
 	mgr.LogAction(
-		[]*types.ActionRequest{{Type: types.ActionWriteFile}},
-		[]*types.ActionResult{{Success: true, Summary: "wrote file"}},
+		[]*ActionEntry{{Type: "write_file"}},
+		[]*ResultEntry{{Success: true, Summary: "wrote file"}},
 	)
 
 	_, err = os.Stat(logDir)

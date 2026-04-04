@@ -67,6 +67,14 @@ func (s *linuxSandbox) ApplySelf(cfg Config) error {
 		return fmt.Errorf("landlock: %w", err)
 	}
 
+	// Block process creation via seccomp-bpf (fork, execve, clone without
+	// CLONE_THREAD). Applied after Landlock so both layers are active.
+	if !cfg.AllowProcessSpawn {
+		if err := applySeccompSpawnBlock(); err != nil {
+			return fmt.Errorf("seccomp: %w", err)
+		}
+	}
+
 	return nil
 }
 

@@ -98,12 +98,14 @@ func (s *Server) handleWSMessage(ctx context.Context, conn *websocket.Conn, msg 
 		})
 	}
 
-	sender := newWSEventSender(ctx, conn)
+	sender := s.getOrCreateSender(conn, ctx)
 
+	s.log.Info("ws_message_received", "session", sid, "message_id", mid, "content_len", len(msg.Content))
 	if err := s.engine.ProcessMessageForWeb(ctx, sender, sid, mid, msg.Content, mode); err != nil {
 		s.log.Error("ws_process_failed", "session", sid, "error", err)
 		s.writeWSError(ctx, conn, sid, mid, "PIPELINE_FAILED", err.Error())
 	}
+	s.log.Info("ws_message_done", "session", sid, "message_id", mid)
 }
 
 // handleTier3Decision resolves a pending human-in-the-loop approval.

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -41,7 +40,7 @@ func New(cfg *types.WhatsAppConfig, manager *channels.Manager, log *logging.Logg
 	if cfg == nil || !cfg.Enabled {
 		return nil
 	}
-	token := os.Getenv(cfg.AccessTokenEnv)
+	token := channels.ResolveEnv(cfg.AccessTokenEnv)
 	if token == "" || cfg.PhoneNumberID == "" {
 		return nil
 	}

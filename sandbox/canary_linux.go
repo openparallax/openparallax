@@ -2,31 +2,33 @@
 
 package sandbox
 
-import "github.com/shoenig/go-landlock"
+import "os/exec"
 
 // runPlatformProbes runs Linux-specific canary probes.
-// Landlock enforces: file read, file write, network (v4+/kernel 6.7+).
+// Landlock enforces: file read, file write.
+// seccomp-bpf enforces: process spawn blocking.
 func runPlatformProbes() []ProbeResult {
 	var probes []ProbeResult
 
-	// File read: try reading /etc/shadow (should be blocked).
+	// File read: try reading /etc/shadow (should be blocked by Landlock).
 	probes = append(probes, probeFileRead("/etc/shadow"))
 
-	// File write: try writing to /tmp (should be blocked if not in AllowedWritePaths).
+	// File write: try writing to /tmp (should be blocked by Landlock).
 	probes = append(probes, probeFileWrite("/tmp"))
 
-	// Network: try connecting to an external host.
-	// Only applicable on Landlock v4+ (kernel 6.7+).
-	version, _ := landlock.Detect()
-	if version >= 4 {
-		probes = append(probes, probeNetwork("1.1.1.1:443"))
-	} else {
-		probes = append(probes, ProbeResult{
-			Name:   "network",
-			Status: "skipped",
-			Error:  "requires Landlock v4+ (kernel 6.7+)",
-		})
-	}
+	// Process spawn: try executing a child process (should be blocked by seccomp).
+	probes = append(probes, probeProcessSpawn())
 
 	return probes
+}
+
+// probeProcessSpawn tests whether spawning a child process is blocked.
+func probeProcessSpawn() ProbeResult {
+	cmd := exec.Command("/bin/true")
+	err := cmd.Run()
+	if err != nil {
+		return ProbeResult{Name: "process_spawn", Status: "blocked", Target: "/bin/true"}
+	}
+	return ProbeResult{Name: "process_spawn", Status: "failed", Target: "/bin/true",
+		Error: "sandbox did not block process spawn"}
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronRight, ChevronDown, Wrench, ShieldCheck, ShieldX, Check, X } from 'lucide-svelte';
+  import { ChevronRight, ChevronDown } from 'lucide-svelte';
   import type { ToolCall, Thought } from '../lib/types';
 
   export let toolCalls: ToolCall[] = [];
@@ -10,22 +10,23 @@
 
   $: items = thoughts.length > 0 ? thoughts : buildFromToolCalls(toolCalls);
   $: toolCount = items.filter(t => t.stage === 'tool_call').length;
+  $: reasoningCount = items.filter(t => t.stage === 'reasoning').length;
+  $: totalSteps = items.length;
   $: hasBlock = toolCalls.length > 0
     ? toolCalls.some(tc => tc.shieldVerdict?.decision === 'BLOCK')
     : items.some(t => t.detail?.shield === 'BLOCK');
+  $: hasDetailInfo = items.some(t => t.detail?.success !== undefined);
   $: allComplete = !live && (toolCalls.length > 0
     ? toolCalls.every(tc => tc.result)
-    : items.filter(t => t.stage === 'tool_call').every(t => t.detail?.success !== undefined));
+    : hasDetailInfo);
   $: successCount = toolCalls.length > 0
     ? toolCalls.filter(tc => tc.result?.success).length
     : items.filter(t => t.stage === 'tool_call' && t.detail?.success === true).length;
 
-  let expandedCalls: Record<string, boolean> = {};
-
   function buildFromToolCalls(tcs: ToolCall[]): Thought[] {
     return tcs.map(tc => ({
       stage: 'tool_call' as const,
-      summary: `${tc.toolName} — ${tc.summary}`,
+      summary: `${tc.toolName} \u2014 ${tc.summary}`,
       detail: {
         tool_name: tc.toolName,
         success: tc.result?.success,
@@ -35,233 +36,180 @@
     }));
   }
 
-  function getToolCall(thought: Thought): ToolCall | undefined {
-    if (thought.stage !== 'tool_call') return undefined;
-    const name = thought.detail?.tool_name as string;
-    const matched = toolCalls.find(tc => tc.toolName === name);
-    if (matched) return matched;
-
-    const shieldDecision = thought.detail?.shield as string | undefined;
-    return {
-      id: Math.random().toString(),
-      toolName: name || '',
-      summary: thought.summary,
-      expanded: false,
-      shieldVerdict: shieldDecision ? {
-        toolName: name || '',
-        decision: shieldDecision as 'ALLOW' | 'BLOCK' | 'ESCALATE',
-        tier: (thought.detail?.shield_tier as number) || 0,
-        confidence: 1,
-        reasoning: (thought.detail?.shield_reasoning as string) || '',
-      } : undefined,
-      result: thought.detail?.success !== undefined
-        ? { success: thought.detail.success as boolean, summary: (thought.detail.result_summary as string) || thought.summary }
-        : undefined,
-    };
+  function parseToolName(thought: Thought): { name: string; desc: string } {
+    if (thought.detail?.tool_name) {
+      const name = thought.detail.tool_name as string;
+      const desc = thought.detail?.result_summary as string || thought.summary || '';
+      return { name, desc };
+    }
+    const summary = thought.summary || '';
+    // Server thoughts use formats like "write_file → wrote 743 bytes..." or "load_tools(files)"
+    for (const sep of [' \u2014 ', ' — ', ' \u2192 ']) {
+      if (summary.includes(sep)) {
+        const idx = summary.indexOf(sep);
+        return { name: summary.slice(0, idx).trim(), desc: summary.slice(idx + sep.length).trim() };
+      }
+    }
+    // Handle "load_tools(files)" format
+    const parenIdx = summary.indexOf('(');
+    if (parenIdx > 0) {
+      return { name: summary.slice(0, parenIdx).trim(), desc: summary.slice(parenIdx) };
+    }
+    return { name: summary, desc: '' };
   }
 
-  function toggleCall(id: string) {
-    expandedCalls[id] = !expandedCalls[id];
-    expandedCalls = expandedCalls;
-  }
+  $: summaryLabel = (() => {
+    const parts: string[] = [];
+    if (toolCount > 0) parts.push(`${toolCount} tool ${toolCount === 1 ? 'call' : 'calls'}`);
+    if (reasoningCount > 0) parts.push(`${reasoningCount} reasoning ${reasoningCount === 1 ? 'step' : 'steps'}`);
+    if (parts.length === 0) parts.push(`${totalSteps} ${totalSteps === 1 ? 'step' : 'steps'}`);
+    return parts.join(', ');
+  })();
+
+  $: statusLabel = (() => {
+    if (live) return 'thinking\u2026';
+    if (allComplete && toolCount > 0 && hasDetailInfo) return `${successCount}/${toolCount} succeeded`;
+    if (!live && toolCount > 0 && !hasDetailInfo) return 'completed';
+    return '';
+  })();
 </script>
 
-<div class="tool-envelope" class:blocked={hasBlock} class:expanded>
-  <button class="tool-summary" on:click={() => expanded = !expanded}>
-    <span class="tool-chevron">
+{#if totalSteps > 0 || live}
+<div class="thinking-envelope" class:blocked={hasBlock} class:expanded class:live>
+  <button class="thinking-toggle" on:click={() => expanded = !expanded}>
+    <span class="toggle-chevron">
       {#if expanded}
-        <ChevronDown size={10} />
+        <ChevronDown size={12} />
       {:else}
-        <ChevronRight size={10} />
+        <ChevronRight size={12} />
       {/if}
     </span>
-    <Wrench size={12} />
-    <span>
-      <strong>{toolCount} tool {toolCount === 1 ? 'call' : 'calls'}</strong>
-      {#if allComplete && toolCount > 0}
-        &mdash; {successCount}/{toolCount} succeeded
-      {:else if live}
-        &mdash; running
+    <span class="toggle-label">
+      {summaryLabel}
+      {#if statusLabel}
+        <span class="toggle-status">{statusLabel}</span>
       {/if}
     </span>
   </button>
 
-  {#if expanded}
-    <div class="tool-details">
-      {#each items as item, i (i)}
+  <div class="thinking-steps" class:show={expanded}>
+    {#each items as item, i (i)}
+      <div class="step-row">
         {#if item.stage === 'reasoning'}
-          <div class="tool-thought">{item.summary}</div>
+          <span class="step-reasoning">{item.summary}</span>
         {:else}
-          {@const tc = getToolCall(item)}
-          {#if tc}
-            <button class="tool-call-item" class:expanded={expandedCalls[tc.id]} on:click={() => toggleCall(tc.id)}>
-              <div class="tool-call-header">
-                <Wrench size={12} />
-                <span class="tool-call-name">{tc.toolName}</span>
-                <span class="tool-call-summary">&mdash; {tc.summary}</span>
-              </div>
-              {#if tc.shieldVerdict}
-                <div class="tool-call-shield">
-                  {#if tc.shieldVerdict.decision === 'ALLOW'}
-                    <span class="shield-allow">
-                      <ShieldCheck size={11} />
-                      Shield: ALLOW (Tier {tc.shieldVerdict.tier}) &middot; <Check size={11} />
-                    </span>
-                  {:else}
-                    <span class="shield-block">
-                      <ShieldX size={11} />
-                      Shield: BLOCK (Tier {tc.shieldVerdict.tier})
-                    </span>
-                  {/if}
-                </div>
-              {/if}
-              {#if expandedCalls[tc.id]}
-                <div class="tool-call-result">
-                  {#if tc.shieldVerdict?.decision === 'BLOCK' && tc.shieldVerdict.reasoning}
-                    <div class="tool-call-reasoning">{tc.shieldVerdict.reasoning}</div>
-                  {/if}
-                  {#if tc.result}
-                    <div class="tool-call-detail">
-                      {#if tc.result.success}
-                        <Check size={11} /> {tc.result.summary}
-                      {:else}
-                        <X size={11} /> {tc.result.summary}
-                      {/if}
-                    </div>
-                  {/if}
-                </div>
-              {/if}
-            </button>
+          {@const parsed = parseToolName(item)}
+          {@const blocked = item.detail?.shield === 'BLOCK'}
+          {@const failed = item.detail?.success === false && !blocked}
+          <span class="step-tool-name" class:failed class:blocked>{parsed.name}</span>
+          {#if parsed.desc}
+            <span class="step-tool-desc" class:failed class:blocked>{parsed.desc}</span>
           {/if}
         {/if}
-      {/each}
-    </div>
-  {/if}
+      </div>
+    {/each}
+  </div>
 </div>
+{/if}
 
 <style>
-  .tool-envelope {
-    max-width: 92%;
-    border-radius: 6px;
-    background: rgba(12, 16, 28, 0.6);
-    border: 1px solid var(--accent-border-active);
-    border-left: 2px solid var(--accent-dim);
+  .thinking-envelope {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin: 4px 0;
-    overflow: hidden;
-    transition: border-color 200ms ease;
-  }
-
-  .tool-envelope:hover {
-    border-color: var(--accent-subtle);
-    background: rgba(12, 16, 28, 0.7);
-  }
-
-  .tool-envelope.blocked {
-    border-left: 2px solid var(--error);
-    animation: block-flash 600ms ease-out;
-  }
-
-  .tool-summary {
-    padding: 8px 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    border: none;
-    background: none;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--text-secondary);
-    text-align: left;
-    transition: background 150ms ease;
-  }
-  .tool-summary:hover { background: var(--accent-ghost); }
-  .tool-summary strong { color: var(--accent-dim); }
-
-  .tool-chevron {
-    color: var(--text-tertiary);
-    display: flex;
-    transition: transform 200ms ease;
-  }
-  .tool-envelope.expanded .tool-chevron { transform: rotate(90deg); }
-
-  .tool-details {
-    padding: 0 12px 10px;
-    border-top: 1px solid var(--accent-border);
-  }
-
-  .tool-thought {
-    font-family: 'Exo 2', sans-serif;
+    font-size: 11px;
     font-style: italic;
     color: var(--text-tertiary);
-    padding: 8px 0 4px;
-    font-size: 12px;
+    margin: 0;
   }
 
-  .tool-call-item {
-    display: block;
+  .thinking-envelope.live {
+    color: var(--accent-dim);
+  }
+
+  .thinking-toggle {
+    padding: 4px 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     width: 100%;
-    padding: 6px 0;
     border: none;
     background: none;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--text-secondary);
+    font-size: 11px;
+    font-style: italic;
+    color: var(--text-tertiary);
     text-align: left;
-    cursor: pointer;
-    border-bottom: 1px solid var(--accent-border);
+    transition: color 150ms ease;
   }
-  .tool-call-item:last-child { border-bottom: none; }
 
-  .tool-call-header {
+  .thinking-toggle:hover {
+    color: var(--text-secondary);
+  }
+
+  .toggle-chevron {
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+
+  .toggle-label {
     display: flex;
     align-items: center;
     gap: 6px;
   }
 
-  .tool-call-name { color: var(--accent-dim); font-weight: 500; }
-  .tool-call-summary { color: var(--text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  .tool-call-shield {
-    padding-left: 20px;
-    margin-top: 2px;
-    font-size: 11px;
+  .toggle-status {
+    opacity: 0.6;
+    font-size: 10px;
   }
 
-  .shield-allow {
-    color: var(--accent-dim);
+  .thinking-steps {
+    max-height: 0;
+    overflow: hidden;
+    padding: 0 16px;
+    transition: max-height 200ms ease, padding 200ms ease;
+  }
+
+  .thinking-steps.show {
+    max-height: 500px;
+    padding: 4px 16px 6px;
+  }
+
+  .step-row {
     display: flex;
     align-items: center;
-    gap: 4px;
-  }
-
-  .shield-block {
-    color: var(--error-dim);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .tool-call-result {
-    padding-left: 20px;
-    margin-top: 4px;
+    gap: 6px;
+    padding: 3px 0;
     font-size: 11px;
-  }
-
-  .tool-call-reasoning {
-    color: var(--error-dim);
-    line-height: 1.5;
-    margin-bottom: 4px;
-  }
-
-  .tool-call-detail {
+    font-style: italic;
     color: var(--text-tertiary);
-    display: flex;
-    align-items: center;
-    gap: 4px;
   }
+
+  .step-reasoning {
+    font-family: 'Exo 2', sans-serif;
+  }
+
+  .step-tool-name {
+    color: var(--accent-dim);
+    opacity: 0.5;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .step-tool-name.failed { color: var(--warning); opacity: 0.6; }
+  .step-tool-name.blocked { color: var(--error); opacity: 0.6; }
+
+  .step-tool-desc {
+    opacity: 0.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .step-tool-desc.failed { color: var(--warning); opacity: 0.5; }
+  .step-tool-desc.blocked { color: var(--error); opacity: 0.5; }
 </style>

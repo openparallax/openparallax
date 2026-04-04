@@ -54,8 +54,8 @@ func TestToolUseRoundTrip(t *testing.T) {
 		option.WithAPIKey(apiKey),
 	}
 
-	// Enable request/response logging when LLM_DEBUG=1.
-	if os.Getenv("LLM_DEBUG") == "1" {
+	// Enable request/response logging when OP_LLM_DEBUG=1 (or LLM_DEBUG=1).
+	if ResolveEnv("LLM_DEBUG") == "1" {
 		opts = append(opts, option.WithMiddleware(debugMiddleware(t)))
 	}
 

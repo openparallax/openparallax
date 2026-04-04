@@ -7,14 +7,25 @@ import (
 	"time"
 )
 
+// ResolveEnv reads an environment variable by name. If the variable is not set,
+// it also checks for an OP_-prefixed version (e.g. ANTHROPIC_API_KEY falls back
+// to OP_ANTHROPIC_API_KEY). This allows users to namespace all OpenParallax
+// variables under the OP_ prefix without breaking standard naming conventions.
+func ResolveEnv(name string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return os.Getenv("OP_" + name)
+}
+
 // NewProvider creates an LLM provider from configuration.
 // The provider is lazily initialized — only the configured provider's SDK is used.
 func NewProvider(cfg Config) (Provider, error) {
 	apiKey := ""
 	if cfg.APIKeyEnv != "" {
-		apiKey = os.Getenv(cfg.APIKeyEnv)
+		apiKey = ResolveEnv(cfg.APIKeyEnv)
 		if apiKey == "" && cfg.Provider != "ollama" {
-			return nil, fmt.Errorf("environment variable %s is not set", cfg.APIKeyEnv)
+			return nil, fmt.Errorf("environment variable %s (or OP_%s) is not set", cfg.APIKeyEnv, cfg.APIKeyEnv)
 		}
 	}
 

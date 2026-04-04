@@ -118,7 +118,11 @@ func (c *CanvasExecutor) Execute(_ context.Context, action *types.ActionRequest)
 }
 
 func (c *CanvasExecutor) createFile(action *types.ActionRequest) *types.ActionResult {
-	path := ResolvePath(action.Payload["path"], c.workspacePath)
+	rawPath, _ := action.Payload["path"].(string)
+	if rawPath == "" {
+		return ErrorResult(action.RequestID, "path is required", "canvas_create requires a file path")
+	}
+	path := ResolvePath(rawPath, c.workspacePath)
 	content, _ := action.Payload["content"].(string)
 	contentType, _ := action.Payload["type"].(string)
 
@@ -144,7 +148,11 @@ func (c *CanvasExecutor) createFile(action *types.ActionRequest) *types.ActionRe
 }
 
 func (c *CanvasExecutor) updateFile(action *types.ActionRequest) *types.ActionResult {
-	path := ResolvePath(action.Payload["path"], c.workspacePath)
+	rawPath, _ := action.Payload["path"].(string)
+	if rawPath == "" {
+		return ErrorResult(action.RequestID, "path is required", "canvas_update requires a file path")
+	}
+	path := ResolvePath(rawPath, c.workspacePath)
 	content, _ := action.Payload["content"].(string)
 
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -160,7 +168,11 @@ func (c *CanvasExecutor) updateFile(action *types.ActionRequest) *types.ActionRe
 }
 
 func (c *CanvasExecutor) createProject(action *types.ActionRequest) *types.ActionResult {
-	dir := ResolvePath(action.Payload["path"], c.workspacePath)
+	rawPath, _ := action.Payload["path"].(string)
+	if rawPath == "" {
+		return ErrorResult(action.RequestID, "path is required", "canvas_project requires a directory path")
+	}
+	dir := ResolvePath(rawPath, c.workspacePath)
 	filesRaw, ok := action.Payload["files"].([]any)
 	if !ok || len(filesRaw) == 0 {
 		return ErrorResult(action.RequestID, "files array is required", "project creation failed")

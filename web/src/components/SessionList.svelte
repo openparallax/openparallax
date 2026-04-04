@@ -3,6 +3,7 @@
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { clearMessages, loadMessages } from '../stores/messages';
   import { clearArtifactTabs } from '../stores/artifacts';
+  import { activeNavItem, sidebarOpen } from '../stores/settings';
   import { getMessages, deleteSession } from '../lib/api';
   import { formatRelativeTime } from '../lib/format';
   import type { Session } from '../lib/types';
@@ -17,6 +18,8 @@
 
     currentSessionId.set(id);
     currentMode.set(targetMode);
+    activeNavItem.set('chat');
+    sidebarOpen.set(false);
     clearMessages();
     clearArtifactTabs();
 
@@ -34,8 +37,20 @@
     }
   }
 
-  async function handleDelete(e: Event, id: string) {
+  let confirmingDeleteId: string | null = null;
+  let confirmTimer: ReturnType<typeof setTimeout>;
+
+  function requestDelete(e: Event, id: string) {
     e.stopPropagation();
+    clearTimeout(confirmTimer);
+    confirmingDeleteId = id;
+    confirmTimer = setTimeout(() => { confirmingDeleteId = null; }, 5000);
+  }
+
+  async function confirmDelete(e: Event, id: string) {
+    e.stopPropagation();
+    clearTimeout(confirmTimer);
+    confirmingDeleteId = null;
     try {
       await deleteSession(id);
       sessions.update(s => s.filter(sess => sess.id !== id));
@@ -46,6 +61,12 @@
     } catch {
       // Ignore delete errors.
     }
+  }
+
+  function cancelDelete(e: Event) {
+    e.stopPropagation();
+    clearTimeout(confirmTimer);
+    confirmingDeleteId = null;
   }
 
   function sessionLabel(session: Session): string {
@@ -81,9 +102,17 @@
         </div>
       </div>
       <div class="session-actions">
-        <button class="delete-btn" on:click={(e) => handleDelete(e, session.id)} title="Delete session">
-          <Trash2 size={12} />
-        </button>
+        {#if confirmingDeleteId === session.id}
+          <div class="delete-confirm">
+            <span>Delete?</span>
+            <button class="confirm-yes" on:click={(e) => confirmDelete(e, session.id)}>Yes</button>
+            <button class="confirm-no" on:click={cancelDelete}>No</button>
+          </div>
+        {:else}
+          <button class="delete-btn" on:click={(e) => requestDelete(e, session.id)} title="Delete session">
+            <Trash2 size={12} />
+          </button>
+        {/if}
         <div class="session-dot" class:active={$currentSessionId === session.id} class:otr={session.mode === 'otr'}></div>
       </div>
     </div>
@@ -169,5 +198,46 @@
   .session-dot.otr {
     background: var(--warning);
     box-shadow: 0 0 6px rgba(255, 171, 0, 0.4);
+  }
+
+  .delete-confirm {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--error);
+    animation: fade-in 150ms ease-out;
+  }
+
+  .confirm-yes, .confirm-no {
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: none;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    transition: all 100ms ease;
+  }
+
+  .confirm-yes {
+    background: var(--error);
+    color: var(--bg-void);
+  }
+  .confirm-yes:hover {
+    box-shadow: 0 0 8px rgba(255, 61, 90, 0.4);
+  }
+
+  .confirm-no {
+    background: var(--accent-ghost);
+    color: var(--text-secondary);
+  }
+  .confirm-no:hover {
+    background: var(--bg-surface-hover);
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 </style>

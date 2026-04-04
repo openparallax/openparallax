@@ -504,10 +504,10 @@ func runInit(_ *cobra.Command, args []string) error {
 		huh.NewOption("Ollama  (local embedding model)", "ollama"),
 		huh.NewOption("Skip    (keyword search only)", ""),
 	}
-	if os.Getenv("OPENAI_API_KEY") != "" {
+	if llm.ResolveEnv("OPENAI_API_KEY") != "" {
 		embOpts[0] = huh.NewOption("OpenAI  (text-embedding-3-small — ✓ key detected)", "openai").Selected(true)
 	}
-	if os.Getenv("GOOGLE_API_KEY") != "" {
+	if llm.ResolveEnv("GOOGLE_API_KEY") != "" {
 		embOpts[1] = huh.NewOption("Google  (text-embedding-004 — ✓ key detected)", "google")
 	}
 
@@ -745,7 +745,7 @@ func detectAPIKey() (provider, key string) {
 		{"openai", "OPENAI_API_KEY"},
 		{"google", "GOOGLE_API_KEY"},
 	} {
-		if k := os.Getenv(p.env); k != "" {
+		if k := llm.ResolveEnv(p.env); k != "" {
 			return p.provider, k
 		}
 	}
