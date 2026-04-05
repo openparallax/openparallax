@@ -230,7 +230,11 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		APIKeyEnv: embCfg.APIKeyEnv,
 		BaseURL:   embCfg.BaseURL,
 	})
-	vectorSearcher := memory.NewVectorSearcher(memStore, log)
+	embDimension := 0
+	if embedder != nil {
+		embDimension = embedder.Dimension()
+	}
+	vectorSearcher := memory.NewVectorSearcher(memStore, log, embDimension)
 	indexer := memory.NewIndexer(memStore, embedder, vectorSearcher, log)
 
 	// Index workspace files on startup (skips unchanged files via content hash).
@@ -557,7 +561,9 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 
 		case *pb.AgentEvent_ToolDefsRequest:
 			groups := ev.ToolDefsRequest.Groups
-			isOTR := false // OTR state could be tracked per session
+			e.mu.Lock()
+			isOTR := e.currentMsgOTR
+			e.mu.Unlock()
 			newTools, summary := e.executors.Groups.ResolveGroups(groups, isOTR)
 			_ = newTools
 

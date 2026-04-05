@@ -3,6 +3,7 @@ package memory
 import (
 	"database/sql"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -15,13 +16,19 @@ import (
 // queries. Only available when the extension is downloaded via
 // `openparallax get-vector-ext`. Falls back to BuiltinVectorSearcher otherwise.
 type NativeVectorSearcher struct {
-	conn *sql.DB
+	conn      *sql.DB
+	dimension int
 }
 
 // NewVectorSearcher tries to detect the sqlite-vec extension. If found and
 // loadable, returns a NativeVectorSearcher with the vec0 table rebuilt from
-// BLOB embeddings. Otherwise returns a BuiltinVectorSearcher.
-func NewVectorSearcher(store ChunkStore, log *logging.Logger) VectorSearcher {
+// BLOB embeddings. Otherwise returns a BuiltinVectorSearcher. The dimension
+// parameter specifies the embedding vector size (e.g. 1536 for OpenAI, 768
+// for Google/Ollama). If dimension is 0, defaults to 1536.
+func NewVectorSearcher(store ChunkStore, log *logging.Logger, dimension int) VectorSearcher {
+	if dimension <= 0 {
+		dimension = 1536
+	}
 	extPath := sqliteVecExtensionPath()
 	if extPath == "" {
 		if log != nil {
@@ -53,7 +60,7 @@ func NewVectorSearcher(store ChunkStore, log *logging.Logger) VectorSearcher {
 		return loadBuiltinFromStore(store, log)
 	}
 
-	native := &NativeVectorSearcher{conn: conn}
+	native := &NativeVectorSearcher{conn: conn, dimension: dimension}
 	if err := native.RebuildFromBlobs(); err != nil {
 		if log != nil {
 			log.Warn("vector_rebuild_failed", "error", err)
@@ -72,10 +79,10 @@ func NewVectorSearcher(store ChunkStore, log *logging.Logger) VectorSearcher {
 // in the chunks table. Called on every startup when sqlite-vec is loaded.
 func (n *NativeVectorSearcher) RebuildFromBlobs() error {
 	_, _ = n.conn.Exec("DROP TABLE IF EXISTS chunks_vec")
-	_, err := n.conn.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
+	_, err := n.conn.Exec(fmt.Sprintf(`CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(
 		id TEXT PRIMARY KEY,
-		embedding float[1536]
-	)`)
+		embedding float[%d]
+	)`, n.dimension))
 	if err != nil {
 		return err
 	}
