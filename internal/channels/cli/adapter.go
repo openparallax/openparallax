@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/openparallax/openparallax/crypto"
+	"github.com/openparallax/openparallax/internal/commands"
 	"github.com/openparallax/openparallax/internal/storage"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
 	"google.golang.org/grpc"
@@ -92,6 +93,7 @@ type model struct {
 	quitting      bool
 	pendingDelete bool
 	tabCycleIndex int
+	cmdRegistry   *commands.Registry
 	ready         bool
 	width         int
 	height        int
@@ -124,13 +126,14 @@ func newModel(ctx context.Context, client pb.ClientServiceClient, db *storage.DB
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 
 	return &model{
-		client:    client,
-		db:        db,
-		sessionID: sessionID,
-		agentName: agentName,
-		ctx:       ctx,
-		input:     ta,
-		spinner:   s,
+		client:      client,
+		db:          db,
+		sessionID:   sessionID,
+		agentName:   agentName,
+		ctx:         ctx,
+		input:       ta,
+		spinner:     s,
+		cmdRegistry: commands.NewRegistry(),
 	}
 }
 
@@ -171,6 +174,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.input.Reset()
 
 			lower := strings.ToLower(text)
+
+			// TUI-specific commands that need direct model access.
 			switch {
 			case lower == "/quit" || lower == "/exit":
 				m.triggerShutdown()
@@ -180,6 +185,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.handleNewSession()
 			case lower == "/otr":
 				return m, m.handleOTRToggle()
+			case lower == "/clear":
+				m.lines = nil
+				m.addLine(m.dimStyle("Chat cleared."))
+				m.syncViewport()
+				return m, nil
+			case lower == "/export":
+				m.handleExport()
+				m.syncViewport()
+				return m, nil
 			case lower == "/sessions":
 				m.handleListSessions()
 				m.syncViewport()
@@ -187,19 +201,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case strings.HasPrefix(lower, "/switch "):
 				id := strings.TrimSpace(text[8:])
 				m.handleSwitchSession(id)
-				m.syncViewport()
-				return m, nil
-			case lower == "/help":
-				m.handleHelp()
-				m.syncViewport()
-				return m, nil
-			case lower == "/clear":
-				m.lines = nil
-				m.addLine(m.dimStyle("Chat cleared. History is preserved."))
-				m.syncViewport()
-				return m, nil
-			case lower == "/status":
-				m.handleStatus()
 				m.syncViewport()
 				return m, nil
 			case lower == "/delete":
@@ -210,18 +211,26 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.syncViewport()
 				return m, nil
-			case lower == "/restart":
-				m.addLine(m.dimStyle("Restarting engine..."))
-				m.syncViewport()
-				return m, nil
-			case lower == "/export":
-				m.handleExport()
-				m.syncViewport()
-				return m, nil
-			case strings.HasPrefix(lower, "/"):
-				m.addLine(m.errStyle(fmt.Sprintf("Unknown command: %s. Type /help for available commands.", lower)))
-				m.syncViewport()
-				return m, nil
+			}
+
+			// All other slash commands go through the centralized registry.
+			if strings.HasPrefix(lower, "/") {
+				result, handled := m.cmdRegistry.Execute(text, &commands.Context{
+					Channel:   commands.ChannelCLI,
+					SessionID: m.sessionID,
+				})
+				if handled {
+					if result.Text != "" {
+						m.addLine(m.dimStyle(result.Text))
+					}
+					if result.Action == commands.ActionRestart {
+						ctx, cancel := context.WithTimeout(m.ctx, 3*time.Second)
+						_, _ = m.client.Shutdown(ctx, &pb.ShutdownRequest{})
+						cancel()
+					}
+					m.syncViewport()
+					return m, nil
+				}
 			}
 
 			prompt := m.userStyle("You: ")
@@ -582,47 +591,6 @@ func (m *model) handleSwitchSession(id string) {
 }
 
 // handleHelp displays all available slash commands.
-func (m *model) handleHelp() {
-	m.addLine(m.dimStyle("Available commands:"))
-	cmds := []struct{ cmd, desc string }{
-		{"/new", "Start a new session"},
-		{"/otr", "Start a new Off The Record session"},
-		{"/quit", "End current session and exit"},
-		{"/clear", "Clear the chat view (history preserved)"},
-		{"/status", "Show system health and session stats"},
-		{"/export", "Export this session as markdown"},
-		{"/delete", "Delete the current session"},
-		{"/sessions", "List sessions"},
-		{"/switch <id>", "Switch to a session by ID prefix"},
-		{"/restart", "Restart the engine"},
-		{"/help", "Show this help message"},
-	}
-	for _, c := range cmds {
-		m.addLine(m.dimStyle(fmt.Sprintf("  %-16s %s", c.cmd, c.desc)))
-	}
-}
-
-// handleStatus shows system health from the engine's gRPC status.
-func (m *model) handleStatus() {
-	ctx, cancel := context.WithTimeout(m.ctx, 3*time.Second)
-	defer cancel()
-
-	resp, err := m.client.GetStatus(ctx, &pb.StatusRequest{})
-	if err != nil {
-		m.addLine(m.errStyle("Failed to fetch status: " + err.Error()))
-		return
-	}
-
-	m.addLine(m.dimStyle("--- System Status ---"))
-	m.addLine(m.dimStyle(fmt.Sprintf("  Agent:     %s", resp.AgentName)))
-	m.addLine(m.dimStyle(fmt.Sprintf("  Model:     %s", resp.Model)))
-	m.addLine(m.dimStyle(fmt.Sprintf("  Sessions:  %d", resp.SessionCount)))
-	mode := "Normal"
-	if m.otrMode {
-		mode = "OTR (read-only)"
-	}
-	m.addLine(m.dimStyle(fmt.Sprintf("  Mode:      %s", mode)))
-}
 
 // handleDeleteSession prompts for confirmation before deleting.
 func (m *model) handleDeleteSession() {
@@ -698,15 +666,10 @@ func (m *model) handleNewSession() tea.Cmd {
 	}
 }
 
-var slashCommands = []string{
-	"/help", "/new", "/otr", "/quit", "/clear", "/status",
-	"/export", "/delete", "/restart", "/sessions", "/switch",
-}
-
 func (m *model) tabComplete(prefix string) string {
 	lower := strings.ToLower(prefix)
 	var matches []string
-	for _, cmd := range slashCommands {
+	for _, cmd := range m.cmdRegistry.Names(commands.ChannelCLI) {
 		if strings.HasPrefix(cmd, lower) {
 			matches = append(matches, cmd)
 		}
