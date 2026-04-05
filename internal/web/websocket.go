@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/openparallax/openparallax/crypto"
+	"github.com/openparallax/openparallax/internal/commands"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -65,6 +67,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		switch msg.Type {
 		case "message":
 			go s.handleWSMessage(ctx, conn, msg)
+		case "command":
+			s.handleWSCommand(ctx, conn, msg)
 		case "cancel":
 			s.handleCancel(msg.SessionID)
 		case "tier3_decision":
@@ -126,6 +130,31 @@ func (s *Server) handleWSMessage(ctx context.Context, conn *websocket.Conn, msg 
 		}
 	}
 	s.log.Info("ws_message_done", "session", sid, "message_id", mid)
+}
+
+// handleWSCommand executes a slash command via the centralized registry.
+func (s *Server) handleWSCommand(ctx context.Context, conn *websocket.Conn, msg wsClientMessage) {
+	cmdCtx := &commands.Context{
+		Channel:   commands.ChannelWeb,
+		SessionID: msg.SessionID,
+		Engine:    s.cmdEngine,
+	}
+
+	result, handled := s.cmdRegistry.Execute(msg.Content, cmdCtx)
+	if !handled {
+		return
+	}
+
+	s.log.Info("ws_command_executed", "session", msg.SessionID,
+		"command", strings.Fields(msg.Content)[0], "action", result.Action)
+
+	resp := map[string]any{
+		"type":       "command_result",
+		"session_id": msg.SessionID,
+		"text":       result.Text,
+		"action":     int(result.Action),
+	}
+	s.writeWSJSON(ctx, conn, resp)
 }
 
 // handleCancel cancels an active message processing for a session.

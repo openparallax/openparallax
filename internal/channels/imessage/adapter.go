@@ -7,6 +7,7 @@ package imessage
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/openparallax/openparallax/internal/channels"
@@ -99,6 +100,14 @@ func (a *Adapter) poll(ctx context.Context) {
 	a.lastCheck = time.Now()
 
 	for _, msg := range msgs {
+		if strings.HasPrefix(msg.Text, "/") {
+			if response, _, handled := a.manager.HandleCommand("imessage", msg.Sender, msg.Text, "imessage"); handled {
+				if response != "" {
+					_ = a.SendMessage(msg.Sender, &channels.ChannelMessage{Text: response})
+				}
+				continue
+			}
+		}
 		a.manager.HandleMessage(ctx, "imessage", msg.Sender, msg.Text, types.SessionNormal)
 	}
 }

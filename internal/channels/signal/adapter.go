@@ -154,16 +154,17 @@ func (a *Adapter) handleMessage(ctx context.Context, _ interface{}, envelope sig
 		return
 	}
 
-	mode := types.SessionNormal
-	if text == "/new" {
-		a.manager.ResetSession("signal", from)
-		_ = a.SendMessage(from, &channels.ChannelMessage{Text: "New session started."})
-		return
-	}
-	if text == "/otr" {
-		mode = types.SessionOTR
+	if strings.HasPrefix(text, "/") {
+		if response, action, handled := a.manager.HandleCommand("signal", from, text, "signal"); handled {
+			if response != "" {
+				_ = a.SendMessage(from, &channels.ChannelMessage{Text: response})
+			}
+			_ = action
+			return
+		}
 	}
 
+	mode := types.SessionNormal
 	response, err := a.manager.HandleMessage(ctx, "signal", from, text, mode)
 	if err != nil {
 		a.log.Error("signal_error", "from", from, "error", err)

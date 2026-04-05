@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/openparallax/openparallax/crypto"
+	"github.com/openparallax/openparallax/internal/commands"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/types"
@@ -14,15 +15,22 @@ import (
 
 // Manager manages channel adapter lifecycle and message routing.
 type Manager struct {
-	engine   *engine.Engine
-	log      *logging.Logger
-	adapters []ChannelAdapter
-	sessions sync.Map // chatKey → sessionID
+	engine    *engine.Engine
+	log       *logging.Logger
+	adapters  []ChannelAdapter
+	sessions  sync.Map // chatKey → sessionID
+	commands  *commands.Registry
+	cmdEngine *commands.EngineAdapter
 }
 
 // NewManager creates a channel manager.
 func NewManager(eng *engine.Engine, log *logging.Logger) *Manager {
-	return &Manager{engine: eng, log: log}
+	return &Manager{
+		engine:    eng,
+		log:       log,
+		commands:  commands.NewRegistry(),
+		cmdEngine: &commands.EngineAdapter{Engine: eng},
+	}
 }
 
 // Register adds an adapter to the manager.
@@ -72,6 +80,43 @@ func (m *Manager) runWithRetry(ctx context.Context, adapter ChannelAdapter) {
 		}
 	}
 	m.log.Error("channel_stopped", "adapter", adapter.Name(), "reason", "max retries exceeded")
+}
+
+// HandleCommand checks if content is a slash command and executes it.
+// Returns the response text and true if a command was handled, or empty and false.
+func (m *Manager) HandleCommand(adapterName, chatID, content string, channel commands.Channel) (string, commands.Action, bool) {
+	if !strings.HasPrefix(strings.TrimSpace(content), "/") {
+		return "", commands.ActionNone, false
+	}
+
+	sessionID := ""
+	if sid, ok := m.sessions.Load(adapterName + ":" + chatID); ok {
+		sessionID, _ = sid.(string)
+	}
+
+	cmdCtx := &commands.Context{
+		Channel:   channel,
+		SessionID: sessionID,
+		Engine:    m.cmdEngine,
+	}
+
+	result, handled := m.commands.Execute(content, cmdCtx)
+	if !handled {
+		return "", commands.ActionNone, false
+	}
+
+	// Handle side-effects.
+	switch result.Action {
+	case commands.ActionNewSession:
+		m.ResetSession(adapterName, chatID)
+	case commands.ActionNewOTR:
+		m.ResetSession(adapterName, chatID)
+	}
+
+	m.log.Info("command_executed", "adapter", adapterName,
+		"chat_id", chatID, "command", strings.Fields(content)[0])
+
+	return result.Text, result.Action, true
 }
 
 // HandleMessage routes an incoming channel message to the engine pipeline.

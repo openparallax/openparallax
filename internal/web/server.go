@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/openparallax/openparallax/internal/commands"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/logging"
 )
@@ -34,6 +35,8 @@ type Server struct {
 	conns          map[*websocket.Conn]context.Context
 	senders        map[*websocket.Conn]engine.EventSender
 	sessionCancels sync.Map // session_id → context.CancelFunc
+	cmdRegistry    *commands.Registry
+	cmdEngine      *commands.EngineAdapter
 }
 
 // ServerConfig holds web server configuration.
@@ -51,12 +54,14 @@ func NewServer(eng *engine.Engine, log *logging.Logger, cfg ServerConfig) *Serve
 	}
 
 	s := &Server{
-		engine:  eng,
-		log:     log,
-		port:    cfg.Port,
-		host:    host,
-		conns:   make(map[*websocket.Conn]context.Context),
-		senders: make(map[*websocket.Conn]engine.EventSender),
+		engine:      eng,
+		log:         log,
+		port:        cfg.Port,
+		host:        host,
+		conns:       make(map[*websocket.Conn]context.Context),
+		senders:     make(map[*websocket.Conn]engine.EventSender),
+		cmdRegistry: commands.NewRegistry(),
+		cmdEngine:   &commands.EngineAdapter{Engine: eng},
 	}
 
 	// Enable auth for non-localhost bindings.

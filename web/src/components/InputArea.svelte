@@ -7,8 +7,8 @@
   import { connected } from '../stores/connection';
   import { activeNavItem, sidebarOpen } from '../stores/settings';
 
-  import { sendMessage, sendCancel } from '../lib/websocket';
-  import { createSession, getStatus, deleteSession } from '../lib/api';
+  import { sendMessage, sendCancel, sendCommand } from '../lib/websocket';
+  import { createSession, getStatus } from '../lib/api';
   import type { SandboxStatusData } from '../lib/types';
 
   let text = '';
@@ -18,13 +18,21 @@
     { cmd: '/help', desc: 'Show available commands' },
     { cmd: '/new', desc: 'Start a new session' },
     { cmd: '/otr', desc: 'Start a new OTR session' },
-    { cmd: '/quit', desc: 'Close session, start new one' },
-    { cmd: '/restart', desc: 'Restart the engine' },
-    { cmd: '/clear', desc: 'Clear chat view' },
     { cmd: '/status', desc: 'Show system health' },
-    { cmd: '/export', desc: 'Export session as markdown' },
+    { cmd: '/usage', desc: 'Today\'s token usage' },
+    { cmd: '/sessions', desc: 'List recent sessions' },
+    { cmd: '/switch', desc: 'Switch to session by ID' },
     { cmd: '/delete', desc: 'Delete current session' },
-    { cmd: '/sessions', desc: 'Focus session list' },
+    { cmd: '/title', desc: 'Rename current session' },
+    { cmd: '/history', desc: 'Show recent messages' },
+    { cmd: '/clear', desc: 'Clear chat view' },
+    { cmd: '/export', desc: 'Export session as markdown' },
+    { cmd: '/restart', desc: 'Restart the engine' },
+    { cmd: '/quit', desc: 'Close session, start new one' },
+    { cmd: '/config', desc: 'Show or update config' },
+    { cmd: '/logs', desc: 'Manage logs' },
+    { cmd: '/audit', desc: 'Verify audit trail' },
+    { cmd: '/doctor', desc: 'Run health checks' },
   ];
 
   let showAutocomplete = false;
@@ -49,17 +57,6 @@
     textarea?.focus();
   }
 
-  const HELP_TEXT = `**Available commands:**
-- \`/new\` — Start a new session
-- \`/otr\` — Start a new Off The Record session
-- \`/quit\` — Close current session, start new one
-- \`/restart\` — Restart the engine
-- \`/clear\` — Clear the chat view (history preserved)
-- \`/status\` — Show system health and session stats
-- \`/export\` — Export session as markdown file
-- \`/delete\` — Delete the current session
-- \`/sessions\` — Focus session list
-- \`/help\` — Show this help message`;
 
   function handleKeydown(e: KeyboardEvent) {
     if (showAutocomplete) {
@@ -137,27 +134,27 @@
     const parts = cmd.split(/\s+/);
     const command = parts[0].toLowerCase();
 
+    // Client-only actions that don't need the backend.
     switch (command) {
-      case '/help':
-        addSystemMessage(HELP_TEXT);
-        break;
+      case '/clear':
+        messages.set([]);
+        addSystemMessage('Chat cleared.');
+        return;
 
       case '/new':
         await createNewSession('normal');
-        break;
+        return;
 
       case '/otr':
         await createNewSession('otr');
-        break;
+        return;
 
-      case '/clear':
-        messages.set([]);
-        addSystemMessage('Chat cleared. History is preserved.');
-        break;
-
-      case '/status':
-        await showStatus();
-        break;
+      case '/quit':
+        clearMessages();
+        currentSessionId.set(null);
+        currentMode.set('normal');
+        await createNewSession('normal');
+        return;
 
       case '/restart':
         addSystemMessage('Restarting engine...');
@@ -166,86 +163,24 @@
         } catch {
           /* WS will drop and reconnect */
         }
-        break;
-
-      case '/quit':
-        clearMessages();
-            currentSessionId.set(null);
-        currentMode.set('normal');
-        await createNewSession('normal');
-        break;
-
-      case '/delete':
-        await handleDelete();
-        break;
+        return;
 
       case '/sessions':
         sidebarOpen.set(true);
-        break;
+        return;
 
       case '/export':
         exportSession();
-        break;
-
-      default:
-        addSystemMessage(`Unknown command: \`${command}\`\nType \`/help\` for available commands.`);
-        break;
+        return;
     }
-  }
 
-  async function showStatus() {
-    try {
-      const s = await getStatus();
-      const shield = s.shield;
-      const shieldLine = shield
-        ? `Shield: ${shield.active ? 'Active' : 'Down'} · Tier 2: ${shield.tier2_used}/${shield.tier2_budget} calls today`
-        : 'Shield: Unknown';
-      const msgCount = $messages.length;
-      const sb = s.sandbox;
-      const sandboxLine = sb?.active
-        ? `Sandbox: ${sb.mode}${sb.version ? ' v' + sb.version : ''} · Filesystem: ${sb.filesystem ? 'restricted' : 'open'} · Network: ${sb.network ? 'restricted' : 'open'}`
-        : `Sandbox: Inactive${sb?.reason ? ' (' + sb.reason + ')' : ''}`;
-
-      addSystemMessage(`**System Status**
-- **Session:** ${msgCount} messages
-- **Model:** ${s.model || 'Not configured'}
-- **${shieldLine}**
-- **${sandboxLine}**
-- **Workspace:** ${s.workspace || 'Unknown'}`);
-    } catch {
-      addSystemMessage('Failed to fetch system status. Engine may be unreachable.');
-    }
-  }
-
-  async function handleDelete() {
+    // All other commands go to the backend registry via WebSocket.
     const sid = $currentSessionId;
-    if (!sid) {
-      addSystemMessage('No active session to delete.');
-      return;
+    if (sid) {
+      sendCommand(sid, cmd);
+    } else {
+      addSystemMessage('No active session.');
     }
-    addSystemMessage('Delete this session and all its messages? This cannot be undone.\nType `/delete confirm` to proceed.');
-    pendingDelete = sid;
-  }
-
-  let pendingDelete: string | null = null;
-
-  $: if (text.trim() === '/delete confirm' && pendingDelete) {
-    (async () => {
-      const sid = pendingDelete;
-      pendingDelete = null;
-      text = '';
-      try {
-        await deleteSession(sid);
-        sessions.update(s => s.filter(sess => sess.id !== sid));
-        clearMessages();
-            currentSessionId.set(null);
-        currentMode.set('normal');
-        addSystemMessage('Session deleted.');
-        await createNewSession('normal');
-      } catch {
-        addSystemMessage('Failed to delete session.');
-      }
-    })();
   }
 
   function exportSession() {

@@ -197,16 +197,17 @@ func (a *Adapter) processMessage(ctx context.Context, msg whatsappMessage) {
 		return
 	}
 
-	mode := types.SessionNormal
-	if text == "/new" {
-		a.manager.ResetSession("whatsapp", from)
-		_ = a.SendMessage(from, &channels.ChannelMessage{Text: "New session started."})
-		return
-	}
-	if text == "/otr" {
-		mode = types.SessionOTR
+	if strings.HasPrefix(text, "/") {
+		if response, action, handled := a.manager.HandleCommand("whatsapp", from, text, "whatsapp"); handled {
+			if response != "" {
+				_ = a.SendMessage(from, &channels.ChannelMessage{Text: response})
+			}
+			_ = action
+			return
+		}
 	}
 
+	mode := types.SessionNormal
 	response, err := a.manager.HandleMessage(ctx, "whatsapp", from, text, mode)
 	if err != nil {
 		a.log.Error("whatsapp_error", "from", from, "error", err)

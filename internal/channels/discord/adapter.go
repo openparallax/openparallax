@@ -175,17 +175,18 @@ func (a *Adapter) handleMessage(_ *discordgo.Session, m *discordgo.MessageCreate
 	}
 
 	chatID := m.ChannelID
+
+	if strings.HasPrefix(text, "/") {
+		if response, action, handled := a.manager.HandleCommand("discord", chatID, text, "discord"); handled {
+			if response != "" {
+				_, _ = a.session.ChannelMessageSend(chatID, response)
+			}
+			_ = action
+			return
+		}
+	}
+
 	mode := types.SessionNormal
-
-	if text == "/new" {
-		a.manager.ResetSession("discord", chatID)
-		_, _ = a.session.ChannelMessageSend(chatID, "New session started.")
-		return
-	}
-	if text == "/otr" {
-		mode = types.SessionOTR
-	}
-
 	go func() {
 		response, err := a.manager.HandleMessage(a.ctx, "discord", chatID, text, mode)
 		if err != nil {

@@ -50,7 +50,7 @@ func (sm *SkillManager) DiscoverySummary() string {
 
 	var lines []string
 	for _, s := range sm.skills {
-		lines = append(lines, fmt.Sprintf("- **%s**: %s", s.Name, s.Description))
+		lines = append(lines, fmt.Sprintf("- %s: %s", s.Name, s.Description))
 	}
 
 	return fmt.Sprintf(`# Custom Skills

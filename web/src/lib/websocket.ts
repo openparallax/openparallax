@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { connected, reconnecting } from '../stores/connection';
 import { currentSessionId } from '../stores/session';
-import { appendToken, addToolCallWithFlush, updateToolCallVerdict, completeToolCall, finalizeResponse, setStreaming, startNewStream, clearStreamingText, addTier3Request } from '../stores/messages';
+import { appendToken, addToolCallWithFlush, updateToolCallVerdict, completeToolCall, finalizeResponse, setStreaming, startNewStream, clearStreamingText, addTier3Request, addSystemMessage } from '../stores/messages';
 import { addSubAgent, updateSubAgentProgress, completeSubAgent, failSubAgent, cancelSubAgent } from '../stores/subagents';
 import { addLogEntry } from '../stores/console';
 import type { WSEvent } from './types';
@@ -145,6 +145,12 @@ function handleEvent(event: WSEvent) {
       break;
 
     case 'session_created':
+    case 'command_result':
+      if ((event as any).text) {
+        addSystemMessage((event as any).text);
+      }
+      break;
+
     case 'pong':
       break;
   }
@@ -165,6 +171,11 @@ export function sendMessage(sessionId: string, content: string, mode: string = '
 export function sendPing() {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify({ type: 'ping' }));
+}
+
+export function sendCommand(sessionId: string, content: string) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'command', session_id: sessionId, content }));
 }
 
 export function sendCancel(sessionId: string) {

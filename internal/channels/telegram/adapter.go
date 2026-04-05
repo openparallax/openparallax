@@ -181,33 +181,19 @@ func (a *Adapter) handleUpdate(ctx context.Context, update telegramUpdate) {
 		return
 	}
 
-	// Handle slash commands.
-	mode := types.SessionNormal
-	switch {
-	case text == "/new" || text == "/new@"+a.botUsername():
-		a.manager.ResetSession("telegram", chatID)
-		_ = a.apiCall("sendMessage", map[string]any{
-			"chat_id": chatID,
-			"text":    "New session started.",
-		})
-		return
-	case text == "/otr" || text == "/otr@"+a.botUsername():
-		mode = types.SessionOTR
-		text = "Start OTR session"
-	case text == "/help" || text == "/help@"+a.botUsername():
-		_ = a.apiCall("sendMessage", map[string]any{
-			"chat_id": chatID,
-			"text":    "Commands: /new (new session), /otr (off the record), /status (agent status), /help (this message)",
-		})
-		return
-	case text == "/status" || text == "/status@"+a.botUsername():
-		text = "What is your current status?"
-	case strings.HasPrefix(text, "/"):
-		// Unknown command — ignore.
-		return
+	// Handle slash commands via centralized registry.
+	if strings.HasPrefix(text, "/") {
+		if response, action, handled := a.manager.HandleCommand("telegram", chatID, text, "telegram"); handled {
+			if response != "" {
+				_ = a.apiCall("sendMessage", map[string]any{"chat_id": chatID, "text": response})
+			}
+			_ = action
+			return
+		}
 	}
 
 	// Route to engine.
+	mode := types.SessionNormal
 	response, err := a.manager.HandleMessage(ctx, "telegram", chatID, text, mode)
 	if err != nil {
 		a.log.Error("telegram_pipeline_error", "chat_id", chatID, "error", err)
@@ -251,10 +237,6 @@ func (a *Adapter) checkRateLimit(userID int64) bool {
 	recent = append(recent, now)
 	a.rateLimits.Store(key, recent)
 	return true
-}
-
-func (a *Adapter) botUsername() string {
-	return "" // Not critical for command matching.
 }
 
 // --- Telegram Bot API ---
