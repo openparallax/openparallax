@@ -35,15 +35,17 @@ func (r *Registry) registerAll() {
 		Execute:     cmdUsage,
 	})
 
-	// Tier 2 — Session management (all channels).
+	// Tier 2 — Session management (messaging channels + CLI only).
 	r.Register(&Command{
 		Name:        "sessions",
 		Description: "List recent sessions",
+		Channels:    []Channel{ChannelCLI, ChannelTelegram, ChannelDiscord, ChannelWhatsApp, ChannelSignal, ChannelIMessage},
 		Execute:     cmdSessions,
 	})
 	r.Register(&Command{
 		Name:        "switch",
 		Description: "Switch to a session by ID prefix",
+		Channels:    []Channel{ChannelCLI, ChannelTelegram, ChannelDiscord, ChannelWhatsApp, ChannelSignal, ChannelIMessage},
 		Execute:     cmdSwitch,
 	})
 	r.Register(&Command{
