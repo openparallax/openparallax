@@ -89,13 +89,16 @@ func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict 
 		case err != nil && g.cfg.FailClosed:
 			g.cfg.Log.Warn("shield_tier1_error", "action", action.Type, "error", err)
 			return g.block(action, 1, 0.5, "classifier error: "+err.Error())
-		case err == nil && t1Result.Decision == VerdictBlock:
+		case err != nil:
+			g.cfg.Log.Warn("shield_tier1_error_failopen", "action", action.Type, "error", err)
+			// Continue to Tier 2 evaluation.
+		case t1Result.Decision == VerdictBlock:
 			g.cfg.Log.Info("shield_tier1_block", "action", action.Type, "reason", t1Result.Reason)
 			return g.blockResult(action, 1, t1Result.Confidence, t1Result.Reason)
-		case err == nil && t1Result.Decision == VerdictEscalate:
+		case t1Result.Decision == VerdictEscalate:
 			g.cfg.Log.Info("shield_tier1_escalate", "action", action.Type, "reason", t1Result.Reason)
 			// Fall through to Tier 2.
-		case err == nil && minTier < 2:
+		case minTier < 2:
 			g.cfg.Log.Info("shield_tier1_allow", "action", action.Type, "confidence", t1Result.Confidence)
 			return g.allow(action, 1, t1Result.Confidence, "classifier approved")
 		}
@@ -115,6 +118,7 @@ func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict 
 		if g.cfg.FailClosed {
 			return g.block(action, 2, 0.5, "daily evaluation budget exhausted")
 		}
+		return g.allow(action, 1, 0.4, "budget exhausted (fail-open)")
 	}
 
 	t2Result, err := g.cfg.Evaluator.Evaluate(ctx, action)
@@ -123,6 +127,8 @@ func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict 
 			g.cfg.Log.Warn("shield_tier2_error", "action", action.Type, "error", err)
 			return g.block(action, 2, 0.5, "evaluator error: "+err.Error())
 		}
+		g.cfg.Log.Warn("shield_tier2_error_failopen", "action", action.Type, "error", err)
+		return g.allow(action, 1, 0.3, "evaluator error (fail-open): "+err.Error())
 	}
 
 	g.cfg.Log.Info("shield_tier2_result", "action", action.Type, "decision", t2Result.Decision, "confidence", t2Result.Confidence)

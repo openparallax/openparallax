@@ -2,10 +2,12 @@ package shield
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/openparallax/openparallax/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -127,6 +129,113 @@ func TestRateLimiterBasic(t *testing.T) {
 	assert.True(t, rl.Allow())
 	assert.True(t, rl.Allow())
 	assert.False(t, rl.Allow(), "should be rate limited after 3 calls")
+}
+
+// failingLLM is a mock LLM provider that always returns an error on Complete.
+type failingLLM struct{}
+
+func (failingLLM) Complete(context.Context, string, ...llm.Option) (string, error) {
+	return "", fmt.Errorf("connection refused")
+}
+func (failingLLM) CompleteWithHistory(context.Context, []llm.ChatMessage, ...llm.Option) (string, error) {
+	return "", fmt.Errorf("connection refused")
+}
+func (failingLLM) Stream(context.Context, string, ...llm.Option) (llm.StreamReader, error) {
+	return nil, fmt.Errorf("connection refused")
+}
+func (failingLLM) StreamWithHistory(context.Context, []llm.ChatMessage, ...llm.Option) (llm.StreamReader, error) {
+	return nil, fmt.Errorf("connection refused")
+}
+func (failingLLM) StreamWithTools(context.Context, []llm.ChatMessage, []llm.ToolDefinition, ...llm.Option) (llm.ToolStreamReader, error) {
+	return nil, fmt.Errorf("connection refused")
+}
+func (failingLLM) EstimateTokens(string) int      { return 0 }
+func (failingLLM) Name() string                    { return "failing" }
+func (failingLLM) Model() string                   { return "fail" }
+func (failingLLM) CheapestModel() string           { return "fail" }
+
+// newFailOpenGateway creates a Gateway with FailClosed=false, a working policy
+// and classifier, and a Tier 2 evaluator backed by a failing LLM.
+func newFailOpenGateway(t *testing.T) *Gateway {
+	t.Helper()
+	policy, err := NewPolicyEngine(policyPath(t))
+	require.NoError(t, err)
+
+	classifier := NewDualClassifier(nil, 0.85, true)
+
+	evaluator := &Evaluator{
+		llm:         failingLLM{},
+		prompt:      "test",
+		canaryToken: "0000000000000000000000000000000000000000000000000000000000000000",
+		promptHash:  "testhash",
+	}
+
+	return NewGateway(GatewayConfig{
+		Policy:      policy,
+		Classifier:  classifier,
+		Evaluator:   evaluator,
+		FailClosed:  false,
+		RateLimit:   100,
+		VerdictTTL:  60,
+		DailyBudget: 100,
+		Log:         nopLogger{},
+	})
+}
+
+func TestGatewayTier2ErrorFailOpen(t *testing.T) {
+	gw := newFailOpenGateway(t)
+
+	// SOUL.md write escalates to Tier 2 via policy, evaluator fails — should
+	// not panic, should return ALLOW with reduced confidence.
+	v := gw.Evaluate(context.Background(), &ActionRequest{
+		Type:    ActionWriteFile,
+		Payload: map[string]any{"path": "SOUL.md", "content": "new content"},
+		Hash:    "testhash",
+	})
+	assert.Equal(t, VerdictAllow, v.Decision, "should allow with reduced confidence, not panic")
+	assert.Less(t, v.Confidence, 0.5, "confidence should be reduced")
+	assert.Contains(t, v.Reasoning, "fail-open")
+}
+
+func TestGatewayBudgetExhaustedFailOpen(t *testing.T) {
+	policy, err := NewPolicyEngine(policyPath(t))
+	require.NoError(t, err)
+
+	classifier := NewDualClassifier(nil, 0.85, true)
+	evaluator := &Evaluator{
+		llm:         failingLLM{},
+		prompt:      "test",
+		canaryToken: "0000000000000000000000000000000000000000000000000000000000000000",
+		promptHash:  "testhash",
+	}
+
+	gw := NewGateway(GatewayConfig{
+		Policy:      policy,
+		Classifier:  classifier,
+		Evaluator:   evaluator,
+		FailClosed:  false,
+		RateLimit:   100,
+		VerdictTTL:  60,
+		DailyBudget: 1, // Budget of 1 — exhausted after first eval.
+		Log:         nopLogger{},
+	})
+
+	// First call exhausts the budget (SOUL.md write → Tier 2).
+	gw.Evaluate(context.Background(), &ActionRequest{
+		Type:    ActionWriteFile,
+		Payload: map[string]any{"path": "SOUL.md", "content": "first"},
+		Hash:    "hash1",
+	})
+
+	// Second call — budget exhausted, should return ALLOW with reduced
+	// confidence, not continue to evaluate.
+	v := gw.Evaluate(context.Background(), &ActionRequest{
+		Type:    ActionWriteFile,
+		Payload: map[string]any{"path": "SOUL.md", "content": "second"},
+		Hash:    "hash2",
+	})
+	assert.Equal(t, VerdictAllow, v.Decision)
+	assert.Contains(t, v.Reasoning, "budget exhausted")
 }
 
 func TestGatewayNoMatchProceedsToTier1(t *testing.T) {
