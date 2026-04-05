@@ -806,12 +806,6 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 		})
 	}
 
-	// Log to daily action log.
-	e.memory.LogAction(
-		[]*memory.ActionEntry{{Type: string(action.Type)}},
-		[]*memory.ResultEntry{{Success: result.Success, Summary: result.Summary}},
-	)
-
 	content := result.Output
 	if !result.Success {
 		content = result.Error
@@ -959,8 +953,7 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 
 	// Main orchestration loop.
 	var toolResults []llm.ToolResult
-	var executedActions []*memory.ActionEntry
-	var executedResults []*memory.ResultEntry
+	var toolsExecuted int
 	var thoughts []types.Thought
 	var reasoningBuf strings.Builder
 	rounds := 0
@@ -1052,8 +1045,7 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 				Detail:  tcDetail,
 			})
 
-			executedActions = append(executedActions, &memory.ActionEntry{Type: tc.Name})
-			executedResults = append(executedResults, &memory.ResultEntry{Success: !result.IsError, Summary: executors.Truncate(result.Content, 100)})
+			toolsExecuted++
 		}
 	}
 
@@ -1062,7 +1054,7 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 
 	e.log.Info("response_complete", "session", sid, "rounds", rounds,
 		"response_len", len(fullResponse), "thoughts", len(thoughts),
-		"tools_executed", len(executedActions))
+		"tools_executed", toolsExecuted)
 
 	// Store assistant message with thoughts (reasoning + tool calls).
 	assistantMsg := &types.Message{
@@ -1079,10 +1071,6 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 		Type:             EventResponseComplete,
 		ResponseComplete: &ResponseCompleteEvent{Content: fullResponse, Thoughts: thoughts},
 	})
-
-	if !isOTR && len(executedActions) > 0 {
-		e.memory.LogAction(executedActions, executedResults)
-	}
 
 	// Generate a session title once there's enough context (3+ exchanges).
 	// Runs once — after that the title sticks.

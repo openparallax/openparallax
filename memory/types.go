@@ -81,17 +81,3 @@ var AllFiles = []FileType{
 
 // ErrFileNotFound indicates a memory file does not exist in the workspace.
 var ErrFileNotFound = errors.New("memory file not found")
-
-// ActionEntry is the minimal action data needed for daily log entries.
-type ActionEntry struct {
-	// Type is the action type identifier (e.g. "read_file", "execute_command").
-	Type string
-}
-
-// ResultEntry is the minimal result data needed for daily log entries.
-type ResultEntry struct {
-	// Success indicates whether the action succeeded.
-	Success bool
-	// Summary is a one-line description of the result.
-	Summary string
-}

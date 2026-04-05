@@ -75,32 +75,6 @@ func (m *Manager) Search(query string, limit int) ([]SearchResult, error) {
 	return m.store.SearchMemory(query, limit)
 }
 
-// LogAction appends one-line entries to the daily log after each action.
-func (m *Manager) LogAction(actions []*ActionEntry, results []*ResultEntry) {
-	today := time.Now().Format("2006-01-02")
-	logDir := filepath.Join(m.workspace, "memory")
-	_ = os.MkdirAll(logDir, 0o755)
-	logPath := filepath.Join(logDir, today+".md")
-
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	timeStr := time.Now().Format("15:04:05")
-	for i, action := range actions {
-		if i < len(results) {
-			result := results[i]
-			status := "OK"
-			if !result.Success {
-				status = "FAILED"
-			}
-			_, _ = fmt.Fprintf(f, "- %s > %s: %s > %s\n", timeStr, action.Type, result.Summary, status)
-		}
-	}
-}
-
 // SummarizeSession generates a 2-3 bullet summary and appends it to MEMORY.md.
 func (m *Manager) SummarizeSession(ctx context.Context, sessionTitle string, messages []llm.ChatMessage) error {
 	if len(messages) < 2 {
@@ -118,17 +92,30 @@ func (m *Manager) SummarizeSession(ctx context.Context, sessionTitle string, mes
 	}
 
 	summary, err := m.llm.Complete(ctx, fmt.Sprintf(
-		`Summarize this conversation in 2-3 concise bullet points. Focus on:
-- Decisions made
-- Facts learned about the user
-- Tasks completed or still in progress
+		`Extract the most useful facts from this conversation as 2-5 bullet points.
 
-Be brief. Use "- " for each bullet point.
+Capture SPECIFIC details that would be valuable in future conversations:
+- Names, URLs, file paths, project names, API keys (masked), versions mentioned
+- User preferences and decisions ("prefers X over Y", "chose to use Z")
+- Technical facts ("database is PostgreSQL 16", "API rate limit is 100/min")
+- Tasks started but not finished, with enough context to resume
+- Corrections the user made ("don't do X because Y")
+
+Rules:
+- Be concrete. "Set up project" is useless. "Created Next.js app 'acme-dashboard' at ~/projects/" is useful.
+- Skip greetings, small talk, and anything obvious from the code itself.
+- If nothing specific is worth remembering, respond with exactly "NONE".
+- Use "- " for each bullet point.
 
 Conversation:
-%s`, conv.String()), llm.WithMaxTokens(300))
+%s`, conv.String()), llm.WithMaxTokens(500))
 	if err != nil {
 		return err
+	}
+
+	trimmed := strings.TrimSpace(summary)
+	if trimmed == "" || strings.EqualFold(trimmed, "NONE") {
+		return nil
 	}
 
 	header := fmt.Sprintf("\n## %s", time.Now().Format("2006-01-02"))

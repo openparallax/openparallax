@@ -185,6 +185,7 @@ func (db *DB) ListArtifacts() ([]types.Artifact, error) {
 // SearchSessionResult is a session search match with optional content snippet.
 type SearchSessionResult struct {
 	SessionID string `json:"session_id"`
+	MessageID string `json:"message_id,omitempty"`
 	Title     string `json:"title"`
 	MatchType string `json:"match_type"`
 	Snippet   string `json:"snippet,omitempty"`
@@ -219,7 +220,7 @@ func (db *DB) SearchSessions(query string, limit int) ([]SearchSessionResult, er
 
 	if len(results) < limit {
 		contentRows, err := db.conn.Query(
-			`SELECT m.session_id, COALESCE(s.title, ''), SUBSTR(m.content, MAX(1, INSTR(LOWER(m.content), LOWER(?)) - 30), 80)
+			`SELECT m.id, m.session_id, COALESCE(s.title, ''), SUBSTR(m.content, MAX(1, INSTR(LOWER(m.content), LOWER(?)) - 30), 80)
 			 FROM messages m JOIN sessions s ON s.id = m.session_id
 			 WHERE s.mode = 'normal' AND m.content LIKE ?
 			 ORDER BY m.timestamp DESC LIMIT ?`,
@@ -228,11 +229,11 @@ func (db *DB) SearchSessions(query string, limit int) ([]SearchSessionResult, er
 		if err == nil {
 			defer func() { _ = contentRows.Close() }()
 			for contentRows.Next() {
-				var sid, title, snippet string
-				if err := contentRows.Scan(&sid, &title, &snippet); err == nil && !seen[sid] {
+				var mid, sid, title, snippet string
+				if err := contentRows.Scan(&mid, &sid, &title, &snippet); err == nil && !seen[sid] {
 					seen[sid] = true
 					results = append(results, SearchSessionResult{
-						SessionID: sid, Title: title, MatchType: "content", Snippet: snippet,
+						SessionID: sid, MessageID: mid, Title: title, MatchType: "content", Snippet: snippet,
 					})
 				}
 			}

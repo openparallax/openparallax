@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { MessageSquare, FileText, Eye, Plus, Settings, ChevronDown, RotateCw, Search } from 'lucide-svelte';
-  import { sessions, currentSessionId, currentMode } from '../stores/session';
+  import { sessions, currentSessionId, currentMode, scrollToMessageId } from '../stores/session';
   import { activeNavItem, settingsOpen, sidebarOpen } from '../stores/settings';
   import { clearMessages, loadMessages } from '../stores/messages';
   import { clearArtifactTabs } from '../stores/artifacts';
   import { listSessions, createSession, getMessages, searchSessions, getStatus } from '../lib/api';
 
   let sessionSearch = '';
-  let searchResults: { session_id: string; title: string; match_type: string; snippet?: string }[] | null = null;
+  let searchResults: { session_id: string; message_id?: string; title: string; match_type: string; snippet?: string }[] | null = null;
   let searchTimer: ReturnType<typeof setTimeout>;
 
   function handleSessionSearch() {
@@ -103,8 +103,8 @@
     }
   }
 
-  async function switchToSession(id: string) {
-    if (id === $currentSessionId) return;
+  async function switchToSession(id: string, messageId?: string) {
+    if (id === $currentSessionId && !messageId) return;
     const prevOTR = $currentMode === 'otr' ? $currentSessionId : null;
     const target = $sessions.find(s => s.id === id);
     currentSessionId.set(id);
@@ -115,6 +115,9 @@
     clearArtifactTabs();
     if (prevOTR && prevOTR !== id) {
       sessions.update(s => s.filter(sess => sess.id !== prevOTR));
+    }
+    if (messageId) {
+      scrollToMessageId.set(messageId);
     }
     try {
       const msgs = await getMessages(id);
@@ -187,7 +190,7 @@
         <div class="search-empty">No matches</div>
       {:else}
         {#each searchResults as result (result.session_id)}
-          <button class="search-result" on:click={() => { switchToSession(result.session_id); sessionSearch = ''; searchResults = null; }}>
+          <button class="search-result" on:click={() => { switchToSession(result.session_id, result.message_id); sessionSearch = ''; searchResults = null; }}>
             <div class="search-result-title">{result.title || 'Untitled'}</div>
             {#if result.snippet}
               <div class="search-result-snippet">...{result.snippet}...</div>

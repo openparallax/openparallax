@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { afterUpdate, onMount } from 'svelte';
+  import { afterUpdate, onMount, tick } from 'svelte';
   import { ChevronDown, X } from 'lucide-svelte';
   import { messages, pendingSteps, streaming, streamingText, pendingApprovals, removeTier3Request } from '../stores/messages';
+  import { scrollToMessageId } from '../stores/session';
   import { logEntries } from '../stores/console';
   import { artifactPanelOpen, activeTab, artifactPanelView } from '../stores/artifacts';
   import { getStatus } from '../lib/api';
@@ -63,10 +64,26 @@
     artifactPanelOpen.set(false);
   }
 
-  afterUpdate(() => {
+  afterUpdate(async () => {
     if (!messagesEl) return;
     const count = $messages.length;
     const delta = count - prevMessageCount;
+
+    // Scroll to a specific message from search results.
+    const targetId = $scrollToMessageId;
+    if (targetId && delta > 0) {
+      await tick();
+      const el = document.getElementById('msg-' + targetId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('highlight-flash');
+        setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+        scrollToMessageId.set(null);
+      }
+      prevMessageCount = count;
+      return;
+    }
+
     if (delta > 2) {
       messagesEl.scrollTop = messagesEl.scrollHeight;
     } else if (delta > 0 || $streaming) {
@@ -127,7 +144,7 @@
           </div>
         {/if}
         {#each $messages as msg (msg.id)}
-          <div class="msg-group">
+          <div class="msg-group" id="msg-{msg.id}">
             {#if msg.role === 'assistant' && msg.thoughts && msg.thoughts.length > 0}
               <ToolCallEnvelope thoughts={msg.thoughts} />
             {/if}
@@ -392,6 +409,19 @@
   .msg-group {
     display: flex;
     flex-direction: column;
+  }
+
+  .msg-group :global(.highlight-flash) {
+    animation: search-highlight 2s ease-out;
+  }
+
+  @keyframes search-highlight {
+    0%, 30% { background: var(--accent-ghost); border-radius: 6px; }
+    100% { background: transparent; }
+  }
+
+  :global(.highlight-flash) {
+    animation: search-highlight 2s ease-out;
   }
 
   /* --- Empty state --- */
