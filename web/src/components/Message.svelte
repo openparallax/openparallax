@@ -28,8 +28,11 @@
     if (target.tagName === 'A' || target.closest('a')) return;
     e.preventDefault();
     showContextMenu = true;
-    menuX = e.clientX;
-    menuY = e.clientY;
+    // Clamp to viewport so the menu doesn't overflow off-screen.
+    const menuW = 160;
+    const menuH = 40;
+    menuX = Math.min(e.clientX, window.innerWidth - menuW);
+    menuY = Math.min(e.clientY, window.innerHeight - menuH);
   }
 
   function closeMenu() {
@@ -207,14 +210,14 @@
   }
 
   .system-message {
-    animation: msg-in 300ms ease-out;
+    opacity: 0.5;
   }
 
   .system-bubble {
-    padding: 4px 0;
-    font-size: 11px;
+    padding: 2px 0;
+    font-size: 10px;
     font-style: italic;
-    line-height: 1.6;
+    line-height: 1.5;
     color: var(--text-tertiary);
     font-family: 'JetBrains Mono', monospace;
   }

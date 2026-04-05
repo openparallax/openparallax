@@ -109,7 +109,7 @@
     }
   }
 
-  $: messageCount = $messages.length;
+  $: messageCount = $messages.filter(m => m.role !== 'system').length;
 
   $: totalTokens = $logEntries
     .filter(e => e.event && e.event.includes('llm'))
