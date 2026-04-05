@@ -14,10 +14,12 @@ import (
 
 // LoopConfig configures the reasoning loop.
 type LoopConfig struct {
-	Provider      llm.Provider
-	Agent         *Agent
-	MaxRounds     int
-	ContextWindow int
+	Provider            llm.Provider
+	Agent               *Agent
+	MaxRounds           int
+	ContextWindow       int
+	CompactionThreshold int // percentage (0-100), default 70
+	MaxResponseTokens   int // default 4096
 }
 
 // ToolProposal is a tool call the LLM wants to make.
@@ -130,9 +132,13 @@ func RunLoop(
 	if contextWindow <= 0 {
 		contextWindow = 128000
 	}
-	contextBudget := contextWindow - systemTokens - 4096
-	if contextBudget < 4096 {
-		contextBudget = 4096
+	maxResponseTokens := cfg.MaxResponseTokens
+	if maxResponseTokens <= 0 {
+		maxResponseTokens = 4096
+	}
+	contextBudget := contextWindow - systemTokens - maxResponseTokens
+	if contextBudget < maxResponseTokens {
+		contextBudget = maxResponseTokens
 	}
 
 	historyTokens := 0
@@ -141,7 +147,11 @@ func RunLoop(
 	}
 	usagePercent := float64(historyTokens) / float64(contextBudget) * 100
 
-	if usagePercent >= 70 {
+	compactionThreshold := cfg.CompactionThreshold
+	if compactionThreshold <= 0 {
+		compactionThreshold = 70
+	}
+	if usagePercent >= float64(compactionThreshold) {
 		// Compact in-memory. The compactor may flush facts — we intercept
 		// that by using a memory-flush callback instead of direct writes.
 		history, _ = cfg.Agent.CompactHistory(ctx, history, contextBudget)
@@ -159,7 +169,7 @@ func RunLoop(
 
 	// Start LLM stream.
 	toolStream, err := cfg.Provider.StreamWithTools(ctx, messages, tools,
-		llm.WithSystem(systemPrompt), llm.WithMaxTokens(4096))
+		llm.WithSystem(systemPrompt), llm.WithMaxTokens(maxResponseTokens))
 	if err != nil {
 		emit(LoopEvent{Type: EventLoopError, ErrorCode: "LLM_CALL_FAILED", ErrorMessage: err.Error()})
 		return

@@ -147,8 +147,32 @@ func (a *EngineAdapter) ConfigSummary() string {
 	return strings.Join(lines, "\n")
 }
 
-// ConfigSet updates a config value.
+// readOnlyKeys are config keys that cannot be changed via /config set.
+// They must be edited directly in config.yaml for safety.
+var readOnlyKeys = map[string]bool{
+	"general.fail_closed":          true,
+	"general.rate_limit":           true,
+	"general.daily_budget":         true,
+	"general.verdict_ttl_seconds":  true,
+	"agents.max_tool_rounds":       true,
+	"agents.context_window":        true,
+	"agents.compaction_threshold":  true,
+	"agents.max_response_tokens":   true,
+	"shield.policy_file":           true,
+	"shield.onnx_threshold":        true,
+	"shield.heuristic_enabled":     true,
+	"web.host":                     true,
+	"web.port":                     true,
+	"web.password_hash":            true,
+}
+
+// ConfigSet updates a config value. Security-sensitive and pipeline
+// parameters are read-only — they must be edited directly in config.yaml.
 func (a *EngineAdapter) ConfigSet(key, value string) (bool, error) {
+	if readOnlyKeys[key] {
+		return false, fmt.Errorf("%s is read-only — edit config.yaml directly", key)
+	}
+
 	cfg := a.Engine.Config()
 	restart := false
 

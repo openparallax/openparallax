@@ -166,11 +166,21 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("send ready: %w", sendErr)
 	}
 
+	maxRounds := cfg.Agents.MaxToolRounds
+	if maxRounds <= 0 {
+		maxRounds = 25
+	}
+	contextWindow := cfg.Agents.ContextWindow
+	if contextWindow <= 0 {
+		contextWindow = 128000
+	}
 	loopCfg := agent.LoopConfig{
-		Provider:      provider,
-		Agent:         ag,
-		MaxRounds:     25,
-		ContextWindow: 128000,
+		Provider:            provider,
+		Agent:               ag,
+		MaxRounds:           maxRounds,
+		ContextWindow:       contextWindow,
+		CompactionThreshold: cfg.Agents.CompactionThreshold,
+		MaxResponseTokens:   cfg.Agents.MaxResponseTokens,
 	}
 
 	// directiveCh carries tool results from the stream reader to the active

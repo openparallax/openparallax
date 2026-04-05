@@ -32,10 +32,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-// maxToolRounds limits the number of tool-call round-trips per message
-// to prevent infinite loops.
-const maxToolRounds = 25
-
 // Engine is the execution engine and gRPC server.
 type Engine struct {
 	pb.UnimplementedAgentServiceServer

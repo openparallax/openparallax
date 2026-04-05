@@ -18,6 +18,11 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("web.port", 3100)
 	v.SetDefault("web.auth", true)
 
+	v.SetDefault("agents.max_tool_rounds", 25)
+	v.SetDefault("agents.context_window", 128000)
+	v.SetDefault("agents.compaction_threshold", 70)
+	v.SetDefault("agents.max_response_tokens", 4096)
+
 	v.SetDefault("general.fail_closed", true)
 	v.SetDefault("general.rate_limit", 30)
 	v.SetDefault("general.verdict_ttl_seconds", 60)

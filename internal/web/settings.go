@@ -126,17 +126,12 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Shield — budget is immediate, evaluator is restart.
+	// Shield — evaluator provider/model require restart.
+	// Budget and policy are read-only (edit config.yaml directly).
 	if shieldMap, ok := body["shield"].(map[string]any); ok {
-		if budget, ok := shieldMap["tier2_budget"].(float64); ok {
-			b := int(budget)
-			if b < 10 || b > 500 {
-				writeError(w, http.StatusBadRequest, "tier2_budget must be 10-500")
-				return
-			}
-			s.engine.UpdateShieldBudget(b)
-			changed = append(changed, "shield.tier2_budget")
-			immediate = append(immediate, "shield.tier2_budget")
+		if _, hasBudget := shieldMap["tier2_budget"]; hasBudget {
+			writeError(w, http.StatusBadRequest, "tier2_budget is read-only — edit config.yaml directly")
+			return
 		}
 		if evalMap, ok := shieldMap["evaluator"].(map[string]any); ok {
 			if provider, ok := evalMap["provider"].(string); ok && provider != "" {
@@ -168,17 +163,11 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Web port — restart required.
+	// Web port is read-only (edit config.yaml directly).
 	if webMap, ok := body["web"].(map[string]any); ok {
-		if port, ok := webMap["port"].(float64); ok {
-			p := int(port)
-			if p < 1024 || p > 65535 {
-				writeError(w, http.StatusBadRequest, "port must be 1024-65535")
-				return
-			}
-			cfg.Web.Port = p
-			changed = append(changed, "web.port")
-			needsRestart = append(needsRestart, "web.port")
+		if _, hasPort := webMap["port"]; hasPort {
+			writeError(w, http.StatusBadRequest, "web.port is read-only — edit config.yaml directly")
+			return
 		}
 	}
 

@@ -349,6 +349,19 @@ type AgentsConfig struct {
 
 	// MaxRounds limits how many LLM calls each sub-agent can make (default 20).
 	MaxRounds int `yaml:"max_rounds,omitempty" json:"max_rounds,omitempty"`
+
+	// MaxToolRounds limits tool-call round-trips per message (default 25).
+	MaxToolRounds int `yaml:"max_tool_rounds,omitempty" json:"max_tool_rounds,omitempty"`
+
+	// ContextWindow is the assumed model context window in tokens (default 128000).
+	ContextWindow int `yaml:"context_window,omitempty" json:"context_window,omitempty"`
+
+	// CompactionThreshold is the percentage (0-100) of context budget usage
+	// that triggers history compaction (default 70).
+	CompactionThreshold int `yaml:"compaction_threshold,omitempty" json:"compaction_threshold,omitempty"`
+
+	// MaxResponseTokens is the max tokens per LLM response (default 4096).
+	MaxResponseTokens int `yaml:"max_response_tokens,omitempty" json:"max_response_tokens,omitempty"`
 }
 
 // ToolsConfig configures tool group availability.
