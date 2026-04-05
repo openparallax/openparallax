@@ -109,7 +109,7 @@ func RunLoop(
 		discoverySummary = cfg.Agent.Skills.DiscoverySummary()
 		loadedSkills = cfg.Agent.Skills.LoadedSkillBodies()
 	}
-	systemPrompt, err := cfg.Agent.Context.AssembleWithSkills(mode, discoverySummary, loadedSkills)
+	systemPrompt, err := cfg.Agent.Context.AssembleWithSkills(mode, content, discoverySummary, loadedSkills)
 	if err != nil {
 		emit(LoopEvent{Type: EventLoopError, ErrorCode: "CONTEXT_FAILED", ErrorMessage: err.Error()})
 		return

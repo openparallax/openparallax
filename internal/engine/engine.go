@@ -871,7 +871,7 @@ func (e *Engine) processMessageCore(ctx context.Context, sender EventSender, sid
 		discoverySummary = e.agent.Skills.DiscoverySummary()
 		loadedSkills = e.agent.Skills.LoadedSkillBodies()
 	}
-	systemPrompt, err := e.agent.Context.AssembleWithSkills(mode, discoverySummary, loadedSkills)
+	systemPrompt, err := e.agent.Context.AssembleWithSkills(mode, content, discoverySummary, loadedSkills)
 	if err != nil {
 		return e.sendErrorEvent(sender, sid, mid, "CONTEXT_FAILED", err.Error())
 	}

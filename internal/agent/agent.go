@@ -19,7 +19,7 @@ type Agent struct {
 // NewAgent creates an Agent.
 func NewAgent(provider llm.Provider, workspacePath string, mem *memory.Manager) *Agent {
 	return &Agent{
-		Context:   NewContextAssembler(workspacePath),
+		Context:   NewContextAssembler(workspacePath, mem),
 		Compactor: NewCompactor(provider, mem),
 		Skills:    NewSkillManager(workspacePath),
 	}
