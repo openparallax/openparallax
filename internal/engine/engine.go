@@ -403,8 +403,10 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		e.log.Info("agent_disconnected", "id", ready.AgentId)
 	}()
 
-	// Track tool calls produced during the current message.
+	// Track tool calls and timing for the current message.
 	var pendingThoughts []types.Thought
+	var msgStartTime time.Time
+	msgRounds := 0
 
 	// Read agent events in a loop.
 	for {
@@ -418,6 +420,9 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 
 		switch ev := event.Event.(type) {
 		case *pb.AgentEvent_LlmTokenEmitted:
+			if msgStartTime.IsZero() {
+				msgStartTime = time.Now()
+			}
 			e.broadcaster.Broadcast(&PipelineEvent{
 				SessionID: ev.LlmTokenEmitted.SessionId,
 				MessageID: ev.LlmTokenEmitted.MessageId,
@@ -426,6 +431,7 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 			})
 
 		case *pb.AgentEvent_ToolProposal:
+			msgRounds++
 			tp := ev.ToolProposal
 			result := e.handleToolProposal(ctx, tp)
 
@@ -532,6 +538,10 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 			e.mu.Unlock()
 
 			// Token usage always persists (cost tracking).
+			var durationMs int64
+			if !msgStartTime.IsZero() {
+				durationMs = time.Since(msgStartTime).Milliseconds()
+			}
 			if rc.Usage != nil {
 				_ = e.db.InsertLLMUsage(storage.LLMUsageEntry{
 					SessionID:           sid,
@@ -542,11 +552,17 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 					OutputTokens:        int(rc.Usage.OutputTokens),
 					CacheReadTokens:     int(rc.Usage.CacheReadTokens),
 					CacheCreationTokens: int(rc.Usage.CacheWriteTokens),
+					Rounds:              msgRounds,
+					DurationMs:          durationMs,
 				})
 				e.db.IncrementDailyMetric("llm_calls", 1)
 				e.db.IncrementDailyMetric("tokens_input", int(rc.Usage.InputTokens))
 				e.db.IncrementDailyMetric("tokens_output", int(rc.Usage.OutputTokens))
 			}
+
+			// Reset per-message state for the next message.
+			msgStartTime = time.Time{}
+			msgRounds = 0
 
 			// OTR: broadcast only, no DB writes.
 			if !isOTR {
