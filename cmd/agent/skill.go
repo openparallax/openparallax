@@ -182,7 +182,10 @@ func installSkillFromOfficial(dir, name string) error {
 	fmt.Printf("  Downloading skill %q...\n", name)
 	if dlErr := fetchFile(url, skillPath, 30*time.Second, true); dlErr != nil {
 		_ = os.RemoveAll(destPath)
-		return fmt.Errorf("skill %q not found in official repository", name)
+		if strings.Contains(dlErr.Error(), "404") {
+			return fmt.Errorf("skill %q is not available — the skills repository may be private or the skill does not exist", name)
+		}
+		return fmt.Errorf("skill %q download failed: %w", name, dlErr)
 	}
 
 	fmt.Printf("  ✓ Installed skill %q\n", name)

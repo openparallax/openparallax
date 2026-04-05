@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -120,6 +121,9 @@ func runMCPInstall(_ *cobra.Command, args []string) error {
 	fmt.Printf("  Downloading MCP server %q...\n", name)
 	if dlErr := fetchFile(url, binaryPath, 5*time.Minute, true); dlErr != nil {
 		_ = os.RemoveAll(destDir)
+		if strings.Contains(dlErr.Error(), "404") {
+			return fmt.Errorf("MCP server %q is not available — the repository may be private or the server does not exist yet", name)
+		}
 		return fmt.Errorf("download failed: %w", dlErr)
 	}
 
