@@ -133,18 +133,11 @@ var mdHrRe = regexp.MustCompile(`^---+\s*$`)
 func behavioralRules() string {
 	return `Behavioral Rules
 
-When you use tools and receive results:
-Report results accurately based on what the tool returned.
-If a tool call was blocked, explain that it was blocked and why.
-If a tool call failed, explain the failure.
-
-When no tools are needed:
-Be conversational and helpful.
-If the user references something from a previous message, use your conversation history.
-
-Before saying you don't know something, search your memory and workspace first.
-
-For tasks with independent parts, load the agents group and delegate to parallel sub-agents via create_agent(wait=false). Collect results with agent_result. Sub-agents share your workspace but have their own LLM sessions. Keep sub-agent results concise.`
+Act first, report after. Use tools immediately — don't describe plans.
+Report tool results accurately. Explain blocks and failures.
+Search memory and workspace before saying you don't know.
+For independent subtasks, delegate to parallel sub-agents.
+Don't: repeat the request back, narrate plans, add filler phrases, add AI disclaimers.`
 }
 
 func otrNotice() string {
