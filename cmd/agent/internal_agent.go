@@ -155,9 +155,13 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("open session stream: %w", err)
 	}
 
-	// Signal readiness.
+	// Signal readiness with auth token.
+	agentID := agentName
+	if token := os.Getenv("OPENPARALLAX_AGENT_TOKEN"); token != "" {
+		agentID = agentName + ":" + token
+	}
 	if sendErr := stream.Send(&pb.AgentEvent{
-		Event: &pb.AgentEvent_Ready{Ready: &pb.AgentReady{AgentId: agentName}},
+		Event: &pb.AgentEvent_Ready{Ready: &pb.AgentReady{AgentId: agentID}},
 	}); sendErr != nil {
 		return fmt.Errorf("send ready: %w", sendErr)
 	}

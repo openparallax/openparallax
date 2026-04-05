@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/channels"
 	"github.com/openparallax/openparallax/internal/channels/discord"
 	"github.com/openparallax/openparallax/internal/channels/imessage"
@@ -194,6 +195,8 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	if amErr := am.spawnAgent(); amErr != nil {
 		eng.Log().Error("agent_spawn_failed", "error", amErr)
 		// Fall through — the engine still serves the web UI even without the CLI agent.
+	} else {
+		eng.SetAgentAuthToken(am.authToken)
 	}
 
 	// Sandbox status is set from Probe() above. The agent verifies
@@ -237,6 +240,7 @@ type agentManager struct {
 	agentName string
 	workspace string
 	llmHost   string
+	authToken string
 
 	mu        sync.Mutex
 	cmd       *exec.Cmd
@@ -265,10 +269,18 @@ func (am *agentManager) spawnAgent() error {
 		return fmt.Errorf("cannot find own executable: %w", err)
 	}
 
+	// Generate ephemeral auth token for this agent instance.
+	token, tokenErr := crypto.RandomHex(16)
+	if tokenErr != nil {
+		return fmt.Errorf("generate agent auth token: %w", tokenErr)
+	}
+	am.authToken = token
+
 	am.cmd = exec.Command(executable, "internal-agent",
 		"--grpc", am.grpcAddr,
 		"--name", am.agentName,
 		"--workspace", am.workspace)
+	am.cmd.Env = append(os.Environ(), "OPENPARALLAX_AGENT_TOKEN="+token)
 
 	// Agent is headless — discard stdout/stderr to avoid pipe issues.
 	devNull, openErr := os.OpenFile(os.DevNull, os.O_WRONLY, 0)

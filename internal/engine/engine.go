@@ -74,6 +74,7 @@ type Engine struct {
 
 	sandboxStatus      sandboxInfo
 	heartbeatSessionID string
+	agentAuthToken     string
 
 	backgroundCtx    context.Context
 	backgroundCancel context.CancelFunc
@@ -421,7 +422,21 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 	if ready == nil {
 		return fmt.Errorf("expected AgentReady, got %T", firstEvent.Event)
 	}
-	e.log.Info("agent_connected", "id", ready.AgentId)
+
+	// Validate agent auth token.
+	agentID := ready.AgentId
+	e.mu.Lock()
+	expectedToken := e.agentAuthToken
+	e.mu.Unlock()
+	if expectedToken != "" {
+		parts := strings.SplitN(agentID, ":", 2)
+		if len(parts) != 2 || parts[1] != expectedToken {
+			e.log.Error("agent_auth_failed", "id", agentID)
+			return fmt.Errorf("agent authentication failed: invalid token")
+		}
+		agentID = parts[0]
+	}
+	e.log.Info("agent_connected", "id", agentID)
 
 	// Store the agent stream for forwarding messages.
 	e.mu.Lock()
@@ -431,7 +446,7 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		e.mu.Lock()
 		e.agentStream = nil
 		e.mu.Unlock()
-		e.log.Info("agent_disconnected", "id", ready.AgentId)
+		e.log.Info("agent_disconnected", "id", agentID)
 	}()
 
 	// Track tool calls and timing for the current message.
@@ -1854,6 +1869,13 @@ func (e *Engine) LogPath() string {
 
 // Audit returns the audit logger for recording security events.
 func (e *Engine) Audit() *audit.Logger { return e.audit }
+
+// SetAgentAuthToken sets the ephemeral token the agent must present on connect.
+func (e *Engine) SetAgentAuthToken(token string) {
+	e.mu.Lock()
+	e.agentAuthToken = token
+	e.mu.Unlock()
+}
 
 // AuditPath returns the path to the audit JSONL file.
 func (e *Engine) AuditPath() string {
