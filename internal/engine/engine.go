@@ -275,6 +275,30 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 	eng.backgroundCtx, eng.backgroundCancel = context.WithCancel(context.Background())
 
+	// Start llm_usage retention in background.
+	go func() {
+		if pruned, pruneErr := db.PruneLLMUsage(90); pruneErr != nil {
+			log.Warn("llm_usage_prune_failed", "error", pruneErr)
+		} else if pruned > 0 {
+			log.Info("llm_usage_pruned", "rows", pruned)
+		}
+
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-eng.backgroundCtx.Done():
+				return
+			case <-ticker.C:
+				if pruned, pruneErr := db.PruneLLMUsage(90); pruneErr != nil {
+					log.Warn("llm_usage_prune_failed", "error", pruneErr)
+				} else if pruned > 0 {
+					log.Info("llm_usage_pruned", "rows", pruned)
+				}
+			}
+		}
+	}()
+
 	// Start file watcher for automatic reindexing on memory file changes.
 	if watchErr := memory.StartWatcher(eng.backgroundCtx, cfg.Workspace, indexer, log); watchErr != nil {
 		log.Warn("memory_watcher_failed", "error", watchErr)

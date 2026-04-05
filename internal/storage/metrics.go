@@ -1,6 +1,9 @@
 package storage
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // LLMUsageEntry records token usage for a single LLM call.
 type LLMUsageEntry struct {
@@ -283,6 +286,65 @@ func (db *DB) getLifetimeMetrics() LifetimeMetrics {
 	}
 
 	return m
+}
+
+// PruneLLMUsage aggregates rows older than cutoffDays into metrics_daily
+// summaries and deletes the raw rows. Returns the number of rows pruned.
+func (db *DB) PruneLLMUsage(cutoffDays int) (int64, error) {
+	cutoff := time.Now().AddDate(0, 0, -cutoffDays).Format("2006-01-02")
+
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Aggregate input tokens by date.
+	_, err = tx.Exec(`INSERT INTO metrics_daily (date, metric, value)
+		SELECT substr(timestamp, 1, 10), 'tokens_input_archived', SUM(input_tokens)
+		FROM llm_usage WHERE timestamp < ?
+		GROUP BY substr(timestamp, 1, 10)
+		ON CONFLICT(date, metric) DO UPDATE SET value = value + excluded.value`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("aggregate input tokens: %w", err)
+	}
+
+	// Aggregate output tokens by date.
+	_, err = tx.Exec(`INSERT INTO metrics_daily (date, metric, value)
+		SELECT substr(timestamp, 1, 10), 'tokens_output_archived', SUM(output_tokens)
+		FROM llm_usage WHERE timestamp < ?
+		GROUP BY substr(timestamp, 1, 10)
+		ON CONFLICT(date, metric) DO UPDATE SET value = value + excluded.value`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("aggregate output tokens: %w", err)
+	}
+
+	// Aggregate LLM call count by date.
+	_, err = tx.Exec(`INSERT INTO metrics_daily (date, metric, value)
+		SELECT substr(timestamp, 1, 10), 'llm_calls_archived', COUNT(*)
+		FROM llm_usage WHERE timestamp < ?
+		GROUP BY substr(timestamp, 1, 10)
+		ON CONFLICT(date, metric) DO UPDATE SET value = value + excluded.value`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("aggregate call count: %w", err)
+	}
+
+	// Delete the aggregated raw rows.
+	result, err := tx.Exec("DELETE FROM llm_usage WHERE timestamp < ?", cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("delete pruned rows: %w", err)
+	}
+
+	pruned, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if commitErr := tx.Commit(); commitErr != nil {
+		return 0, fmt.Errorf("commit: %w", commitErr)
+	}
+
+	return pruned, nil
 }
 
 // GetDailyTokens returns per-day token totals for charting.

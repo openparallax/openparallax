@@ -314,6 +314,93 @@ func TestAuditInsertAndCount(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
+func TestPruneLLMUsage(t *testing.T) {
+	db := openTestDB(t)
+
+	// Create sessions referenced by llm_usage rows.
+	now := time.Now()
+	require.NoError(t, db.InsertSession(&types.Session{ID: "old-sess", Mode: types.SessionNormal, CreatedAt: now}))
+	require.NoError(t, db.InsertSession(&types.Session{ID: "new-sess", Mode: types.SessionNormal, CreatedAt: now}))
+
+	// Insert old rows (100 days ago) and recent rows (today).
+	oldTimestamp := time.Now().AddDate(0, 0, -100).Format("2006-01-02 15:04:05")
+	recentTimestamp := time.Now().Format("2006-01-02 15:04:05")
+
+	for i := 0; i < 5; i++ {
+		_, err := db.Conn().Exec(`INSERT INTO llm_usage
+			(session_id, message_id, provider, model, input_tokens, output_tokens,
+			 cache_read_tokens, cache_creation_tokens, tool_def_tokens, rounds, duration_ms, timestamp)
+			VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 1, 100, ?)`,
+			"old-sess", "old-msg", "anthropic", "claude", 200, 100, oldTimestamp)
+		require.NoError(t, err)
+	}
+	for i := 0; i < 3; i++ {
+		_, err := db.Conn().Exec(`INSERT INTO llm_usage
+			(session_id, message_id, provider, model, input_tokens, output_tokens,
+			 cache_read_tokens, cache_creation_tokens, tool_def_tokens, rounds, duration_ms, timestamp)
+			VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 1, 50, ?)`,
+			"new-sess", "new-msg", "anthropic", "claude", 300, 150, recentTimestamp)
+		require.NoError(t, err)
+	}
+
+	// Prune with 1-day cutoff (keeps only today's rows).
+	pruned, err := db.PruneLLMUsage(1)
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), pruned, "should prune 5 old rows")
+
+	// Verify recent rows remain.
+	var remaining int
+	err = db.Conn().QueryRow("SELECT COUNT(*) FROM llm_usage").Scan(&remaining)
+	require.NoError(t, err)
+	assert.Equal(t, 3, remaining, "recent rows should remain")
+
+	// Verify metrics_daily has aggregated values.
+	oldDate := time.Now().AddDate(0, 0, -100).Format("2006-01-02")
+
+	var inputArchived int
+	err = db.Conn().QueryRow(`SELECT value FROM metrics_daily
+		WHERE date = ? AND metric = 'tokens_input_archived'`, oldDate).Scan(&inputArchived)
+	require.NoError(t, err)
+	assert.Equal(t, 1000, inputArchived, "5 rows * 200 input tokens")
+
+	var outputArchived int
+	err = db.Conn().QueryRow(`SELECT value FROM metrics_daily
+		WHERE date = ? AND metric = 'tokens_output_archived'`, oldDate).Scan(&outputArchived)
+	require.NoError(t, err)
+	assert.Equal(t, 500, outputArchived, "5 rows * 100 output tokens")
+
+	var callsArchived int
+	err = db.Conn().QueryRow(`SELECT value FROM metrics_daily
+		WHERE date = ? AND metric = 'llm_calls_archived'`, oldDate).Scan(&callsArchived)
+	require.NoError(t, err)
+	assert.Equal(t, 5, callsArchived, "5 archived calls")
+}
+
+func TestPruneLLMUsageNoOldRows(t *testing.T) {
+	db := openTestDB(t)
+
+	// Create session referenced by llm_usage row.
+	require.NoError(t, db.InsertSession(&types.Session{ID: "sess", Mode: types.SessionNormal, CreatedAt: time.Now()}))
+
+	// Insert only recent rows.
+	recentTimestamp := time.Now().Format("2006-01-02 15:04:05")
+	_, err := db.Conn().Exec(`INSERT INTO llm_usage
+		(session_id, message_id, provider, model, input_tokens, output_tokens,
+		 cache_read_tokens, cache_creation_tokens, tool_def_tokens, rounds, duration_ms, timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 1, 50, ?)`,
+		"sess", "msg", "anthropic", "claude", 100, 50, recentTimestamp)
+	require.NoError(t, err)
+
+	pruned, err := db.PruneLLMUsage(90)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), pruned, "nothing to prune")
+
+	var remaining int
+	err = db.Conn().QueryRow("SELECT COUNT(*) FROM llm_usage").Scan(&remaining)
+	require.NoError(t, err)
+	assert.Equal(t, 1, remaining, "row should remain")
+}
+
 func TestSnapshotNotFound(t *testing.T) {
 	db := openTestDB(t)
 	_, err := db.GetSnapshot("nonexistent")
