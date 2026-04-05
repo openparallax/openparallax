@@ -7,7 +7,7 @@
   import { connected } from '../stores/connection';
   import { activeNavItem, sidebarOpen } from '../stores/settings';
 
-  import { sendMessage } from '../lib/websocket';
+  import { sendMessage, sendCancel } from '../lib/websocket';
   import { createSession, getStatus, deleteSession } from '../lib/api';
   import type { SandboxStatusData } from '../lib/types';
 
@@ -125,6 +125,12 @@
     if (textarea) {
       textarea.style.height = 'auto';
     }
+  }
+
+  function handleStop() {
+    const sid = $currentSessionId;
+    if (sid) sendCancel(sid);
+    streaming.set(false);
   }
 
   async function handleSlashCommand(cmd: string) {
@@ -351,7 +357,7 @@
       rows="1"
       disabled={!$connected}
     ></textarea>
-    <button class="send-btn" on:click={handleSend} disabled={!$connected || (!text.trim() && !$streaming)}>
+    <button class="send-btn" on:click={$streaming ? handleStop : handleSend} disabled={!$connected || (!text.trim() && !$streaming)}>
       {#if $streaming}
         <Square size={16} />
       {:else}

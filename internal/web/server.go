@@ -30,9 +30,10 @@ type Server struct {
 	listener net.Listener
 	auth     *authConfig
 
-	connsMu sync.Mutex
-	conns   map[*websocket.Conn]context.Context
-	senders map[*websocket.Conn]engine.EventSender
+	connsMu        sync.Mutex
+	conns          map[*websocket.Conn]context.Context
+	senders        map[*websocket.Conn]engine.EventSender
+	sessionCancels sync.Map // session_id → context.CancelFunc
 }
 
 // ServerConfig holds web server configuration.

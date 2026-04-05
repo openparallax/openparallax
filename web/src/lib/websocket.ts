@@ -167,6 +167,12 @@ export function sendPing() {
   socket.send(JSON.stringify({ type: 'ping' }));
 }
 
+export function sendCancel(sessionId: string) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: 'cancel', session_id: sessionId }));
+  activeStreamSessionId = null;
+}
+
 export function sendTier3Decision(actionId: string, decision: 'approve' | 'deny') {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify({

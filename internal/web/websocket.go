@@ -65,6 +65,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		switch msg.Type {
 		case "message":
 			go s.handleWSMessage(ctx, conn, msg)
+		case "cancel":
+			s.handleCancel(msg.SessionID)
 		case "tier3_decision":
 			s.handleTier3Decision(msg)
 		case "ping":
@@ -106,12 +108,34 @@ func (s *Server) handleWSMessage(ctx context.Context, conn *websocket.Conn, msg 
 
 	sender := s.getOrCreateSender(conn, ctx)
 
+	// Create a cancellable context for this message so the stop button works.
+	msgCtx, msgCancel := context.WithCancel(ctx)
+	s.sessionCancels.Store(sid, msgCancel)
+	defer func() {
+		s.sessionCancels.Delete(sid)
+		msgCancel()
+	}()
+
 	s.log.Info("ws_message_received", "session", sid, "message_id", mid, "content_len", len(msg.Content))
-	if err := s.engine.ProcessMessageForWeb(ctx, sender, sid, mid, msg.Content, mode); err != nil {
-		s.log.Error("ws_process_failed", "session", sid, "error", err)
-		s.writeWSError(ctx, conn, sid, mid, "PIPELINE_FAILED", err.Error())
+	if err := s.engine.ProcessMessageForWeb(msgCtx, sender, sid, mid, msg.Content, mode); err != nil {
+		if msgCtx.Err() != nil {
+			s.log.Info("ws_message_cancelled", "session", sid)
+		} else {
+			s.log.Error("ws_process_failed", "session", sid, "error", err)
+			s.writeWSError(ctx, conn, sid, mid, "PIPELINE_FAILED", err.Error())
+		}
 	}
 	s.log.Info("ws_message_done", "session", sid, "message_id", mid)
+}
+
+// handleCancel cancels an active message processing for a session.
+func (s *Server) handleCancel(sessionID string) {
+	if fn, ok := s.sessionCancels.LoadAndDelete(sessionID); ok {
+		if cancel, castOK := fn.(context.CancelFunc); castOK {
+			s.log.Info("ws_cancel_requested", "session", sessionID)
+			cancel()
+		}
+	}
 }
 
 // handleTier3Decision resolves a pending human-in-the-loop approval.
