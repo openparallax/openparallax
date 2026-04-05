@@ -335,6 +335,10 @@ type WebConfig struct {
 	// PasswordHash is the bcrypt hash of the web UI password.
 	// Required when Host is non-localhost.
 	PasswordHash string `yaml:"password_hash,omitempty" json:"password_hash,omitempty"`
+
+	// AllowedOrigins is a list of origins permitted for CORS and WebSocket connections.
+	// When empty, only localhost origins (http://localhost:* and http://127.0.0.1:*) are allowed.
+	AllowedOrigins []string `yaml:"allowed_origins,omitempty" json:"allowed_origins,omitempty"`
 }
 
 // AgentsConfig configures sub-agent orchestration defaults.

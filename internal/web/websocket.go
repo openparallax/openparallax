@@ -27,7 +27,7 @@ type wsClientMessage struct {
 // bidirectional communication for the chat interface.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		OriginPatterns: []string{"*"},
+		OriginPatterns: s.wsOriginPatterns(),
 	})
 	if err != nil {
 		s.log.Error("ws_accept_failed", "error", err)
@@ -196,4 +196,13 @@ func (s *Server) writeWSError(ctx context.Context, conn *websocket.Conn, sid, mi
 		"message_id": mid,
 		"error":      map[string]any{"code": code, "message": message},
 	})
+}
+
+// wsOriginPatterns returns the origin patterns for WebSocket acceptance.
+// When no explicit origins are configured, only localhost patterns are permitted.
+func (s *Server) wsOriginPatterns() []string {
+	if len(s.allowedOrigins) > 0 {
+		return s.allowedOrigins
+	}
+	return []string{"localhost:*", "127.0.0.1:*"}
 }

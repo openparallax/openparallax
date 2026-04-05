@@ -37,23 +37,34 @@ func TestStaticFileServing(t *testing.T) {
 func TestCORSMiddleware(t *testing.T) {
 	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
+	}), nil)
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
-	// Regular request gets CORS headers.
-	resp, err := http.Get(srv.URL)
+	// Request with localhost origin gets CORS headers.
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req.Header.Set("Origin", "http://localhost:3100")
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
-	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "http://localhost:3100", resp.Header.Get("Access-Control-Allow-Origin"))
 
-	// OPTIONS preflight returns 204.
-	req, _ := http.NewRequest(http.MethodOptions, srv.URL, nil)
-	resp, err = http.DefaultClient.Do(req)
+	// Request with unknown origin gets no CORS headers.
+	req2, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req2.Header.Set("Origin", "https://evil.com")
+	resp2, err := http.DefaultClient.Do(req2)
 	require.NoError(t, err)
-	_ = resp.Body.Close()
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	_ = resp2.Body.Close()
+	assert.Empty(t, resp2.Header.Get("Access-Control-Allow-Origin"))
+
+	// OPTIONS preflight with valid origin returns 204.
+	req3, _ := http.NewRequest(http.MethodOptions, srv.URL, nil)
+	req3.Header.Set("Origin", "http://127.0.0.1:3100")
+	resp3, err := http.DefaultClient.Do(req3)
+	require.NoError(t, err)
+	_ = resp3.Body.Close()
+	assert.Equal(t, http.StatusNoContent, resp3.StatusCode)
 }
 
 func TestWriteJSON(t *testing.T) {
@@ -135,18 +146,67 @@ func TestWriteJSONNestedMap(t *testing.T) {
 func TestCORSPreflightHeaders(t *testing.T) {
 	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
+	}), nil)
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
 	req, _ := http.NewRequest(http.MethodOptions, srv.URL, nil)
+	req.Header.Set("Origin", "http://localhost:3100")
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 
-	assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "http://localhost:3100", resp.Header.Get("Access-Control-Allow-Origin"))
 	assert.Contains(t, resp.Header.Get("Access-Control-Allow-Methods"), "GET")
 	assert.Contains(t, resp.Header.Get("Access-Control-Allow-Methods"), "POST")
+}
+
+func TestCORSExplicitOrigins(t *testing.T) {
+	origins := []string{"https://app.example.com", "https://staging.example.com"}
+	handler := withCORS(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}), origins)
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	// Configured origin is reflected.
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req.Header.Set("Origin", "https://app.example.com")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	assert.Equal(t, "https://app.example.com", resp.Header.Get("Access-Control-Allow-Origin"))
+
+	// Localhost is blocked when explicit origins are configured.
+	req2, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req2.Header.Set("Origin", "http://localhost:3100")
+	resp2, err := http.DefaultClient.Do(req2)
+	require.NoError(t, err)
+	_ = resp2.Body.Close()
+	assert.Empty(t, resp2.Header.Get("Access-Control-Allow-Origin"))
+
+	// Unknown origin is blocked.
+	req3, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req3.Header.Set("Origin", "https://evil.com")
+	resp3, err := http.DefaultClient.Do(req3)
+	require.NoError(t, err)
+	_ = resp3.Body.Close()
+	assert.Empty(t, resp3.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestRateLimiter(t *testing.T) {
+	rl := newRateLimiter()
+
+	// First 10 requests within limit should pass.
+	for i := 0; i < 10; i++ {
+		assert.True(t, rl.allow("192.168.1.1", 10))
+	}
+
+	// 11th request should be blocked.
+	assert.False(t, rl.allow("192.168.1.1", 10))
+
+	// Different IP should still pass.
+	assert.True(t, rl.allow("192.168.1.2", 10))
 }
 
 func TestWSUpgradeRequiresWebSocket(t *testing.T) {

@@ -105,9 +105,10 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 			webHost = "127.0.0.1"
 		}
 		webServer = web.NewServer(eng, eng.Log(), web.ServerConfig{
-			Host:         webHost,
-			Port:         webPort,
-			PasswordHash: cfg.Web.PasswordHash,
+			Host:           webHost,
+			Port:           webPort,
+			PasswordHash:   cfg.Web.PasswordHash,
+			AllowedOrigins: cfg.Web.AllowedOrigins,
 		})
 
 		// Bind the port first so we know it works before opening the browser.

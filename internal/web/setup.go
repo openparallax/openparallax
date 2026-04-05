@@ -76,7 +76,7 @@ func (s *SetupServer) Start() error {
 	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
 	s.server = &http.Server{
 		Addr:         addr,
-		Handler:      withCORS(mux),
+		Handler:      withCORS(mux, nil),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

@@ -23,13 +23,14 @@ import (
 // It serves the embedded Svelte application, REST API endpoints,
 // and a WebSocket connection for real-time chat.
 type Server struct {
-	engine   *engine.Engine
-	log      *logging.Logger
-	port     int
-	host     string
-	server   *http.Server
-	listener net.Listener
-	auth     *authConfig
+	engine         *engine.Engine
+	log            *logging.Logger
+	port           int
+	host           string
+	server         *http.Server
+	listener       net.Listener
+	auth           *authConfig
+	allowedOrigins []string
 
 	connsMu        sync.Mutex
 	conns          map[*websocket.Conn]context.Context
@@ -41,9 +42,10 @@ type Server struct {
 
 // ServerConfig holds web server configuration.
 type ServerConfig struct {
-	Host         string // bind host (default "127.0.0.1")
-	Port         int
-	PasswordHash string // bcrypt hash for remote auth (empty = no auth)
+	Host           string // bind host (default "127.0.0.1")
+	Port           int
+	PasswordHash   string   // bcrypt hash for remote auth (empty = no auth)
+	AllowedOrigins []string // origins permitted for CORS and WebSocket (empty = localhost only)
 }
 
 // NewServer creates a web server.
@@ -54,14 +56,15 @@ func NewServer(eng *engine.Engine, log *logging.Logger, cfg ServerConfig) *Serve
 	}
 
 	s := &Server{
-		engine:      eng,
-		log:         log,
-		port:        cfg.Port,
-		host:        host,
-		conns:       make(map[*websocket.Conn]context.Context),
-		senders:     make(map[*websocket.Conn]engine.EventSender),
-		cmdRegistry: commands.NewRegistry(),
-		cmdEngine:   &commands.EngineAdapter{Engine: eng},
+		engine:         eng,
+		log:            log,
+		port:           cfg.Port,
+		host:           host,
+		allowedOrigins: cfg.AllowedOrigins,
+		conns:          make(map[*websocket.Conn]context.Context),
+		senders:        make(map[*websocket.Conn]engine.EventSender),
+		cmdRegistry:    commands.NewRegistry(),
+		cmdEngine:      &commands.EngineAdapter{Engine: eng},
 	}
 
 	// Enable auth for non-localhost bindings.
@@ -194,7 +197,8 @@ func (s *Server) Listen() error {
 	})
 
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
-	handler := withCORS(mux)
+	handler := withCORS(mux, s.allowedOrigins)
+	handler = withRateLimit(handler, newRateLimiter(), s.auth)
 	if s.auth != nil {
 		handler = withAuth(handler, s.auth)
 	}
