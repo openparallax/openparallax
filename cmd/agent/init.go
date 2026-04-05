@@ -628,17 +628,6 @@ func runInit(_ *cobra.Command, args []string) error {
 	fmt.Println("  └─────────────────────────────────────┘")
 	fmt.Println()
 
-	err = huh.NewForm(
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title(fmt.Sprintf("Start %s now?", agentNameInput)).
-				Value(&confirmLaunch),
-		),
-	).Run()
-	if err != nil {
-		return err
-	}
-
 	// ─── Create Workspace ───────────────────────────────────
 
 	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
@@ -696,11 +685,34 @@ func runInit(_ *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: could not register agent: %s\n", addErr)
 	}
 
+	// ─── Optional: Classifier ──────────────────────────────
+	initClassifier()
+
+	// ─── Optional: Vector Extension ─────────────────────────
+	initVectorExt()
+
+	// ─── Optional: Skills ───────────────────────────────────
+	initSkills()
+
+	// ─── Optional: MCP Servers ──────────────────────────────
+	initMCP()
+
 	fmt.Println()
 	fmt.Println("  ✓ Workspace initialized!")
 	fmt.Printf("    Config:    %s\n", configPath)
 	fmt.Printf("    Database:  %s\n", dbPath)
 	fmt.Println()
+
+	err = huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title(fmt.Sprintf("Start %s now?", agentNameInput)).
+				Value(&confirmLaunch),
+		),
+	).Run()
+	if err != nil {
+		return err
+	}
 
 	if confirmLaunch {
 		fmt.Printf("  Starting %s...\n\n", agentNameInput)
@@ -710,6 +722,161 @@ func runInit(_ *cobra.Command, args []string) error {
 
 	fmt.Printf("  Run 'openparallax start -c %s' when you're ready.\n\n", configPath)
 	return nil
+}
+
+// ─── Optional Init Steps ────────────────────────────────────
+
+// initClassifier checks if the Shield classifier is already installed and
+// offers to download it if missing.
+func initClassifier() {
+	opHome, err := openparallaxHome()
+	if err != nil {
+		return
+	}
+
+	modelPath := filepath.Join(opHome, "models", "prompt-injection", "model.onnx")
+	if _, statErr := os.Stat(modelPath); statErr == nil {
+		fmt.Println("\n  ✓ Shield classifier already installed")
+		return
+	}
+
+	fmt.Println()
+	var classifierChoice string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Download Shield classifier for local safety evaluation?").
+				Options(
+					huh.NewOption("Base (~700MB, 98.8% accuracy)", "base"),
+					huh.NewOption("Small (~250MB, faster inference)", "small"),
+					huh.NewOption("Skip", "skip"),
+				).
+				Value(&classifierChoice),
+		),
+	)
+	if formErr := form.Run(); formErr != nil || classifierChoice == "skip" {
+		return
+	}
+
+	classifierVariant = classifierChoice
+	classifierForce = false
+	if dlErr := runGetClassifier(nil, nil); dlErr != nil {
+		fmt.Printf("  ✗ Classifier download failed: %s\n", dlErr)
+		fmt.Printf("    Run later: openparallax get-classifier --variant %s\n", classifierChoice)
+	}
+}
+
+// initVectorExt checks if the sqlite-vec extension is already installed and
+// offers to download it if missing. This enables native in-database vector
+// search alongside the builtin pure-Go cosine similarity.
+func initVectorExt() {
+	opHome, err := openparallaxHome()
+	if err != nil {
+		return
+	}
+
+	ext := sqliteVecExt()
+	if ext == "" {
+		return // Unsupported platform.
+	}
+
+	extPath := filepath.Join(opHome, "extensions", "sqlite-vec."+ext)
+	if _, statErr := os.Stat(extPath); statErr == nil {
+		fmt.Println("\n  ✓ Vector search extension already installed")
+		return
+	}
+
+	fmt.Println()
+	var install bool
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Download vector search extension? (~5MB, faster similarity search at scale)").
+				Value(&install),
+		),
+	)
+	if formErr := form.Run(); formErr != nil || !install {
+		return
+	}
+
+	if dlErr := downloadSqliteVec(); dlErr != nil {
+		fmt.Printf("  ✗ Vector extension download failed: %s\n", dlErr)
+		fmt.Println("    Run later: openparallax get-vector-ext")
+	}
+}
+
+// initSkills offers to install skill packs based on the user's primary use case.
+func initSkills() {
+	skillMap := map[string][]string{
+		"Software development":  {"developer"},
+		"Writing & content":     {"writer"},
+		"Research & analysis":   {"researcher"},
+		"System administration": {"sysadmin"},
+	}
+
+	fmt.Println()
+	var selected []string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title("Install skill packs? (optional)").
+				Options(
+					huh.NewOption("Software development", "Software development"),
+					huh.NewOption("Writing & content", "Writing & content"),
+					huh.NewOption("Research & analysis", "Research & analysis"),
+					huh.NewOption("System administration", "System administration"),
+				).
+				Value(&selected),
+		),
+	)
+	if formErr := form.Run(); formErr != nil || len(selected) == 0 {
+		return
+	}
+
+	for _, choice := range selected {
+		for _, skillName := range skillMap[choice] {
+			if installErr := runSkillInstall(nil, []string{skillName}); installErr != nil {
+				fmt.Printf("  ✗ Skill %q: %s\n", skillName, installErr)
+				fmt.Printf("    Run later: openparallax skill install %s\n", skillName)
+			}
+		}
+	}
+}
+
+// initMCP offers to install first-party MCP servers.
+func initMCP() {
+	available := []struct {
+		label string
+		name  string
+	}{
+		{"RSS/Atom feed reader (no API key)", "rss"},
+	}
+
+	fmt.Println()
+	var selected []string
+	var options []huh.Option[string]
+	for _, a := range available {
+		options = append(options, huh.NewOption(a.label, a.name))
+	}
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title("Install MCP servers? (optional)").
+				Options(options...).
+				Value(&selected),
+		),
+	)
+	if formErr := form.Run(); formErr != nil || len(selected) == 0 {
+		return
+	}
+
+	for _, name := range selected {
+		if installErr := runMCPInstall(nil, []string{name}); installErr != nil {
+			fmt.Printf("  ✗ MCP server %q: %s\n", name, installErr)
+			fmt.Printf("    Run later: openparallax mcp install %s\n", name)
+		}
+	}
 }
 
 // ─── Helpers ────────────────────────────────────────────────

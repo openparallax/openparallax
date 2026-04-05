@@ -66,6 +66,29 @@ func (m *Manager) DiscoverTools(ctx context.Context) []llm.ToolDefinition {
 	return tools
 }
 
+// DiscoverToolsByServer returns tools grouped by server name. Each tool is
+// namespaced as mcp:<server>:<tool>. Used to register MCP tools as loadable
+// groups in the tool registry.
+func (m *Manager) DiscoverToolsByServer(ctx context.Context) map[string][]llm.ToolDefinition {
+	result := make(map[string][]llm.ToolDefinition)
+	for name, client := range m.clients {
+		clientTools, err := client.DiscoverTools(ctx)
+		if err != nil {
+			if m.log != nil {
+				m.log.Warn("mcp_discovery_failed", "server", name, "error", err)
+			}
+			continue
+		}
+		for i := range clientTools {
+			clientTools[i].Name = fmt.Sprintf("mcp:%s:%s", name, clientTools[i].Name)
+		}
+		if len(clientTools) > 0 {
+			result[name] = clientTools
+		}
+	}
+	return result
+}
+
 // Route finds the correct MCP client for a namespaced tool name.
 func (m *Manager) Route(toolName string) (*Client, string, bool) {
 	parts := strings.SplitN(toolName, ":", 3)

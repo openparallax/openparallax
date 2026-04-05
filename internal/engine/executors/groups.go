@@ -71,6 +71,30 @@ func (r *GroupRegistry) AvailableGroups() []ToolGroup {
 	return result
 }
 
+// RegisterMCPTools registers MCP server tools as loadable groups.
+// Each server becomes a group named "mcp:<server>" so the LLM can call
+// load_tools(["mcp:filesystem"]) to discover MCP tools.
+func (r *GroupRegistry) RegisterMCPTools(serverTools map[string][]llm.ToolDefinition) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for serverName, tools := range serverTools {
+		groupName := "mcp:" + serverName
+		schemas := make([]ToolSchema, len(tools))
+		for i, t := range tools {
+			schemas[i] = ToolSchema{
+				Name:        t.Name,
+				Description: t.Description,
+				Parameters:  t.Parameters,
+			}
+		}
+		r.groups[groupName] = &ToolGroup{
+			Name:        groupName,
+			Description: fmt.Sprintf("Tools from MCP server %q", serverName),
+			Schemas:     schemas,
+		}
+	}
+}
+
 // LoadToolsDefinition generates the load_tools tool definition with all
 // available groups listed in the description. Groups whose underlying
 // executors aren't registered are excluded.
@@ -178,6 +202,11 @@ var otrWriteTools = map[string]bool{
 func filterOTRTools(tools []llm.ToolDefinition) []llm.ToolDefinition {
 	filtered := make([]llm.ToolDefinition, 0, len(tools))
 	for _, t := range tools {
+		// Block all MCP tools in OTR — external tools cannot be reliably
+		// classified as read-only, so we exclude them entirely.
+		if strings.HasPrefix(t.Name, "mcp:") {
+			continue
+		}
 		if !otrWriteTools[t.Name] {
 			filtered = append(filtered, t)
 		}

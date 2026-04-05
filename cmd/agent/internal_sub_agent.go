@@ -111,7 +111,7 @@ func runInternalSubAgent(_ *cobra.Command, _ []string) error {
 
 	cfg := agent.LoopConfig{
 		Provider:      provider,
-		Agent:         agent.NewAgent(provider, subAgentWorkspace, nil),
+		Agent:         agent.NewAgent(provider, subAgentWorkspace, nil, nil),
 		MaxRounds:     maxCalls,
 		ContextWindow: 128000,
 	}

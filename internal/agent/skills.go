@@ -31,13 +31,47 @@ type SkillManager struct {
 	loaded map[string]bool
 }
 
-// NewSkillManager loads custom skills from the workspace skills directory.
-// Each skill is a subdirectory containing a SKILL.md file.
-func NewSkillManager(workspacePath string) *SkillManager {
+// NewSkillManager loads skills from the global shared directory and the
+// workspace-local skills directory. Workspace skills override global skills
+// with the same name. Skills listed in disabled are excluded from discovery.
+func NewSkillManager(workspacePath string, disabled []string) *SkillManager {
 	sm := &SkillManager{loaded: make(map[string]bool)}
-	skillsDir := filepath.Join(workspacePath, "skills")
-	sm.skills = loadCustomSkills(skillsDir)
+
+	disabledSet := make(map[string]bool, len(disabled))
+	for _, name := range disabled {
+		disabledSet[name] = true
+	}
+
+	// Global skills at ~/.openparallax/skills/ (shared across all agents).
+	globalSkills := loadGlobalSkills()
+	byName := make(map[string]Skill, len(globalSkills))
+	for _, s := range globalSkills {
+		if !disabledSet[s.Name] {
+			byName[s.Name] = s
+		}
+	}
+
+	// Workspace skills override global on name collision.
+	workspaceDir := filepath.Join(workspacePath, "skills")
+	for _, s := range loadCustomSkills(workspaceDir) {
+		if !disabledSet[s.Name] {
+			byName[s.Name] = s
+		}
+	}
+
+	for _, s := range byName {
+		sm.skills = append(sm.skills, s)
+	}
 	return sm
+}
+
+// loadGlobalSkills loads skills from ~/.openparallax/skills/.
+func loadGlobalSkills() []Skill {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	return loadCustomSkills(filepath.Join(home, ".openparallax", "skills"))
 }
 
 // DiscoverySummary returns a compact index of available custom skills for
@@ -67,7 +101,7 @@ func (sm *SkillManager) LoadSkill(name string) (string, bool) {
 	for i := range sm.skills {
 		if sm.skills[i].Name == name {
 			sm.loaded[name] = true
-			return sm.skills[i].Body, true
+			return stripMarkdown(sm.skills[i].Body), true
 		}
 	}
 	return "", false
@@ -78,7 +112,7 @@ func (sm *SkillManager) LoadedSkillBodies() string {
 	var bodies []string
 	for _, s := range sm.skills {
 		if sm.loaded[s.Name] && s.Body != "" {
-			bodies = append(bodies, fmt.Sprintf("# Skill: %s\n\n%s", s.Name, s.Body))
+			bodies = append(bodies, fmt.Sprintf("Skill: %s\n\n%s", s.Name, stripMarkdown(s.Body)))
 		}
 	}
 	return strings.Join(bodies, "\n\n---\n\n")
@@ -99,8 +133,12 @@ func (sm *SkillManager) HasSkills() bool {
 	return len(sm.skills) > 0
 }
 
-// loadCustomSkills reads skills from subdirectories of the skills dir.
+// LoadSkillsFromDir reads skills from subdirectories of the given directory.
 // Each subdirectory must contain a SKILL.md file with YAML frontmatter.
+func LoadSkillsFromDir(dir string) []Skill {
+	return loadCustomSkills(dir)
+}
+
 func loadCustomSkills(dir string) []Skill {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

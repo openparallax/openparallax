@@ -127,7 +127,7 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 	db, _ := storage.Open(dbPath)
 
 	// Create agent (context assembly, compaction, skills).
-	ag := agent.NewAgent(provider, agentWorkspace, nil)
+	ag := agent.NewAgent(provider, agentWorkspace, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

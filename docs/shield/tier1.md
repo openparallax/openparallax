@@ -103,7 +103,7 @@ Lower thresholds catch more attacks but produce more false positives (and more T
 | Variant | Size | Accuracy | Speed | Use Case |
 |---------|------|----------|-------|----------|
 | DeBERTa v3 Base | ~700MB | 98.8% | ~50ms/eval | Production systems with strong security requirements |
-| DeBERTa v3 Small | ~250MB | 97.2% | ~15ms/eval | Resource-constrained environments, edge deployment |
+| DeBERTa v3 Small | ~250MB | 94.3% | ~15ms/eval | Resource-constrained environments, edge deployment |
 
 Download either variant:
 

@@ -16,12 +16,13 @@ type Agent struct {
 	Skills    *SkillManager
 }
 
-// NewAgent creates an Agent.
-func NewAgent(provider llm.Provider, workspacePath string, mem *memory.Manager) *Agent {
+// NewAgent creates an Agent. The disabledSkills parameter lists skill names
+// that should not be available to the LLM (from config skills.disabled).
+func NewAgent(provider llm.Provider, workspacePath string, mem *memory.Manager, disabledSkills []string) *Agent {
 	return &Agent{
 		Context:   NewContextAssembler(workspacePath, mem),
 		Compactor: NewCompactor(provider, mem),
-		Skills:    NewSkillManager(workspacePath),
+		Skills:    NewSkillManager(workspacePath, disabledSkills),
 	}
 }
 

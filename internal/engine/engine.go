@@ -221,7 +221,30 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	memStore := memsqlite.NewStore(db)
 	mem := memory.NewManager(cfg.Workspace, memStore, provider)
 	registry.RegisterMemory(mem)
-	ag := agent.NewAgent(provider, cfg.Workspace, mem)
+
+	// Initialize vector search pipeline (chunk indexing + embeddings).
+	embCfg := cfg.Memory.Embedding
+	embedder := memory.NewEmbeddingProvider(memory.EmbeddingConfig{
+		Provider:  embCfg.Provider,
+		Model:     embCfg.Model,
+		APIKeyEnv: embCfg.APIKeyEnv,
+		BaseURL:   embCfg.BaseURL,
+	})
+	vectorSearcher := memory.NewVectorSearcher(memStore, log)
+	indexer := memory.NewIndexer(memStore, embedder, vectorSearcher, log)
+
+	// Index workspace files on startup (skips unchanged files via content hash).
+	indexCtx, indexCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	indexer.IndexWorkspace(indexCtx, cfg.Workspace)
+	indexCancel()
+
+	if embedder != nil {
+		log.Info("vector_search_enabled", "provider", embCfg.Provider, "model", embCfg.Model)
+	} else {
+		log.Info("vector_search_disabled", "reason", "no embedding provider configured")
+	}
+
+	ag := agent.NewAgent(provider, cfg.Workspace, mem, cfg.Skills.Disabled)
 
 	// MCP manager (optional — only if servers are configured).
 	var mcpMgr *mcp.Manager
@@ -249,6 +272,26 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		broadcaster:   NewEventBroadcaster(),
 	}
 	eng.backgroundCtx, eng.backgroundCancel = context.WithCancel(context.Background())
+
+	// Start file watcher for automatic reindexing on memory file changes.
+	if watchErr := memory.StartWatcher(eng.backgroundCtx, cfg.Workspace, indexer, log); watchErr != nil {
+		log.Warn("memory_watcher_failed", "error", watchErr)
+	}
+
+	// Discover MCP tools and register them as loadable groups so the LLM
+	// can call load_tools(["mcp:<server>"]) to access external tools.
+	if mcpMgr != nil {
+		ctx, cancel := context.WithTimeout(eng.backgroundCtx, 30*time.Second)
+		serverTools := mcpMgr.DiscoverToolsByServer(ctx)
+		cancel()
+		if len(serverTools) > 0 {
+			registry.Groups.RegisterMCPTools(serverTools)
+			for name, tools := range serverTools {
+				log.Info("mcp_tools_registered", "server", name, "tools", len(tools))
+			}
+		}
+	}
+
 	return eng, nil
 }
 

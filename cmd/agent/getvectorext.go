@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -32,68 +31,36 @@ and loaded automatically on next startup.`,
 }
 
 func downloadSqliteVec() error {
-	var ext, arch string
-
-	switch runtime.GOOS {
-	case "linux":
-		ext = "so"
-	case "darwin":
-		ext = "dylib"
-	case "windows":
-		ext = "dll"
-	default:
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	ext := sqliteVecExt()
+	if ext == "" {
+		return fmt.Errorf("unsupported platform: %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
 
-	switch runtime.GOARCH {
-	case "amd64":
-		arch = "x86_64"
-	case "arm64":
-		arch = "aarch64"
-	default:
+	arch := sqliteVecArch()
+	if arch == "" {
 		return fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 	}
 
-	homeDir, err := os.UserHomeDir()
+	opHome, err := openparallaxHome()
 	if err != nil {
-		return fmt.Errorf("cannot determine home directory: %w", err)
+		return err
 	}
 
-	destDir := filepath.Join(homeDir, ".openparallax", "extensions")
+	destDir := filepath.Join(opHome, "extensions")
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create extensions directory: %w", err)
 	}
 	destPath := filepath.Join(destDir, "sqlite-vec."+ext)
 
-	// Build download URL.
-	// sqlite-vec publishes prebuilt binaries on GitHub releases.
 	url := fmt.Sprintf(
 		"https://github.com/asg017/sqlite-vec/releases/download/%s/sqlite-vec-%s-%s-%s.%s",
 		sqliteVecVersion, sqliteVecVersion, runtime.GOOS, arch, ext,
 	)
 
 	fmt.Printf("Downloading sqlite-vec %s for %s/%s...\n", sqliteVecVersion, runtime.GOOS, runtime.GOARCH)
-	fmt.Printf("URL: %s\n", url)
 
-	resp, err := http.Get(url) //nolint:gosec // URL is hardcoded, not user-supplied
-	if err != nil {
-		return fmt.Errorf("download failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download failed: HTTP %d (the prebuilt binary may not be available for your platform)", resp.StatusCode)
-	}
-
-	out, err := os.Create(destPath)
-	if err != nil {
-		return fmt.Errorf("cannot create file: %w", err)
-	}
-	defer func() { _ = out.Close() }()
-
-	written, err := io.Copy(out, resp.Body)
-	if err != nil {
-		return fmt.Errorf("write failed: %w", err)
+	if dlErr := fetchFile(url, destPath, 5*time.Minute, true); dlErr != nil {
+		return fmt.Errorf("download failed: %w", dlErr)
 	}
 
 	// Make executable on Unix.
@@ -101,8 +68,32 @@ func downloadSqliteVec() error {
 		_ = os.Chmod(destPath, 0o755)
 	}
 
-	fmt.Printf("Downloaded %d bytes to %s\n", written, destPath)
-	fmt.Println("sqlite-vec will be loaded automatically on next startup.")
-	fmt.Println("Memory search will use native in-database vector queries.")
+	info, _ := os.Stat(destPath)
+	fmt.Printf("  ✓ sqlite-vec (%s)\n", formatBytes(info.Size()))
+	fmt.Println("  sqlite-vec will be loaded automatically on next startup.")
 	return nil
+}
+
+func sqliteVecExt() string {
+	switch runtime.GOOS {
+	case "linux":
+		return "so"
+	case "darwin":
+		return "dylib"
+	case "windows":
+		return "dll"
+	default:
+		return ""
+	}
+}
+
+func sqliteVecArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+	case "arm64":
+		return "aarch64"
+	default:
+		return ""
+	}
 }

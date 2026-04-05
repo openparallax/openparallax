@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -48,7 +49,7 @@ description: A custom skill for testing
 # My Skill Body`
 	require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644))
 
-	sm := NewSkillManager(dir)
+	sm := NewSkillManager(dir, nil)
 	skills := sm.Skills()
 	require.Len(t, skills, 1)
 	assert.Equal(t, "my-skill", skills[0].Name)
@@ -69,7 +70,7 @@ description: Old flat style
 ---
 body`), 0o644))
 
-	sm := NewSkillManager(dir)
+	sm := NewSkillManager(dir, nil)
 	assert.Empty(t, sm.Skills())
 }
 
@@ -83,7 +84,7 @@ description: Production deployment procedures
 ---
 Body`), 0o644))
 
-	sm := NewSkillManager(dir)
+	sm := NewSkillManager(dir, nil)
 	summary := sm.DiscoverySummary()
 	assert.Contains(t, summary, "deploy")
 	assert.Contains(t, summary, "Production deployment procedures")
@@ -92,7 +93,7 @@ Body`), 0o644))
 
 func TestSkillManagerDiscoverySummaryEmpty(t *testing.T) {
 	dir := t.TempDir()
-	sm := NewSkillManager(dir)
+	sm := NewSkillManager(dir, nil)
 	assert.Empty(t, sm.DiscoverySummary())
 }
 
@@ -106,7 +107,7 @@ description: Test skill
 ---
 Detailed instructions here`), 0o644))
 
-	sm := NewSkillManager(dir)
+	sm := NewSkillManager(dir, nil)
 
 	// Before loading.
 	assert.Empty(t, sm.LoadedSkillBodies())
@@ -134,7 +135,7 @@ description: Test
 ---
 Body`), 0o644))
 
-	sm := NewSkillManager(dir)
+	sm := NewSkillManager(dir, nil)
 	sm.LoadSkill("test")
 	assert.NotEmpty(t, sm.LoadedSkillBodies())
 
@@ -144,7 +145,7 @@ Body`), 0o644))
 
 func TestSkillManagerHasSkills(t *testing.T) {
 	dir := t.TempDir()
-	sm := NewSkillManager(dir)
+	sm := NewSkillManager(dir, nil)
 	assert.False(t, sm.HasSkills())
 
 	skillDir := filepath.Join(dir, "skills", "one")
@@ -155,6 +156,32 @@ description: One
 ---
 body`), 0o644))
 
-	sm2 := NewSkillManager(dir)
+	sm2 := NewSkillManager(dir, nil)
 	assert.True(t, sm2.HasSkills())
+}
+
+func TestSkillManagerDisabled(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"alpha", "beta"} {
+		skillDir := filepath.Join(dir, "skills", name)
+		require.NoError(t, os.MkdirAll(skillDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(fmt.Sprintf(`---
+name: %s
+description: Skill %s
+---
+Body for %s`, name, name, name)), 0o644))
+	}
+
+	// Without disabled — both present.
+	sm := NewSkillManager(dir, nil)
+	assert.Len(t, sm.Skills(), 2)
+
+	// With alpha disabled.
+	sm2 := NewSkillManager(dir, []string{"alpha"})
+	assert.Len(t, sm2.Skills(), 1)
+	assert.Equal(t, "beta", sm2.Skills()[0].Name)
+
+	// With both disabled.
+	sm3 := NewSkillManager(dir, []string{"alpha", "beta"})
+	assert.Empty(t, sm3.Skills())
 }

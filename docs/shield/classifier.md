@@ -62,7 +62,7 @@ This path is hardcoded. Shield looks here automatically on startup -- no configu
 ### DeBERTa v3 Small
 
 - **Size**: ~250MB
-- **Accuracy**: 97.2% on the prompt injection benchmark
+- **Accuracy**: 94.3% on unseen data (99.7% recall, 90% precision)
 - **Inference time**: ~15ms per evaluation (CPU, single thread)
 - **Architecture**: 6 transformer layers, 768 hidden dimensions, 12 attention heads
 - **Recommended for**: Resource-constrained environments, edge deployment, development/testing

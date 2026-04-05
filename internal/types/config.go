@@ -96,6 +96,9 @@ type AgentConfig struct {
 	// Tools configures tool group availability.
 	Tools ToolsConfig `yaml:"tools,omitempty" json:"tools,omitempty"`
 
+	// Skills configures skill availability.
+	Skills SkillsConfig `yaml:"skills,omitempty" json:"skills,omitempty"`
+
 	// OAuth configures OAuth2 providers for email and calendar integrations.
 	OAuth OAuthConfig `yaml:"oauth,omitempty" json:"oauth,omitempty"`
 }
@@ -348,6 +351,12 @@ type AgentsConfig struct {
 type ToolsConfig struct {
 	// DisabledGroups lists tool group names that should not be available to the LLM.
 	DisabledGroups []string `yaml:"disabled_groups,omitempty" json:"disabled_groups,omitempty"`
+}
+
+// SkillsConfig configures skill availability.
+type SkillsConfig struct {
+	// Disabled lists skill names that should not be available to the LLM.
+	Disabled []string `yaml:"disabled,omitempty" json:"disabled,omitempty"`
 }
 
 // GeneralConfig holds global settings.

@@ -15,6 +15,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// defaultFetchTimeout is the default timeout for large file downloads.
+const defaultFetchTimeout = 30 * time.Minute
+
 var (
 	classifierVariant string
 	classifierForce   bool
@@ -67,12 +70,12 @@ func runGetClassifier(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("unknown variant %q (available: base, small)", classifierVariant)
 	}
 
-	home, err := os.UserHomeDir()
+	opHome, err := openparallaxHome()
 	if err != nil {
-		return fmt.Errorf("cannot determine home directory: %w", err)
+		return err
 	}
 
-	modelDir := filepath.Join(home, ".openparallax", "models", "prompt-injection")
+	modelDir := filepath.Join(opHome, "models", "prompt-injection")
 	if err := os.MkdirAll(modelDir, 0o755); err != nil {
 		return fmt.Errorf("create model directory: %w", err)
 	}
@@ -92,7 +95,7 @@ func runGetClassifier(_ *cobra.Command, _ []string) error {
 		}
 		url := fmt.Sprintf("https://huggingface.co/%s/resolve/main/onnx/%s", variant.repo, file)
 		fmt.Printf("  Downloading %s...\n", file)
-		if dlErr := downloadFile(url, destPath); dlErr != nil {
+		if dlErr := fetchFile(url, destPath, defaultFetchTimeout, classifierForce); dlErr != nil {
 			return fmt.Errorf("download %s: %w", file, dlErr)
 		}
 		info, _ := os.Stat(destPath)
@@ -118,42 +121,6 @@ func runGetClassifier(_ *cobra.Command, _ []string) error {
 
 	fmt.Println("\n  Setup complete. Shield will use the classifier on next start.")
 	return nil
-}
-
-// downloadFile downloads a URL to a local file with progress.
-func downloadFile(url, destPath string) error {
-	client := http.Client{Timeout: 30 * time.Minute}
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
-	}
-
-	tmpPath := destPath + ".tmp"
-	f, err := os.Create(tmpPath)
-	if err != nil {
-		return err
-	}
-
-	written, err := io.Copy(f, resp.Body)
-	if closeErr := f.Close(); closeErr != nil && err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-
-	if written == 0 {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("downloaded 0 bytes")
-	}
-
-	return os.Rename(tmpPath, destPath)
 }
 
 // downloadONNXRuntime downloads and extracts the ONNX Runtime shared library.
