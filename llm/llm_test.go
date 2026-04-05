@@ -23,7 +23,7 @@ func getTestProvider(t *testing.T) Provider {
 		t.Skip("OPENAI_API_KEY not set, skipping real LLM test")
 	}
 	if model == "" {
-		model = "gpt-5.0"
+		model = "gpt-5.4-mini"
 	}
 
 	// Verify the endpoint is reachable — fail fast with a clear message
@@ -65,7 +65,7 @@ func TestFactoryCreatesOpenAIProvider(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	p, err := NewProvider(Config{
 		Provider:  "openai",
-		Model:     "gpt-5.3",
+		Model:     "gpt-5.4",
 		APIKeyEnv: "OPENAI_API_KEY",
 	})
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestFactoryErrorsOnMissingAPIKey(t *testing.T) {
 	t.Setenv("NONEXISTENT_KEY", "")
 	_, err := NewProvider(Config{
 		Provider:  "openai",
-		Model:     "gpt-5.3",
+		Model:     "gpt-5.4",
 		APIKeyEnv: "DEFINITELY_NOT_SET_KEY_12345",
 	})
 	assert.Error(t, err)

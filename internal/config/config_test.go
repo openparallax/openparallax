@@ -28,7 +28,7 @@ models:
     api_key_env: ANTHROPIC_API_KEY
   - name: shield
     provider: openai
-    model: gpt-5.3
+    model: gpt-5.4
     api_key_env: OPENAI_API_KEY
 roles:
   chat: chat
@@ -96,7 +96,7 @@ workspace: .
 models:
   - name: chat
     provider: openai
-    model: gpt-5.3
+    model: gpt-5.4
 roles:
   chat: chat
 `)
@@ -208,7 +208,7 @@ workspace: .
 models:
   - name: shared
     provider: openai
-    model: gpt-5.3
+    model: gpt-5.4
     api_key_env: OPENAI_API_KEY
 roles:
   chat: shared

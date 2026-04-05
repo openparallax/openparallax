@@ -28,8 +28,8 @@
 
   const providerCards = [
     { id: 'anthropic', name: 'Anthropic', model: 'claude-sonnet-4-6', shieldModel: 'claude-haiku-4-5-20251001' },
-    { id: 'openai', name: 'OpenAI', model: 'gpt-5.3', shieldModel: 'gpt-5.0' },
-    { id: 'google', name: 'Google', model: 'gemini-3.1-pro', shieldModel: 'gemini-2.5-flash' },
+    { id: 'openai', name: 'OpenAI', model: 'gpt-5.4', shieldModel: 'gpt-5.4-mini' },
+    { id: 'google', name: 'Google', model: 'gemini-3.1-pro', shieldModel: 'gemini-3.1-flash-lite' },
     { id: 'ollama', name: 'Ollama', model: 'llama3.2', shieldModel: 'llama3.2' },
   ];
 

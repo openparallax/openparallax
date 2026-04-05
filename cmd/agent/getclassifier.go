@@ -61,8 +61,8 @@ var modelVariants = map[string]modelVariant{
 	},
 }
 
-// onnxRuntimeVersion is the ONNX Runtime version to download.
-const onnxRuntimeVersion = "1.23.0"
+// onnxRuntimeRepo is the GitHub repository for ONNX Runtime releases.
+const onnxRuntimeRepo = "microsoft/onnxruntime"
 
 func runGetClassifier(_ *cobra.Command, _ []string) error {
 	variant, ok := modelVariants[classifierVariant]
@@ -113,7 +113,7 @@ func runGetClassifier(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	fmt.Printf("  Downloading ONNX Runtime %s...\n", onnxRuntimeVersion)
+	fmt.Print("  Resolving latest ONNX Runtime...\n")
 	if dlErr := downloadONNXRuntime(modelDir); dlErr != nil {
 		return fmt.Errorf("download ONNX Runtime: %w", dlErr)
 	}
@@ -123,29 +123,41 @@ func runGetClassifier(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-// downloadONNXRuntime downloads and extracts the ONNX Runtime shared library.
+// downloadONNXRuntime resolves the latest ONNX Runtime release from GitHub
+// and extracts the shared library for the current platform.
 func downloadONNXRuntime(destDir string) error {
-	archiveName, libFile := onnxRuntimeArchive()
-	url := fmt.Sprintf("https://github.com/microsoft/onnxruntime/releases/download/v%s/%s", onnxRuntimeVersion, archiveName)
+	// Resolve latest release and find the matching archive asset.
+	archivePattern := onnxRuntimeAssetPattern()
+	downloadURL, version, err := resolveGitHubAsset(onnxRuntimeRepo, archivePattern)
+	if err != nil {
+		return fmt.Errorf("resolve ONNX Runtime release: %w", err)
+	}
+	// Strip the leading "v" from tag (e.g. "v1.23.0" → "1.23.0").
+	semver := strings.TrimPrefix(version, "v")
+	fmt.Printf("  Downloading ONNX Runtime %s...\n", version)
 
 	client := http.Client{Timeout: 10 * time.Minute}
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
+	resp, httpErr := client.Get(downloadURL)
+	if httpErr != nil {
+		return httpErr
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
+		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, downloadURL)
 	}
 
 	// ONNX Runtime releases are .tgz archives.
-	gz, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return fmt.Errorf("gzip reader: %w", err)
+	gz, gzErr := gzip.NewReader(resp.Body)
+	if gzErr != nil {
+		return fmt.Errorf("gzip reader: %w", gzErr)
 	}
 	defer func() { _ = gz.Close() }()
 
+	// The library filename inside the archive embeds the version
+	// (e.g. libonnxruntime.so.1.23.0, libonnxruntime.1.23.0.dylib).
+	// Match by looking for the library name containing the semver.
+	libName := onnxRuntimeLibName()
 	tr := tar.NewReader(gz)
 	for {
 		header, tarErr := tr.Next()
@@ -156,9 +168,10 @@ func downloadONNXRuntime(destDir string) error {
 			return fmt.Errorf("tar reader: %w", tarErr)
 		}
 
-		// Look for the shared library file inside the archive.
-		if strings.HasSuffix(header.Name, libFile) {
-			destPath := filepath.Join(destDir, onnxRuntimeLibName())
+		base := filepath.Base(header.Name)
+		isLib := strings.Contains(base, semver) && (strings.HasPrefix(base, "libonnxruntime") || strings.HasPrefix(base, "onnxruntime"))
+		if isLib {
+			destPath := filepath.Join(destDir, libName)
 			f, createErr := os.Create(destPath)
 			if createErr != nil {
 				return createErr
@@ -172,7 +185,7 @@ func downloadONNXRuntime(destDir string) error {
 		}
 	}
 
-	return fmt.Errorf("library %s not found in archive %s", libFile, archiveName)
+	return fmt.Errorf("library not found in ONNX Runtime %s archive", version)
 }
 
 // onnxRuntimeLibName returns the platform-specific library filename.
@@ -187,27 +200,21 @@ func onnxRuntimeLibName() string {
 	}
 }
 
-// onnxRuntimeArchive returns the archive name and library path within it.
-func onnxRuntimeArchive() (archive, libPath string) {
-	version := onnxRuntimeVersion
+// onnxRuntimeAssetPattern returns a glob pattern matching the ONNX Runtime
+// release asset for the current platform. Used with resolveGitHubAsset.
+func onnxRuntimeAssetPattern() string {
 	switch {
 	case runtime.GOOS == "linux" && runtime.GOARCH == "amd64":
-		return fmt.Sprintf("onnxruntime-linux-x64-%s.tgz", version),
-			"lib/libonnxruntime.so." + version
+		return "onnxruntime-linux-x64-*.tgz"
 	case runtime.GOOS == "linux" && runtime.GOARCH == "arm64":
-		return fmt.Sprintf("onnxruntime-linux-aarch64-%s.tgz", version),
-			"lib/libonnxruntime.so." + version
+		return "onnxruntime-linux-aarch64-*.tgz"
 	case runtime.GOOS == "darwin" && runtime.GOARCH == "arm64":
-		return fmt.Sprintf("onnxruntime-osx-arm64-%s.tgz", version),
-			"lib/libonnxruntime." + version + ".dylib"
+		return "onnxruntime-osx-arm64-*.tgz"
 	case runtime.GOOS == "darwin" && runtime.GOARCH == "amd64":
-		return fmt.Sprintf("onnxruntime-osx-x86_64-%s.tgz", version),
-			"lib/libonnxruntime." + version + ".dylib"
+		return "onnxruntime-osx-x86_64-*.tgz"
 	case runtime.GOOS == "windows" && runtime.GOARCH == "amd64":
-		return fmt.Sprintf("onnxruntime-win-x64-%s.zip", version),
-			"lib/onnxruntime.dll"
+		return "onnxruntime-win-x64-*.zip"
 	default:
-		return fmt.Sprintf("onnxruntime-linux-x64-%s.tgz", version),
-			"lib/libonnxruntime.so." + version
+		return "onnxruntime-linux-x64-*.tgz"
 	}
 }

@@ -32,7 +32,7 @@ func setupTestWorkspace(t *testing.T) (string, string) {
 		t.Skip("OPENAI_API_KEY not set, skipping engine integration test")
 	}
 	if model == "" {
-		model = "gpt-5.0"
+		model = "gpt-5.4-mini"
 	}
 
 	// Verify the endpoint is reachable.

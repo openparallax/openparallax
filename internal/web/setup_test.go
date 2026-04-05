@@ -83,7 +83,7 @@ func TestSetupCompleteDefaultsAgentName(t *testing.T) {
 	s := NewSetupServer(0)
 	reqBody := `{
 		"agent": {"name": "", "avatar": ""},
-		"llm": {"provider": "openai", "api_key": "test", "model": "gpt-5.3"},
+		"llm": {"provider": "openai", "api_key": "test", "model": "gpt-5.4"},
 		"embedding": {},
 		"workspace": "` + workspace + `"
 	}`

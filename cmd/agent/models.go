@@ -10,7 +10,7 @@ var DefaultModels = map[string]struct {
 	Embedding string
 }{
 	"anthropic": {Chat: "claude-sonnet-4-6", Shield: "claude-haiku-4-5-20251001"},
-	"openai":    {Chat: "gpt-5.3", Shield: "gpt-5.0", Embedding: "text-embedding-3-small"},
-	"google":    {Chat: "gemini-3.1-pro", Shield: "gemini-2.5-flash", Embedding: "text-embedding-004"},
+	"openai":    {Chat: "gpt-5.4", Shield: "gpt-5.4-mini", Embedding: "text-embedding-3-small"},
+	"google":    {Chat: "gemini-3.1-pro", Shield: "gemini-3.1-flash-lite", Embedding: "text-embedding-004"},
 	"ollama":    {Chat: "llama3.2", Shield: "llama3.2", Embedding: "nomic-embed-text"},
 }

@@ -17,7 +17,7 @@ func TestCompactUnderBudget(t *testing.T) {
 	}
 	model := os.Getenv("OPENAI_MODEL")
 	if model == "" {
-		model = "gpt-5.0"
+		model = "gpt-5.4-mini"
 	}
 	provider, err := llm.NewOpenAIProvider(apiKey, model, os.Getenv("OPENAI_BASE_URL"))
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestCompactOverBudget(t *testing.T) {
 	}
 	model := os.Getenv("OPENAI_MODEL")
 	if model == "" {
-		model = "gpt-5.0"
+		model = "gpt-5.4-mini"
 	}
 	provider, err := llm.NewOpenAIProvider(apiKey, model, os.Getenv("OPENAI_BASE_URL"))
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestCompactPreservesRecent(t *testing.T) {
 	}
 	model := os.Getenv("OPENAI_MODEL")
 	if model == "" {
-		model = "gpt-5.0"
+		model = "gpt-5.4-mini"
 	}
 	provider, err := llm.NewOpenAIProvider(apiKey, model, os.Getenv("OPENAI_BASE_URL"))
 	require.NoError(t, err)

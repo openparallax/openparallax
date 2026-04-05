@@ -162,7 +162,7 @@ func (g *GoogleProvider) Name() string { return "google" }
 func (g *GoogleProvider) Model() string { return g.model }
 
 // CheapestModel returns the cheapest Google model for sub-agent use.
-func (g *GoogleProvider) CheapestModel() string { return "gemini-2.5-flash" }
+func (g *GoogleProvider) CheapestModel() string { return "gemini-3.1-flash-lite" }
 
 // configureModel creates a GenerativeModel with the given options.
 func (g *GoogleProvider) configureModel(cfg *CompletionConfig) *genai.GenerativeModel {
