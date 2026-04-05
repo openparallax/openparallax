@@ -61,8 +61,9 @@ type Engine struct {
 	db            *storage.DB
 	mcpManager    *mcp.Manager
 
-	tier3Manager    *Tier3Manager
-	subAgentManager *SubAgentManager
+	tier3Manager     *Tier3Manager
+	approvalNotifier ApprovalNotifier
+	subAgentManager  *SubAgentManager
 	oauthManager    *oauth.Manager
 	broadcaster     *EventBroadcaster
 
@@ -813,7 +814,18 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	}
 
 	if verdict.Decision == types.VerdictEscalate {
-		return &pb.ToolResultDelivery{CallId: tp.CallId, Content: "Action requires human approval", IsError: true}
+		approved, approvalErr := e.requestTier3Approval(ctx, sid, mid, tp.ToolName, action, verdict.Reasoning)
+		if approvalErr != nil || !approved {
+			reason := "denied by human review"
+			if approvalErr != nil {
+				reason = "approval timeout or error"
+			}
+			e.broadcaster.Broadcast(&PipelineEvent{
+				SessionID: sid, MessageID: mid, Type: EventActionCompleted,
+				ActionCompleted: &ActionCompletedEvent{ToolName: tp.ToolName, Success: false, Summary: "Escalated: " + reason},
+			})
+			return &pb.ToolResultDelivery{CallId: tp.CallId, Content: reason, IsError: true}
+		}
 	}
 
 	// Hash verification.
@@ -1321,7 +1333,18 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	}
 
 	if verdict.Decision == types.VerdictEscalate {
-		return llm.ToolResult{CallID: tc.ID, Content: "Action requires human approval — escalation is not available in this session", IsError: true}
+		approved, approvalErr := e.requestTier3Approval(ctx, sid, mid, tc.Name, action, verdict.Reasoning)
+		if approvalErr != nil || !approved {
+			reason := "denied by human review"
+			if approvalErr != nil {
+				reason = "approval timeout or error"
+			}
+			_ = sender.SendEvent(&PipelineEvent{
+				SessionID: sid, MessageID: mid, Type: EventActionCompleted,
+				ActionCompleted: &ActionCompletedEvent{ToolName: tc.Name, Success: false, Summary: "Escalated: " + reason},
+			})
+			return llm.ToolResult{CallID: tc.ID, Content: reason, IsError: true}
+		}
 	}
 
 	// Hash verification.

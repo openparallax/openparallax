@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -128,4 +129,57 @@ func (m *Tier3Manager) resetIfNeeded() {
 		m.hourlyCount = 0
 		m.hourReset = time.Now().Add(time.Hour)
 	}
+}
+
+// ApprovalNotifier is implemented by channel managers to forward Tier 3
+// approval requests to connected messaging platforms (Telegram, Discord, etc.).
+// The notifier sends a human-readable prompt and routes responses back via
+// Tier3Manager.Decide. Implementations must be safe for concurrent use.
+type ApprovalNotifier interface {
+	NotifyApproval(actionID, toolName, reasoning string, timeoutSecs int)
+}
+
+// SetApprovalNotifier registers a channel-level notifier for Tier 3 approvals.
+// Called by the process manager after channel adapters are initialized.
+func (e *Engine) SetApprovalNotifier(n ApprovalNotifier) {
+	e.approvalNotifier = n
+}
+
+// requestTier3Approval broadcasts an approval request to all connected clients
+// (web UI via broadcaster, messaging channels via approvalNotifier) and blocks
+// until the user responds or the timeout expires.
+func (e *Engine) requestTier3Approval(ctx context.Context, sid, mid, toolName string, action *types.ActionRequest, reasoning string) (bool, error) {
+	if e.tier3Manager.RateLimitExceeded() {
+		e.log.Warn("tier3_rate_limit", "tool", toolName)
+		return false, fmt.Errorf("Tier 3 hourly rate limit exceeded")
+	}
+
+	pa := &PendingAction{
+		ID:        crypto.NewID(),
+		Action:    action,
+		Reasoning: reasoning,
+	}
+
+	timeoutSecs := int(e.tier3Manager.timeout.Seconds())
+
+	// Broadcast to web UI and gRPC subscribers.
+	e.broadcaster.Broadcast(&PipelineEvent{
+		SessionID: sid, MessageID: mid,
+		Type: EventTier3ApprovalNeeded,
+		Tier3Approval: &Tier3ApprovalEvent{
+			ActionID:    pa.ID,
+			ToolName:    toolName,
+			Reasoning:   reasoning,
+			TimeoutSecs: timeoutSecs,
+		},
+	})
+
+	// Notify connected channel adapters (Telegram, Discord, etc.).
+	if e.approvalNotifier != nil {
+		e.approvalNotifier.NotifyApproval(pa.ID, toolName, reasoning, timeoutSecs)
+	}
+
+	e.log.Info("tier3_approval_requested", "action_id", pa.ID, "tool", toolName)
+
+	return e.tier3Manager.Submit(ctx, pa)
 }

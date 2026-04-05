@@ -17,7 +17,8 @@ const (
 	EventSubAgentProgress  EventType = "sub_agent_progress"
 	EventSubAgentCompleted EventType = "sub_agent_completed"
 	EventSubAgentFailed    EventType = "sub_agent_failed"
-	EventSubAgentCancelled EventType = "sub_agent_cancelled"
+	EventSubAgentCancelled    EventType = "sub_agent_cancelled"
+	EventTier3ApprovalNeeded  EventType = "tier3_approval_required"
 )
 
 // PipelineEvent is a transport-neutral event emitted during message processing.
@@ -35,6 +36,9 @@ type PipelineEvent struct {
 	ResponseComplete *ResponseCompleteEvent `json:"response_complete,omitempty"`
 	OTRBlocked       *OTRBlockedEvent       `json:"otr_blocked,omitempty"`
 	Error            *PipelineErrorEvent    `json:"error,omitempty"`
+
+	// Tier 3 human-in-the-loop approval.
+	Tier3Approval *Tier3ApprovalEvent `json:"tier3_approval,omitempty"`
 
 	// Sub-agent events.
 	SubAgentSpawned   *SubAgentSpawnedEvent   `json:"sub_agent_spawned,omitempty"`
@@ -87,6 +91,14 @@ type PipelineErrorEvent struct {
 	Code        string `json:"code"`
 	Message     string `json:"message"`
 	Recoverable bool   `json:"recoverable"`
+}
+
+// Tier3ApprovalEvent requests human approval for an escalated action.
+type Tier3ApprovalEvent struct {
+	ActionID    string `json:"action_id"`
+	ToolName    string `json:"tool_name"`
+	Reasoning   string `json:"reasoning"`
+	TimeoutSecs int    `json:"timeout_secs"`
 }
 
 // SubAgentSpawnedEvent signals that a sub-agent has been created.

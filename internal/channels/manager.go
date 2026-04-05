@@ -158,6 +158,27 @@ func (m *Manager) getOrCreateSession(adapterName, chatID string, mode types.Sess
 	return sid
 }
 
+// NotifyApproval broadcasts a Tier 3 approval request to all connected
+// adapters that implement ApprovalHandler. Adapters that do not support
+// approval prompts are silently skipped.
+func (m *Manager) NotifyApproval(actionID, toolName, reasoning string, timeoutSecs int) {
+	for _, adapter := range m.adapters {
+		handler, ok := adapter.(ApprovalHandler)
+		if !ok {
+			continue
+		}
+		if err := handler.RequestApproval(actionID, toolName, reasoning, timeoutSecs); err != nil {
+			m.log.Warn("tier3_notify_failed", "adapter", adapter.Name(), "action_id", actionID, "error", err)
+		}
+	}
+}
+
+// HandleApprovalResponse routes an approval decision from a channel adapter
+// back to the Tier 3 manager.
+func (m *Manager) HandleApprovalResponse(actionID string, approved bool) error {
+	return m.engine.Tier3().Decide(actionID, approved)
+}
+
 // ResetSession creates a new session for a chat (used by /new command).
 func (m *Manager) ResetSession(adapterName, chatID string) {
 	key := adapterName + ":" + chatID

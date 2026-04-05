@@ -65,6 +65,16 @@ const (
 	FormatHTML
 )
 
+// ApprovalHandler is an optional interface that channel adapters can implement
+// to receive Tier 3 human-in-the-loop approval requests. Adapters that do not
+// implement this interface are silently skipped during approval broadcasts.
+type ApprovalHandler interface {
+	// RequestApproval sends an approval prompt to the user on this platform.
+	// The adapter is responsible for formatting the request appropriately
+	// (e.g. inline keyboard for Telegram, reactions for Discord).
+	RequestApproval(actionID, toolName, reasoning string, timeoutSecs int) error
+}
+
 // MaxMessageLen returns the maximum message length for a platform.
 func MaxMessageLen(platform string) int {
 	switch platform {
