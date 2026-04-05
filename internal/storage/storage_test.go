@@ -137,14 +137,37 @@ func TestMessagesOrderedByTimestamp(t *testing.T) {
 func TestDeleteSessionCascadesToMessages(t *testing.T) {
 	db := openTestDB(t)
 	now := time.Now().Truncate(time.Second)
-	require.NoError(t, db.InsertSession(&types.Session{ID: "s", Mode: types.SessionNormal, CreatedAt: now}))
-	require.NoError(t, db.InsertMessage(&types.Message{ID: "m1", SessionID: "s", Role: "user", Content: "test", Timestamp: now}))
 
-	require.NoError(t, db.DeleteSession("s"))
+	// Create two sessions with messages.
+	require.NoError(t, db.InsertSession(&types.Session{ID: "target", Mode: types.SessionNormal, CreatedAt: now}))
+	require.NoError(t, db.InsertMessage(&types.Message{ID: "m1", SessionID: "target", Role: "user", Content: "one", Timestamp: now}))
+	require.NoError(t, db.InsertMessage(&types.Message{ID: "m2", SessionID: "target", Role: "assistant", Content: "two", Timestamp: now.Add(time.Second)}))
+	require.NoError(t, db.InsertMessage(&types.Message{ID: "m3", SessionID: "target", Role: "user", Content: "three", Timestamp: now.Add(2 * time.Second)}))
 
-	msgs, err := db.GetMessages("s")
+	require.NoError(t, db.InsertSession(&types.Session{ID: "other", Mode: types.SessionNormal, CreatedAt: now}))
+	require.NoError(t, db.InsertMessage(&types.Message{ID: "m4", SessionID: "other", Role: "user", Content: "keep", Timestamp: now}))
+
+	// Delete target session.
+	require.NoError(t, db.DeleteSession("target"))
+
+	// Session is gone.
+	_, err := db.GetSession("target")
+	assert.ErrorIs(t, err, types.ErrSessionNotFound)
+
+	// All three messages are gone.
+	msgs, err := db.GetMessages("target")
 	require.NoError(t, err)
 	assert.Empty(t, msgs)
+
+	// Other session and its message are unaffected.
+	other, err := db.GetSession("other")
+	require.NoError(t, err)
+	assert.Equal(t, "other", other.ID)
+
+	otherMsgs, err := db.GetMessages("other")
+	require.NoError(t, err)
+	require.Len(t, otherMsgs, 1)
+	assert.Equal(t, "keep", otherMsgs[0].Content)
 }
 
 func TestUpdateSessionTitle(t *testing.T) {

@@ -122,15 +122,22 @@ func (db *DB) GetMessages(sessionID string) ([]types.Message, error) {
 	return messages, rows.Err()
 }
 
-// DeleteSession removes a session and all its messages (via CASCADE).
+// DeleteSession removes a session and all its messages in a single
+// transaction so the two deletions are atomic.
 func (db *DB) DeleteSession(id string) error {
-	// Manually delete messages first because SQLite CGo-free driver
-	// may not enforce foreign key cascades in all configurations.
-	if _, err := db.conn.Exec(`DELETE FROM messages WHERE session_id = ?`, id); err != nil {
+	tx, err := db.conn.Begin()
+	if err != nil {
 		return err
 	}
-	_, err := db.conn.Exec(`DELETE FROM sessions WHERE id = ?`, id)
-	return err
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec("DELETE FROM messages WHERE session_id = ?", id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("DELETE FROM sessions WHERE id = ?", id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // UpdateSessionTitle renames a session.
