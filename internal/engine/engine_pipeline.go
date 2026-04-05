@@ -56,9 +56,7 @@ func (e *Engine) forwardToAgent(sid, mid, content string, mode types.SessionMode
 	e.mu.Unlock()
 
 	if agentStream == nil {
-		// Fall back to old processMessageCore for backward compatibility
-		// during the migration period.
-		return nil
+		return fmt.Errorf("agent process not connected")
 	}
 
 	pbMode := pb.SessionMode_NORMAL
