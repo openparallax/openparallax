@@ -320,6 +320,9 @@ type AgentsConfig struct {
 	// SubAgentModel overrides the default sub-agent model.
 	// Empty means auto-detect cheapest model from the configured provider.
 	SubAgentModel string `yaml:"sub_agent_model,omitempty" json:"sub_agent_model,omitempty"`
+
+	// MaxRounds limits how many LLM calls each sub-agent can make (default 20).
+	MaxRounds int `yaml:"max_rounds,omitempty" json:"max_rounds,omitempty"`
 }
 
 // ToolsConfig configures tool group availability.

@@ -375,12 +375,25 @@ func (m *SubAgentManager) FailSubAgent(name, errMsg string) {
 	}
 }
 
-// IncrementToolCall increments the tool call count for a sub-agent.
+// IncrementToolCall increments the tool call count for a sub-agent
+// and broadcasts a progress event.
 func (m *SubAgentManager) IncrementToolCall(name string) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if sa, ok := m.agents[name]; ok {
+	sa, ok := m.agents[name]
+	if ok {
 		sa.ToolCallCount++
+	}
+	m.mu.Unlock()
+
+	if ok {
+		elapsed := time.Since(sa.CreatedAt).Milliseconds()
+		m.broadcastEvent(&PipelineEvent{
+			Type: EventSubAgentProgress,
+			SubAgentProgress: &SubAgentProgressEvent{
+				Name: sa.Name, LLMCalls: sa.LLMCallCount,
+				ToolCalls: sa.ToolCallCount, ElapsedMs: elapsed,
+			},
+		})
 	}
 }
 
@@ -547,7 +560,7 @@ func (m *SubAgentManager) broadcastFinalEvent(sa *SubAgent) {
 		m.broadcastEvent(&PipelineEvent{
 			Type: EventSubAgentCompleted,
 			SubAgentCompleted: &SubAgentCompletedEvent{
-				Name: sa.Name, Result: truncateResult(sa.Result, 500), DurationMs: dur,
+				Name: sa.Name, Result: truncateResult(sa.Result, 2000), DurationMs: dur,
 			},
 		})
 	case StatusFailed, StatusTimedOut:

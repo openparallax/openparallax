@@ -1592,6 +1592,14 @@ func (e *Engine) Log() *logging.Logger { return e.log }
 // LLMModel returns the configured LLM model name.
 func (e *Engine) LLMModel() string { return e.llm.Model() }
 
+// subAgentMaxRounds returns the configured max LLM calls per sub-agent.
+func (e *Engine) subAgentMaxRounds() int {
+	if e.cfg.Agents.MaxRounds > 0 {
+		return e.cfg.Agents.MaxRounds
+	}
+	return 20
+}
+
 // ToolList returns all available tools grouped by name.
 func (e *Engine) ToolList() []map[string]string {
 	schemas := e.executors.AllToolSchemas()
@@ -1696,7 +1704,7 @@ func (e *Engine) RegisterSubAgent(_ context.Context, req *pb.SubAgentRegisterReq
 		Provider:     sa.provider,
 		ApiKeyEnv:    sa.apiKeyEnv,
 		BaseUrl:      sa.baseURL,
-		MaxLlmCalls:  20,
+		MaxLlmCalls:  int32(e.subAgentMaxRounds()),
 	}, nil
 }
 

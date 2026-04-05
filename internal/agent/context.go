@@ -142,7 +142,9 @@ When no tools are needed:
 Be conversational and helpful.
 If the user references something from a previous message, use your conversation history.
 
-Before saying you don't know something, search your memory and workspace first.`
+Before saying you don't know something, search your memory and workspace first.
+
+For tasks with independent parts, load the agents group and delegate to parallel sub-agents via create_agent(wait=false). Collect results with agent_result. Sub-agents share your workspace but have their own LLM sessions. Keep sub-agent results concise.`
 }
 
 func otrNotice() string {
