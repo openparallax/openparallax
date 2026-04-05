@@ -243,10 +243,10 @@ func TestGatewayNoMatchProceedsToTier1(t *testing.T) {
 	// An action with no policy match and benign content should proceed to tier 1
 	// and get allowed by heuristic.
 	v := p.Evaluate(context.Background(), &ActionRequest{
-		Type:    ActionWriteFile,
-		Payload: map[string]any{"path": "/tmp/harmless.txt", "content": "hello"},
+		Type:    ActionReadFile,
+		Payload: map[string]any{"path": "notes.txt"},
 		Hash:    "testhash",
 	})
-	// Should be allowed — heuristic sees nothing dangerous.
+	// Should be allowed — benign read of a workspace file.
 	assert.Equal(t, VerdictAllow, v.Decision)
 }

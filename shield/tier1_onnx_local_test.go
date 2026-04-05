@@ -10,6 +10,9 @@ import (
 func TestLocalOnnxClientUnavailable(t *testing.T) {
 	// Without a downloaded model, the client should be unavailable.
 	client := NewLocalOnnxClient(0.85)
+	if client.IsAvailable() {
+		t.Skip("ONNX model is installed — cannot test unavailable path")
+	}
 	assert.False(t, client.IsAvailable())
 
 	_, err := client.Classify(context.Background(), &ActionRequest{
