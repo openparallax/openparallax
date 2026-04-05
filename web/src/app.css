@@ -121,12 +121,16 @@ html, body {
 /* Show thumb on hover — overlay so no layout shift */
 .messages:hover,
 .session-list:hover,
-.canvas-content:hover {
+.canvas-content:hover,
+.render-markdown:hover,
+.render-code:hover {
   scrollbar-color: var(--accent-subtle) transparent;
 }
 .messages:hover::-webkit-scrollbar-thumb,
 .session-list:hover::-webkit-scrollbar-thumb,
-.canvas-content:hover::-webkit-scrollbar-thumb {
+.canvas-content:hover::-webkit-scrollbar-thumb,
+.render-markdown:hover::-webkit-scrollbar-thumb,
+.render-code:hover::-webkit-scrollbar-thumb {
   background: var(--accent-subtle);
 }
 

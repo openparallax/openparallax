@@ -349,6 +349,7 @@
       on:input={autoResize}
       class="input-field"
       class:otr={isOTR}
+      autofocus
       placeholder={isOTR ? 'Off the record...' : 'Type a message...'}
       rows="1"
       disabled={!$connected}
@@ -371,7 +372,7 @@
     {:else}
       <span class="sandbox-badge unsandboxed" title={sandboxStatus?.reason || 'Sandbox unavailable'}>
         <AlertTriangle size={11} />
-        {sandboxStatus?.reason || 'Unsandboxed'}
+        Unsandboxed
       </span>
     {/if}
   </div>

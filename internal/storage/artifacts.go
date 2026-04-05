@@ -39,6 +39,29 @@ func (db *DB) GetArtifact(id string) (*types.Artifact, error) {
 }
 
 // ListPersistedArtifacts returns all artifacts from the dedicated artifacts table.
+// ListSessionArtifacts returns all artifacts for a session.
+func (db *DB) ListSessionArtifacts(sessionID string) ([]types.Artifact, error) {
+	rows, err := db.conn.Query(
+		`SELECT id, session_id, type, title, COALESCE(path,''), COALESCE(language,''), size_bytes, COALESCE(preview_type,''), storage_path
+		 FROM artifacts WHERE session_id = ? ORDER BY created_at ASC`, sessionID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list session artifacts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var result []types.Artifact
+	for rows.Next() {
+		var a types.Artifact
+		if err := rows.Scan(&a.ID, &a.SessionID, &a.Type, &a.Title, &a.Path, &a.Language, &a.SizeBytes, &a.PreviewType, &a.StoragePath); err != nil {
+			continue
+		}
+		result = append(result, a)
+	}
+	return result, rows.Err()
+}
+
+// ListPersistedArtifacts returns all persisted artifacts across all sessions.
 func (db *DB) ListPersistedArtifacts() ([]types.Artifact, error) {
 	rows, err := db.conn.Query(
 		`SELECT id, session_id, type, title, COALESCE(path,''), COALESCE(language,''), size_bytes, COALESCE(preview_type,''), storage_path

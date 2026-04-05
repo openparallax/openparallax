@@ -19,6 +19,7 @@ import (
 	"github.com/openparallax/openparallax/internal/channels/whatsapp"
 	"github.com/openparallax/openparallax/internal/engine"
 	"github.com/openparallax/openparallax/internal/engine/executors"
+	"github.com/openparallax/openparallax/internal/heartbeat"
 	"github.com/openparallax/openparallax/internal/registry"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/internal/web"
@@ -175,6 +176,15 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	}
 	channelMgr.StartAll(channelCtx)
 
+	// Start heartbeat scheduler for HEARTBEAT.md cron entries.
+	hbLoop := heartbeat.NewLoop(cfg.Workspace, func(task string) {
+		eng.ProcessHeartbeatTask(channelCtx, task)
+	}, eng.Log())
+	hbLoop.Start(channelCtx)
+	if count := hbLoop.EntryCount(); count > 0 {
+		eng.Log().Info("heartbeat_started", "entries", count)
+	}
+
 	// Spawn the sandboxed Agent child process.
 	agentName := cfg.Identity.Name
 	if agentName == "" {
@@ -186,33 +196,9 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		// Fall through — the engine still serves the web UI even without the CLI agent.
 	}
 
-	// Read canary verification result from the Agent process. The agent
-	// writes sandbox.status after applying the sandbox and running the
-	// canary probe. Wait briefly for it to appear.
-	go func() {
-		time.Sleep(2 * time.Second)
-		canary := sandbox.ReadCanaryResult(cfg.Workspace)
-		switch canary.Status {
-		case "sandboxed":
-			eng.SetSandboxStatus(true, canary.Mechanism, sbStatus.Version,
-				sbStatus.Filesystem, sbStatus.Network, "")
-			eng.Log().Info("sandbox_verified",
-				"summary", canary.Summary,
-				"mechanism", canary.Mechanism,
-				"blocked", canary.Blocked(),
-				"platform", canary.Platform)
-		case "partial", "unsandboxed":
-			eng.SetSandboxStatus(false, canary.Mechanism, 0,
-				false, false, canary.Summary)
-			eng.Log().Warn("sandbox_verification_failed",
-				"summary", canary.Summary,
-				"platform", canary.Platform)
-		case "unavailable":
-			eng.Log().Warn("sandbox_unavailable",
-				"summary", canary.Summary,
-				"platform", canary.Platform)
-		}
-	}()
+	// Sandbox status is set from Probe() above. The agent verifies
+	// enforcement via canary probes internally and refuses to start
+	// if required probes fail.
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)

@@ -912,6 +912,11 @@ func writeConfig(path, workspace, agentName, avatar string,
 	fmt.Fprintf(&sb, "  grpc_port: %d\n", webPort+registry.GRPCPortOffset)
 	sb.WriteString("  auth: true\n\n")
 
+	// Tools
+	sb.WriteString("tools:\n")
+	sb.WriteString("  disabled_groups:\n")
+	sb.WriteString("    - canvas\n\n")
+
 	// General
 	sb.WriteString("general:\n")
 	sb.WriteString("  fail_closed: true\n")

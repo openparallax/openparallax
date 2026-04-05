@@ -95,8 +95,11 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 	}
 
 	// Canary probes: verify sandbox enforcement per platform.
+	// Write the result via stderr (JSON log) since the sandbox blocks file writes.
+	// The engine reads it from the agent's log output.
 	canary := sandbox.VerifyCanary()
-	_ = sandbox.WriteCanaryResult(agentWorkspace, canary)
+	canaryJSON, _ := json.Marshal(canary)
+	agentLog("info", "sandbox_canary_result", "result", string(canaryJSON))
 	agentLog("info", "sandbox_canary", "status", canary.Status, "summary", canary.Summary)
 
 	if canary.Status == "unavailable" {
@@ -360,6 +363,15 @@ func processMessage(
 						Summary: t.Summary,
 					})
 				}
+				var pbUsage *pb.TokenUsage
+				if event.Usage != nil {
+					pbUsage = &pb.TokenUsage{
+						InputTokens:      int32(event.Usage.InputTokens),
+						OutputTokens:     int32(event.Usage.OutputTokens),
+						CacheReadTokens:  int32(event.Usage.CacheReadTokens),
+						CacheWriteTokens: int32(event.Usage.CacheCreationTokens),
+					}
+				}
 				_ = stream.Send(&pb.AgentEvent{
 					Event: &pb.AgentEvent_ResponseComplete{
 						ResponseComplete: &pb.AgentResponseComplete{
@@ -367,6 +379,7 @@ func processMessage(
 							MessageId: mid,
 							Content:   event.Content,
 							Thoughts:  pbThoughts,
+							Usage:     pbUsage,
 						},
 					},
 				})

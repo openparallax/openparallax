@@ -119,12 +119,24 @@ func (c *CanvasExecutor) Execute(_ context.Context, action *types.ActionRequest)
 
 func (c *CanvasExecutor) createFile(action *types.ActionRequest) *types.ActionResult {
 	rawPath, _ := action.Payload["path"].(string)
+	contentType, _ := action.Payload["type"].(string)
 	if rawPath == "" {
-		return ErrorResult(action.RequestID, "path is required", "canvas_create requires a file path")
+		// LLM omitted path — generate a default from the content type.
+		ext := map[string]string{
+			"html": ".html", "svg": ".svg", "markdown": ".md", "mermaid": ".mmd",
+			"css": ".css", "javascript": ".js", "json": ".json", "yaml": ".yaml",
+		}
+		suffix := ext[contentType]
+		if suffix == "" {
+			suffix = ".txt"
+		}
+		rawPath = "canvas" + suffix
 	}
 	path := ResolvePath(rawPath, c.workspacePath)
 	content, _ := action.Payload["content"].(string)
-	contentType, _ := action.Payload["type"].(string)
+	if contentType == "" {
+		contentType = inferTypeFromExt(rawPath)
+	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return ErrorResult(action.RequestID, err.Error(), "failed to create directory for "+filepath.Base(path))
@@ -243,6 +255,29 @@ func (c *CanvasExecutor) startPreview(action *types.ActionRequest) *types.Action
 	return SuccessResult(action.RequestID,
 		fmt.Sprintf("Preview server running at %s (auto-closes in 30 minutes)", url),
 		fmt.Sprintf("preview at %s", url))
+}
+
+func inferTypeFromExt(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".html", ".htm":
+		return "html"
+	case ".md", ".markdown":
+		return "markdown"
+	case ".svg":
+		return "svg"
+	case ".css":
+		return "css"
+	case ".js":
+		return "javascript"
+	case ".json":
+		return "json"
+	case ".yaml", ".yml":
+		return "yaml"
+	case ".mmd":
+		return "mermaid"
+	default:
+		return ""
+	}
 }
 
 func detectCanvasPreview(contentType string) string {

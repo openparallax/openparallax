@@ -213,6 +213,10 @@ func (g *Gateway) checkBudget() bool {
 	defer g.mu.Unlock()
 	today := time.Now().Format("2006-01-02")
 	if g.budgetDate != today {
+		if g.cfg.Log != nil && g.budgetDate != "" {
+			g.cfg.Log.Info("shield_budget_reset", "previous_date", g.budgetDate,
+				"new_date", today, "previous_usage", g.budgetCount, "budget", g.cfg.DailyBudget)
+		}
 		g.budgetDate = today
 		g.budgetCount = 0
 	}

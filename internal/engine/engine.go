@@ -68,9 +68,12 @@ type Engine struct {
 	server   *grpc.Server
 	listener net.Listener
 
-	agentStream pb.AgentService_RunSessionServer
+	agentStream   pb.AgentService_RunSessionServer
+	currentMsgOTR bool
 
-	sandboxStatus sandboxInfo
+	sandboxStatus        sandboxInfo
+	lastProposalArtifact *types.Artifact
+	heartbeatSessionID   string
 
 	backgroundCtx    context.Context
 	backgroundCancel context.CancelFunc
@@ -130,6 +133,10 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	registry := executors.NewRegistry(cfg.Workspace, cfg, oauthMgr, log)
+	if len(cfg.Tools.DisabledGroups) > 0 {
+		registry.Groups.DisableGroups(cfg.Tools.DisabledGroups)
+		log.Info("tools_groups_disabled", "groups", strings.Join(cfg.Tools.DisabledGroups, ", "))
+	}
 
 	configDir := filepath.Dir(configPath)
 	policyFile := resolveFilePath(cfg.Shield.PolicyFile, configDir, cfg.Workspace)
@@ -341,6 +348,7 @@ func (e *Engine) SendMessage(req *pb.ClientMessageRequest, stream pb.ClientServi
 func (e *Engine) forwardToAgent(sid, mid, content string, mode types.SessionMode, source string) error {
 	e.mu.Lock()
 	agentStream := e.agentStream
+	e.currentMsgOTR = mode == types.SessionOTR
 	e.mu.Unlock()
 
 	if agentStream == nil {
@@ -384,10 +392,6 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		return fmt.Errorf("expected AgentReady, got %T", firstEvent.Event)
 	}
 	e.log.Info("agent_connected", "id", ready.AgentId)
-	_ = e.audit.Log(audit.Entry{
-		EventType: types.AuditSessionStarted,
-		Details:   "agent connected: " + ready.AgentId,
-	})
 
 	// Store the agent stream for forwarding messages.
 	e.mu.Lock()
@@ -398,11 +402,12 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		e.agentStream = nil
 		e.mu.Unlock()
 		e.log.Info("agent_disconnected", "id", ready.AgentId)
-		_ = e.audit.Log(audit.Entry{
-			EventType: types.AuditSessionEnded,
-			Details:   "agent disconnected: " + ready.AgentId,
-		})
 	}()
+
+	// Track artifacts and tool calls produced during the current message
+	// so they can be attached to the assistant message on ResponseComplete.
+	var pendingArtifacts []*types.Artifact
+	var pendingThoughts []types.Thought
 
 	// Read agent events in a loop.
 	for {
@@ -425,7 +430,28 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 
 		case *pb.AgentEvent_ToolProposal:
 			tp := ev.ToolProposal
-			result := e.handleToolProposal(ctx, tp)
+			result, artifact := e.handleToolProposalWithArtifact(ctx, tp)
+			if artifact != nil {
+				pendingArtifacts = append(pendingArtifacts, artifact)
+			}
+
+			// Track tool call as a thought for persistence.
+			summary := tp.ToolName
+			if result.Content != "" && len(result.Content) < 80 {
+				summary = tp.ToolName + " " + result.Content
+			}
+			detail := map[string]any{
+				"tool_name": tp.ToolName,
+				"success":   !result.IsError,
+			}
+			if strings.HasPrefix(result.Content, "Blocked") {
+				detail["shield"] = "BLOCK"
+			}
+			pendingThoughts = append(pendingThoughts, types.Thought{
+				Stage:   "tool_call",
+				Summary: summary,
+				Detail:  detail,
+			})
 
 			// Send result back to Agent.
 			if sendErr := stream.Send(&pb.EngineDirective{
@@ -468,10 +494,21 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 			e.log.Info("tools_loaded", "groups", strings.Join(groups, ","),
 				"tools_count", len(defs), "summary_len", len(summary))
 
+			pendingThoughts = append(pendingThoughts, types.Thought{
+				Stage:   "tool_call",
+				Summary: fmt.Sprintf("load_tools(%s)", strings.Join(groups, ", ")),
+				Detail:  map[string]any{"tool_name": "load_tools", "success": true},
+			})
+			e.db.IncrementDailyMetric("tool_calls", 1)
+			e.db.IncrementDailyMetric("tool_success", 1)
+			e.db.IncrementDailyMetric("tool:load_tools", 1)
+
 		case *pb.AgentEvent_MemoryFlush:
 			if ev.MemoryFlush.Content != "" {
 				e.log.Debug("memory_flush", "content_len", len(ev.MemoryFlush.Content))
-				_ = e.memory.Append(memory.MemoryMain, ev.MemoryFlush.Content)
+				if memErr := e.memory.Append(memory.MemoryMain, ev.MemoryFlush.Content); memErr != nil {
+					e.log.Warn("memory_append_failed", "error", memErr, "content_len", len(ev.MemoryFlush.Content))
+				}
 			}
 
 		case *pb.AgentEvent_ResponseComplete:
@@ -481,24 +518,61 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 			e.log.Info("agent_response_complete", "session", sid,
 				"content_len", len(rc.Content), "thoughts", len(rc.Thoughts))
 
-			// Convert thoughts.
+			// Convert thoughts from agent. If agent sent none but the
+			// engine tracked tool calls, use engine-side thoughts.
 			var thoughts []types.Thought
-			for _, t := range rc.Thoughts {
-				thoughts = append(thoughts, types.Thought{
-					Stage:   t.Stage,
-					Summary: t.Summary,
+			if len(rc.Thoughts) > 0 {
+				for _, t := range rc.Thoughts {
+					thoughts = append(thoughts, types.Thought{
+						Stage:   t.Stage,
+						Summary: t.Summary,
+					})
+				}
+			} else if len(pendingThoughts) > 0 {
+				thoughts = pendingThoughts
+			}
+			pendingThoughts = nil
+
+			// Attach artifacts produced during this message.
+			var msgArtifacts []types.Artifact
+			for _, a := range pendingArtifacts {
+				msgArtifacts = append(msgArtifacts, *a)
+			}
+			pendingArtifacts = nil
+
+			e.mu.Lock()
+			isOTR := e.currentMsgOTR
+			e.mu.Unlock()
+
+			// Token usage always persists (cost tracking).
+			if rc.Usage != nil {
+				_ = e.db.InsertLLMUsage(storage.LLMUsageEntry{
+					SessionID:           sid,
+					MessageID:           mid,
+					Provider:            e.llm.Name(),
+					Model:               e.llm.Model(),
+					InputTokens:         int(rc.Usage.InputTokens),
+					OutputTokens:        int(rc.Usage.OutputTokens),
+					CacheReadTokens:     int(rc.Usage.CacheReadTokens),
+					CacheCreationTokens: int(rc.Usage.CacheWriteTokens),
 				})
+				e.db.IncrementDailyMetric("llm_calls", 1)
+				e.db.IncrementDailyMetric("tokens_input", int(rc.Usage.InputTokens))
+				e.db.IncrementDailyMetric("tokens_output", int(rc.Usage.OutputTokens))
 			}
 
-			// Store assistant message.
-			msg := &types.Message{
-				SessionID: sid,
-				Role:      "assistant",
-				Content:   rc.Content,
-				Timestamp: time.Now(),
-				Thoughts:  thoughts,
+			// OTR: broadcast only, no DB writes.
+			if !isOTR {
+				msg := &types.Message{
+					SessionID: sid,
+					Role:      "assistant",
+					Content:   rc.Content,
+					Timestamp: time.Now(),
+					Thoughts:  thoughts,
+					Artifacts: msgArtifacts,
+				}
+				e.storeAssistantMessage(sid, msg)
 			}
-			e.storeAssistantMessage(sid, msg)
 
 			// Broadcast completion.
 			e.broadcaster.Broadcast(&PipelineEvent{
@@ -507,18 +581,20 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 				ResponseComplete: &ResponseCompleteEvent{Content: rc.Content, Thoughts: thoughts},
 			})
 
-			// Generate session title if needed.
-			if sess, titleErr := e.db.GetSession(sid); titleErr == nil && sess.Title == "" {
-				history := e.getHistory(sid)
-				if len(history) >= 6 {
-					go e.generateSessionTitle(sid, history)
+			// Generate session title (not for OTR).
+			if !isOTR {
+				if sess, titleErr := e.db.GetSession(sid); titleErr == nil && sess.Title == "" {
+					history := e.getHistory(sid)
+					if len(history) >= 6 {
+						go e.generateSessionTitle(sid, history)
+					}
 				}
 			}
 
 		case *pb.AgentEvent_AgentError:
 			ae := ev.AgentError
 			e.log.Error("agent_error", "session", ae.SessionId, "code", ae.Code, "message", ae.Message)
-			_ = e.audit.Log(audit.Entry{
+			e.auditLog(audit.Entry{
 				EventType:  types.AuditShieldError,
 				SessionID:  ae.SessionId,
 				ActionType: ae.Code,
@@ -533,18 +609,38 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 	}
 }
 
+// handleToolProposalWithArtifact wraps handleToolProposal and also returns
+// any artifact produced by the tool execution.
+func (e *Engine) handleToolProposalWithArtifact(ctx context.Context, tp *pb.ToolCallProposed) (*pb.ToolResultDelivery, *types.Artifact) {
+	e.mu.Lock()
+	e.lastProposalArtifact = nil
+	e.mu.Unlock()
+
+	result := e.handleToolProposal(ctx, tp)
+
+	e.mu.Lock()
+	art := e.lastProposalArtifact
+	e.lastProposalArtifact = nil
+	e.mu.Unlock()
+
+	return result, art
+}
+
 // handleToolProposal processes a tool call proposed by the Agent through the
 // full security pipeline: protection → Shield → execution.
 func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed) *pb.ToolResultDelivery {
 	sid := tp.SessionId
 	mid := tp.MessageId
 
+	e.mu.Lock()
+	isOTRAction := e.currentMsgOTR
+	e.mu.Unlock()
+
 	// Parse arguments.
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tp.ArgumentsJson), &args); err != nil {
 		args = map[string]any{"raw": tp.ArgumentsJson}
 	}
-
 	// Build ActionRequest.
 	action := &types.ActionRequest{
 		RequestID: crypto.NewID(),
@@ -581,11 +677,13 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 		ActionStarted: &ActionStartedEvent{ToolName: tp.ToolName, Summary: tp.ToolName + ": " + truncateForLog(tp.ArgumentsJson)},
 	})
 
-	// Audit: proposed.
-	_ = e.audit.Log(audit.Entry{
-		EventType: types.AuditActionProposed, SessionID: sid,
-		ActionType: string(action.Type), Details: "hash: " + action.Hash,
-	})
+	// Audit: proposed (skip for OTR).
+	if !isOTRAction {
+		e.auditLog(audit.Entry{
+			EventType: types.AuditActionProposed, SessionID: sid,
+			ActionType: string(action.Type), Details: "hash: " + action.Hash,
+		})
+	}
 
 	// Shield evaluation.
 	verdict := e.shield.Evaluate(ctx, action)
@@ -596,13 +694,37 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 			Confidence: verdict.Confidence, Reasoning: verdict.Reasoning,
 		},
 	})
-	_ = e.audit.Log(audit.Entry{
-		EventType: types.AuditActionEvaluated, SessionID: sid,
-		ActionType: string(action.Type),
-		Details:    fmt.Sprintf("%s (tier %d): %s", verdict.Decision, verdict.Tier, verdict.Reasoning),
-	})
+	if !isOTRAction {
+		e.auditLog(audit.Entry{
+			EventType: types.AuditActionEvaluated, SessionID: sid,
+			ActionType: string(action.Type),
+			Details:    fmt.Sprintf("%s (tier %d): %s", verdict.Decision, verdict.Tier, verdict.Reasoning),
+		})
+	}
+
+	// Track shield decisions in daily metrics.
+	switch verdict.Decision {
+	case types.VerdictAllow:
+		e.db.IncrementDailyMetric("shield_allow", 1)
+	case types.VerdictBlock:
+		e.db.IncrementDailyMetric("shield_block", 1)
+	case types.VerdictEscalate:
+		e.db.IncrementDailyMetric("shield_escalate", 1)
+	}
+	e.db.IncrementDailyMetric(fmt.Sprintf("shield_t%d", verdict.Tier), 1)
 
 	if verdict.Decision == types.VerdictBlock {
+		e.db.IncrementDailyMetric("tool_calls", 1)
+		e.db.IncrementDailyMetric("tool_failed", 1)
+		e.db.IncrementDailyMetric("tool:"+tp.ToolName, 1)
+		if !isOTRAction {
+			e.auditLog(audit.Entry{
+				EventType:  types.AuditActionBlocked,
+				SessionID:  sid,
+				ActionType: string(action.Type),
+				Details:    verdict.Reasoning,
+			})
+		}
 		e.broadcaster.Broadcast(&PipelineEvent{
 			SessionID: sid, MessageID: mid, Type: EventActionCompleted,
 			ActionCompleted: &ActionCompletedEvent{ToolName: tp.ToolName, Success: false, Summary: "Blocked: " + verdict.Reasoning},
@@ -650,12 +772,21 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 		result.DurationMs = time.Since(start).Milliseconds()
 	}
 
-	// Audit + broadcast completion.
-	if result.Success {
-		_ = e.audit.Log(audit.Entry{EventType: types.AuditActionExecuted, SessionID: sid, ActionType: string(action.Type), Details: result.Summary})
-	} else {
-		_ = e.audit.Log(audit.Entry{EventType: types.AuditActionFailed, SessionID: sid, ActionType: string(action.Type), Details: result.Error})
+	// Audit and metrics (skip for OTR except metrics).
+	if !isOTRAction {
+		if result.Success {
+			e.auditLog(audit.Entry{EventType: types.AuditActionExecuted, SessionID: sid, ActionType: string(action.Type), Details: result.Summary})
+		} else {
+			e.auditLog(audit.Entry{EventType: types.AuditActionFailed, SessionID: sid, ActionType: string(action.Type), Details: result.Error})
+		}
 	}
+	if result.Success {
+		e.db.IncrementDailyMetric("tool_success", 1)
+	} else {
+		e.db.IncrementDailyMetric("tool_failed", 1)
+	}
+	e.db.IncrementDailyMetric("tool_calls", 1)
+	e.db.IncrementDailyMetric("tool:"+tp.ToolName, 1)
 
 	e.broadcaster.Broadcast(&PipelineEvent{
 		SessionID: sid, MessageID: mid, Type: EventActionCompleted,
@@ -663,7 +794,12 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	})
 
 	if result.Artifact != nil {
-		e.PersistArtifact(result.Artifact, sid)
+		if !isOTRAction {
+			e.PersistArtifact(result.Artifact, sid)
+		}
+		e.mu.Lock()
+		e.lastProposalArtifact = result.Artifact
+		e.mu.Unlock()
 		e.broadcaster.Broadcast(&PipelineEvent{
 			SessionID: sid, MessageID: mid, Type: EventActionArtifact,
 			ActionArtifact: &ActionArtifactEvent{Artifact: result.Artifact},
@@ -687,8 +823,10 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 // It subscribes the WebSocket sender for events and forwards the message
 // to the Agent for LLM processing.
 func (e *Engine) ProcessMessageForWeb(ctx context.Context, sender EventSender, sid, mid, content string, mode types.SessionMode) error {
-	// Store user message.
-	e.storeMessage(sid, mid, "user", content)
+	// OTR sessions never persist to the database.
+	if mode != types.SessionOTR {
+		e.storeMessage(sid, mid, "user", content)
+	}
 
 	// Subscribe this WS connection for events on this session.
 	// Use a stable client ID derived from the sender pointer so that
@@ -1028,7 +1166,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	allowed, protection, protReason := CheckProtection(action, e.cfg.Workspace)
 	if !allowed {
 		e.log.Warn("protection_blocked", "session", sid, "tool", tc.Name, "reason", protReason)
-		_ = e.audit.Log(audit.Entry{
+		e.auditLog(audit.Entry{
 			EventType: types.AuditSelfProtection, SessionID: sid,
 			ActionType: string(action.Type), Details: protReason,
 		})
@@ -1054,7 +1192,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	})
 
 	// Audit: proposed.
-	_ = e.audit.Log(audit.Entry{
+	e.auditLog(audit.Entry{
 		EventType: types.AuditActionProposed, SessionID: sid,
 		ActionType: string(action.Type), Details: "hash: " + action.Hash, OTR: isOTR,
 	})
@@ -1063,7 +1201,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	if isOTR && !session.IsOTRAllowed(action.Type) {
 		reason := session.OTRBlockReason(action.Type)
 		e.log.Info("otr_blocked", "session", sid, "tool", tc.Name)
-		_ = e.audit.Log(audit.Entry{
+		e.auditLog(audit.Entry{
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: "OTR: " + reason, OTR: true,
 		})
@@ -1091,7 +1229,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 			Confidence: verdict.Confidence, Reasoning: verdict.Reasoning,
 		},
 	})
-	_ = e.audit.Log(audit.Entry{
+	e.auditLog(audit.Entry{
 		EventType: types.AuditActionEvaluated, SessionID: sid,
 		ActionType: string(action.Type),
 		Details:    fmt.Sprintf("%s (tier %d, %.0f%%): %s", verdict.Decision, verdict.Tier, verdict.Confidence*100, verdict.Reasoning),
@@ -1103,20 +1241,20 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 
 	// Audit rate limit and budget exhaustion specifically.
 	if strings.Contains(verdict.Reasoning, "rate limit") {
-		_ = e.audit.Log(audit.Entry{
+		e.auditLog(audit.Entry{
 			EventType: types.AuditRateLimitHit, SessionID: sid,
 			ActionType: string(action.Type), Details: verdict.Reasoning,
 		})
 	}
 	if strings.Contains(verdict.Reasoning, "budget exhausted") {
-		_ = e.audit.Log(audit.Entry{
+		e.auditLog(audit.Entry{
 			EventType: types.AuditBudgetExhausted, SessionID: sid,
 			ActionType: string(action.Type), Details: verdict.Reasoning,
 		})
 	}
 
 	if verdict.Decision == types.VerdictBlock {
-		_ = e.audit.Log(audit.Entry{
+		e.auditLog(audit.Entry{
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: verdict.Reasoning,
 		})
@@ -1153,7 +1291,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 		reason := "IFC violation: sensitive data cannot flow to this destination"
 		e.log.Warn("ifc_blocked", "session", sid, "tool", tc.Name,
 			"sensitivity", action.DataClassification.Sensitivity, "source", action.DataClassification.SourcePath)
-		_ = e.audit.Log(audit.Entry{
+		e.auditLog(audit.Entry{
 			EventType: types.AuditActionBlocked, SessionID: sid,
 			ActionType: string(action.Type), Details: reason,
 		})
@@ -1190,17 +1328,18 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	}
 
 	e.db.IncrementDailyMetric("tool_calls", 1)
+	e.db.IncrementDailyMetric("tool:"+tc.Name, 1)
 	if result.Success {
 		e.db.IncrementDailyMetric("tool_success", 1)
 		e.log.Info("executor_complete", "session", sid, "tool", tc.Name, "success", true, "ms", result.DurationMs)
-		_ = e.audit.Log(audit.Entry{
+		e.auditLog(audit.Entry{
 			EventType: types.AuditActionExecuted, SessionID: sid,
 			ActionType: string(action.Type), Details: result.Summary,
 		})
 	} else {
 		e.db.IncrementDailyMetric("tool_failed", 1)
 		e.log.Info("executor_complete", "session", sid, "tool", tc.Name, "success", false, "error", result.Error)
-		_ = e.audit.Log(audit.Entry{
+		e.auditLog(audit.Entry{
 			EventType: types.AuditActionFailed, SessionID: sid,
 			ActionType: string(action.Type), Details: result.Error,
 		})
@@ -1454,11 +1593,50 @@ func (e *Engine) getHistory(sessionID string) []llm.ChatMessage {
 	return result
 }
 
+// auditLog writes an audit entry and logs a warning if the write fails.
+func (e *Engine) auditLog(entry audit.Entry) {
+	if err := e.audit.Log(entry); err != nil {
+		e.log.Warn("audit_write_failed", "event_type", entry.EventType,
+			"session", entry.SessionID, "action", entry.ActionType, "error", err)
+	}
+}
+
 func (e *Engine) sendErrorEvent(sender EventSender, sid, mid, code, message string) error {
 	return sender.SendEvent(&PipelineEvent{
 		SessionID: sid, MessageID: mid, Type: EventError,
 		Error: &PipelineErrorEvent{Code: code, Message: message, Recoverable: true},
 	})
+}
+
+// ProcessHeartbeatTask processes a scheduled task from HEARTBEAT.md. It uses a
+// persistent internal session so the agent has continuity across scheduled runs.
+// Events are discarded — heartbeat tasks run silently in the background.
+func (e *Engine) ProcessHeartbeatTask(ctx context.Context, task string) {
+	e.mu.Lock()
+	sid := e.heartbeatSessionID
+	if sid == "" {
+		sid = crypto.NewID()
+		e.heartbeatSessionID = sid
+		e.mu.Unlock()
+		_ = e.db.InsertSession(&types.Session{
+			ID:    sid,
+			Mode:  types.SessionHeartbeat,
+			Title: "Heartbeat",
+		})
+	} else {
+		e.mu.Unlock()
+	}
+
+	mid := "hb-" + crypto.NewID()
+	sender := &noopEventSender{}
+
+	taskCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	e.log.Info("heartbeat_process", "session", sid, "task", task)
+	if err := e.ProcessMessageForWeb(taskCtx, sender, sid, mid, task, types.SessionNormal); err != nil {
+		e.log.Error("heartbeat_failed", "task", task, "error", err)
+	}
 }
 
 // --- Accessors for the web server ---
@@ -1679,6 +1857,9 @@ func (e *Engine) UpdateShieldBudget(budget int) {
 func (e *Engine) LogPath() string {
 	return filepath.Join(e.cfg.Workspace, ".openparallax", "engine.log")
 }
+
+// Audit returns the audit logger for recording security events.
+func (e *Engine) Audit() *audit.Logger { return e.audit }
 
 // AuditPath returns the path to the audit JSONL file.
 func (e *Engine) AuditPath() string {

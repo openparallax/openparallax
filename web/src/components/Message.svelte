@@ -1,9 +1,9 @@
 <script lang="ts">
   import { afterUpdate } from 'svelte';
+  import { Download } from 'lucide-svelte';
   import type { Message as MessageType, Artifact } from '../lib/types';
   import { renderMarkdown } from '../lib/format';
   import { openArtifactTab } from '../stores/artifacts';
-  import { activeNavItem } from '../stores/settings';
 
   export let message: MessageType;
   export let isStreaming = false;
@@ -16,7 +16,7 @@
   $: isSystem = message.role === 'system';
   $: htmlContent = renderMarkdown(message.content);
   $: timestamp = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  $: messageArtifacts = message.artifacts || [];
+  $: messageArtifacts = [] as Artifact[];
 
   let showContextMenu = false;
   let menuX = 0;
@@ -65,17 +65,25 @@
     openArtifactTab(artifact);
   }
 
-  function artifactIcon(artifact: Artifact): string {
-    switch (artifact.preview_type) {
-      case 'html': return '\uD83C\uDF10';
-      case 'markdown': return '\uD83D\uDCDD';
-      case 'image': return '\uD83D\uDDBC';
-      case 'video': return '\uD83C\uDFA5';
-      default: return '\uD83D\uDCC4';
+  function downloadArtifact(e: Event, artifact: Artifact) {
+    e.stopPropagation();
+    if (artifact.storage_path || artifact.id) {
+      const link = document.createElement('a');
+      link.href = `/api/artifacts/${encodeURIComponent(artifact.id)}/download`;
+      link.download = artifact.title || 'artifact';
+      link.click();
+      return;
     }
+    const blob = new Blob([artifact.content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = artifact.title || 'artifact';
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
-  function artifactLang(artifact: Artifact): string {
+  function artifactLabel(artifact: Artifact): string {
     return artifact.language || artifact.preview_type || 'file';
   }
 
@@ -107,14 +115,17 @@
         <span class="cursor"></span>
       {/if}
       {#each messageArtifacts as artifact (artifact.id)}
-        <button class="artifact-card" on:click={() => viewArtifact(artifact)}>
-          <span class="artifact-card-icon">{artifactIcon(artifact)}</span>
-          <div class="artifact-card-info">
-            <span class="artifact-card-title">{artifact.title}</span>
-            <span class="artifact-card-meta">{artifactLang(artifact)}{artifact.size_bytes ? ' \u00B7 ' + formatBytes(artifact.size_bytes) : ''}</span>
-          </div>
-          <span class="artifact-card-arrow">&rsaquo;</span>
-        </button>
+        <div class="artifact-card">
+          <button class="artifact-card-body" on:click={() => viewArtifact(artifact)}>
+            <div class="artifact-card-info">
+              <span class="artifact-card-title">{artifact.title}</span>
+              <span class="artifact-card-meta">{artifactLabel(artifact)}{artifact.size_bytes ? ' \u00B7 ' + formatBytes(artifact.size_bytes) : ''}</span>
+            </div>
+          </button>
+          <button class="artifact-download" on:click={(e) => downloadArtifact(e, artifact)} title="Download">
+            <Download size={14} />
+          </button>
+        </div>
       {/each}
     </div>
   </div>
@@ -185,6 +196,7 @@
     background: transparent;
     border: none;
     max-width: 100%;
+    width: 100%;
   }
 
   .message.user .msg-bubble {
@@ -195,20 +207,15 @@
   }
 
   .system-message {
-    display: flex;
-    justify-content: center;
     animation: msg-in 300ms ease-out;
   }
 
   .system-bubble {
-    max-width: 95%;
-    padding: 12px 16px;
-    border-radius: 6px;
-    font-size: 13px;
+    padding: 4px 0;
+    font-size: 11px;
+    font-style: italic;
     line-height: 1.6;
-    color: var(--text-secondary);
-    background: var(--bg-inset);
-    border: 1px solid var(--accent-border);
+    color: var(--text-tertiary);
     font-family: 'JetBrains Mono', monospace;
   }
 
@@ -259,36 +266,36 @@
 
   .artifact-card {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    align-items: stretch;
     width: 100%;
     margin-top: 8px;
-    padding: 10px 14px;
     background: var(--bg-inset);
     border: 1px solid var(--accent-border);
     border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 200ms ease;
+  }
+  .artifact-card:hover {
+    border-color: var(--accent-border-active);
+  }
+
+  .artifact-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: none;
+    background: none;
     cursor: pointer;
     font-family: inherit;
     color: inherit;
     text-align: left;
-    transition: all 200ms ease;
+    transition: background 150ms ease;
   }
-  .artifact-card:hover {
-    border-color: var(--accent-border-active);
+  .artifact-card-body:hover {
     background: var(--bg-surface-hover);
-    box-shadow: var(--accent-glow);
-  }
-
-  .artifact-card-icon {
-    font-size: 20px;
-    flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent-ghost);
-    border-radius: 6px;
   }
 
   .artifact-card-info {
@@ -315,14 +322,21 @@
     text-transform: uppercase;
   }
 
-  .artifact-card-arrow {
-    font-size: 20px;
-    color: var(--accent-dim);
+  .artifact-download {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    border: none;
+    border-left: 1px solid var(--accent-border);
+    background: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 150ms ease;
     flex-shrink: 0;
-    transition: transform 150ms ease;
   }
-  .artifact-card:hover .artifact-card-arrow {
-    transform: translateX(3px);
+  .artifact-download:hover {
     color: var(--accent);
+    background: var(--accent-ghost);
   }
 </style>

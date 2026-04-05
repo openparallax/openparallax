@@ -88,10 +88,16 @@ func (s *Server) handleWSMessage(ctx context.Context, conn *websocket.Conn, msg 
 	// Create session if none provided.
 	if sid == "" {
 		sid = crypto.NewID()
-		_ = s.engine.DB().InsertSession(&types.Session{
-			ID:   sid,
-			Mode: mode,
-		})
+		// OTR sessions never touch the database.
+		if mode != types.SessionOTR {
+			if dbErr := s.engine.DB().InsertSession(&types.Session{
+				ID:   sid,
+				Mode: mode,
+			}); dbErr != nil {
+				s.log.Warn("ws_session_create_failed", "session", sid, "error", dbErr)
+			}
+		}
+		s.log.Info("ws_session_auto_created", "session", sid, "mode", mode)
 		s.writeWSJSON(ctx, conn, map[string]any{
 			"type":    "session_created",
 			"session": map[string]any{"id": sid, "mode": string(mode), "created_at": time.Now()},

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openparallax/openparallax/audit"
 	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
@@ -127,10 +128,20 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 		ID:   crypto.NewID(),
 		Mode: mode,
 	}
-	if err := s.engine.DB().InsertSession(sess); err != nil {
-		s.log.Error("api_session_create_failed", "error", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+	// OTR sessions never touch the database.
+	if mode != types.SessionOTR {
+		if err := s.engine.DB().InsertSession(sess); err != nil {
+			s.log.Error("api_session_create_failed", "error", err)
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if auditErr := s.engine.Audit().Log(audit.Entry{
+			EventType: types.AuditSessionStarted,
+			SessionID: sess.ID,
+			Details:   "session created: " + string(sess.Mode),
+		}); auditErr != nil {
+			s.log.Warn("audit_write_failed", "event", "session_start", "session", sess.ID, "error", auditErr)
+		}
 	}
 
 	s.log.Info("api_session_created", "session", sess.ID, "mode", sess.Mode)
@@ -157,6 +168,13 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.log.Info("api_session_deleted", "session", id)
+	if auditErr := s.engine.Audit().Log(audit.Entry{
+		EventType: types.AuditSessionEnded,
+		SessionID: id,
+		Details:   "session deleted",
+	}); auditErr != nil {
+		s.log.Warn("audit_write_failed", "event", "session_end", "session", id, "error", auditErr)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -297,6 +315,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = f.Close() }()
 
 	var allEntries []map[string]any
+	malformed := 0
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 256*1024), 256*1024)
 	for scanner.Scan() {
@@ -306,6 +325,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		var entry map[string]any
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			malformed++
 			continue
 		}
 		if levelFilter != "" {
@@ -320,13 +340,25 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		allEntries = append(allEntries, entry)
 	}
+	if malformed > 0 {
+		s.log.Warn("log_malformed_entries", "count", malformed)
+	}
 
 	total := len(allEntries)
-	start := 0
-	if total > lines {
-		start = total - lines
+
+	// Offset: number of entries to skip from the end (for lazy loading older entries).
+	end := total
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n < total {
+			end = total - n
+		}
 	}
-	result := allEntries[start:]
+
+	start := 0
+	if end > lines {
+		start = end - lines
+	}
+	result := allEntries[start:end]
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"entries":     result,
@@ -358,6 +390,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = f.Close() }()
 
 	var allEntries []map[string]any
+	auditMalformed := 0
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 256*1024), 256*1024)
 	for scanner.Scan() {
@@ -367,9 +400,13 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		}
 		var entry map[string]any
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			auditMalformed++
 			continue
 		}
 		allEntries = append(allEntries, entry)
+	}
+	if auditMalformed > 0 {
+		s.log.Warn("audit_malformed_entries", "count", auditMalformed)
 	}
 
 	chainValid := true
@@ -380,17 +417,27 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		if i > 0 && ph != prevHash {
 			chainValid = false
 			chainBreakAt = i
+			s.log.Error("audit_chain_break_detected", "index", i,
+				"expected_hash", prevHash, "actual_hash", ph)
 			break
 		}
 		prevHash, _ = entry["hash"].(string)
 	}
 
 	total := len(allEntries)
-	start := 0
-	if total > lines {
-		start = total - lines
+
+	end := total
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n < total {
+			end = total - n
+		}
 	}
-	result := allEntries[start:]
+
+	start := 0
+	if end > lines {
+		start = end - lines
+	}
+	result := allEntries[start:end]
 
 	resp := map[string]any{
 		"entries":       result,

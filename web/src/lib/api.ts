@@ -65,11 +65,12 @@ export async function getArtifactContent(path: string): Promise<{ content: strin
   return fetchJSON(`/artifacts/${encodeURIComponent(path)}`);
 }
 
-export async function getLogs(lines = 200, level = '', event = ''): Promise<{ entries: any[]; total_lines: number; has_more: boolean }> {
+export async function getLogs(lines = 200, level = '', event = '', offset = 0): Promise<{ entries: any[]; total_lines: number; has_more: boolean }> {
   const params = new URLSearchParams();
   params.set('lines', String(lines));
   if (level) params.set('level', level);
   if (event) params.set('event', event);
+  if (offset > 0) params.set('offset', String(offset));
   return fetchJSON(`/logs?${params}`);
 }
 
@@ -77,8 +78,11 @@ export async function searchSessions(query: string): Promise<{ results: { sessio
   return fetchJSON(`/sessions/search?q=${encodeURIComponent(query)}`);
 }
 
-export async function getAudit(lines = 100): Promise<{ entries: any[]; total_entries: number; chain_valid: boolean; has_more: boolean; chain_break_at?: number }> {
-  return fetchJSON(`/audit?lines=${lines}`);
+export async function getAudit(lines = 100, offset = 0): Promise<{ entries: any[]; total_entries: number; chain_valid: boolean; has_more: boolean; chain_break_at?: number }> {
+  const params = new URLSearchParams();
+  params.set('lines', String(lines));
+  if (offset > 0) params.set('offset', String(offset));
+  return fetchJSON(`/audit?${params}`);
 }
 
 export async function getSettings(): Promise<Record<string, any>> {

@@ -1,39 +1,65 @@
 <script lang="ts">
   import { ChevronRight, ChevronDown } from 'lucide-svelte';
-  import type { ToolCall, Thought } from '../lib/types';
+  import type { Thought } from '../lib/types';
+  import type { PipelineStep } from '../stores/messages';
 
-  export let toolCalls: ToolCall[] = [];
+  // Finalized mode: server-side thoughts from a persisted message.
   export let thoughts: Thought[] = [];
+  // Live mode: unified pipeline steps (reasoning + tool calls interleaved).
+  export let steps: PipelineStep[] = [];
   export let live = false;
 
   let expanded = false;
 
-  $: items = thoughts.length > 0 ? thoughts : buildFromToolCalls(toolCalls);
-  $: toolCount = items.filter(t => t.stage === 'tool_call').length;
-  $: reasoningCount = items.filter(t => t.stage === 'reasoning').length;
-  $: totalSteps = items.length;
-  $: hasBlock = toolCalls.length > 0
-    ? toolCalls.some(tc => tc.shieldVerdict?.decision === 'BLOCK')
-    : items.some(t => t.detail?.shield === 'BLOCK');
-  $: hasDetailInfo = items.some(t => t.detail?.success !== undefined);
-  $: allComplete = !live && (toolCalls.length > 0
-    ? toolCalls.every(tc => tc.result)
-    : hasDetailInfo);
-  $: successCount = toolCalls.length > 0
-    ? toolCalls.filter(tc => tc.result?.success).length
-    : items.filter(t => t.stage === 'tool_call' && t.detail?.success === true).length;
+  // Unified item type for rendering.
+  interface DisplayItem {
+    kind: 'reasoning' | 'tool_call';
+    name: string;
+    desc: string;
+    blocked: boolean;
+    failed: boolean;
+  }
 
-  function buildFromToolCalls(tcs: ToolCall[]): Thought[] {
-    return tcs.map(tc => ({
-      stage: 'tool_call' as const,
-      summary: `${tc.toolName} \u2014 ${tc.summary}`,
-      detail: {
-        tool_name: tc.toolName,
-        success: tc.result?.success,
-        shield: tc.shieldVerdict?.decision,
-        result_summary: tc.result?.summary,
-      },
-    }));
+  $: items = buildItems(thoughts, steps);
+  $: toolCount = items.filter(t => t.kind === 'tool_call').length;
+  $: reasoningCount = items.filter(t => t.kind === 'reasoning').length;
+  $: totalSteps = items.length;
+  $: hasBlock = items.some(t => t.blocked);
+  $: hasFail = items.some(t => t.failed);
+  $: allComplete = !live && items.some(t => t.kind === 'tool_call');
+  $: successCount = items.filter(t => t.kind === 'tool_call' && !t.blocked && !t.failed).length;
+
+  function buildItems(th: Thought[], st: PipelineStep[]): DisplayItem[] {
+    // Live mode: build from pipeline steps (already in chronological order).
+    if (st.length > 0) {
+      return st.map(s => {
+        if (s.type === 'reasoning') {
+          return { kind: 'reasoning', name: s.content || '', desc: '', blocked: false, failed: false };
+        }
+        const blocked = s.shieldVerdict?.decision === 'BLOCK';
+        const failed = !blocked && s.result?.success === false;
+        return {
+          kind: 'tool_call',
+          name: s.toolName || '',
+          desc: s.result?.summary || s.summary || '',
+          blocked,
+          failed,
+        };
+      });
+    }
+    // Finalized mode: build from thoughts (already in order from server).
+    if (th.length > 0) {
+      return th.map(t => {
+        if (t.stage === 'reasoning') {
+          return { kind: 'reasoning', name: t.summary || '', desc: '', blocked: false, failed: false };
+        }
+        const blocked = t.detail?.shield === 'BLOCK';
+        const failed = !blocked && t.detail?.success === false;
+        const parsed = parseToolName(t);
+        return { kind: 'tool_call', name: parsed.name, desc: parsed.desc, blocked, failed };
+      });
+    }
+    return [];
   }
 
   function parseToolName(thought: Thought): { name: string; desc: string } {
@@ -43,14 +69,12 @@
       return { name, desc };
     }
     const summary = thought.summary || '';
-    // Server thoughts use formats like "write_file → wrote 743 bytes..." or "load_tools(files)"
     for (const sep of [' \u2014 ', ' — ', ' \u2192 ']) {
       if (summary.includes(sep)) {
         const idx = summary.indexOf(sep);
         return { name: summary.slice(0, idx).trim(), desc: summary.slice(idx + sep.length).trim() };
       }
     }
-    // Handle "load_tools(files)" format
     const parenIdx = summary.indexOf('(');
     if (parenIdx > 0) {
       return { name: summary.slice(0, parenIdx).trim(), desc: summary.slice(parenIdx) };
@@ -68,14 +92,13 @@
 
   $: statusLabel = (() => {
     if (live) return 'thinking\u2026';
-    if (allComplete && toolCount > 0 && hasDetailInfo) return `${successCount}/${toolCount} succeeded`;
-    if (!live && toolCount > 0 && !hasDetailInfo) return 'completed';
+    if (allComplete) return 'completed';
     return '';
   })();
 </script>
 
 {#if totalSteps > 0 || live}
-<div class="thinking-envelope" class:blocked={hasBlock} class:expanded class:live>
+<div class="thinking-envelope" class:blocked={hasBlock} class:has-fail={hasFail} class:expanded class:live>
   <button class="thinking-toggle" on:click={() => expanded = !expanded}>
     <span class="toggle-chevron">
       {#if expanded}
@@ -95,15 +118,12 @@
   <div class="thinking-steps" class:show={expanded}>
     {#each items as item, i (i)}
       <div class="step-row">
-        {#if item.stage === 'reasoning'}
-          <span class="step-reasoning">{item.summary}</span>
+        {#if item.kind === 'reasoning'}
+          <span class="step-reasoning">{item.name}</span>
         {:else}
-          {@const parsed = parseToolName(item)}
-          {@const blocked = item.detail?.shield === 'BLOCK'}
-          {@const failed = item.detail?.success === false && !blocked}
-          <span class="step-tool-name" class:failed class:blocked>{parsed.name}</span>
-          {#if parsed.desc}
-            <span class="step-tool-desc" class:failed class:blocked>{parsed.desc}</span>
+          <span class="step-tool-name" class:failed={item.failed} class:blocked={item.blocked}>{item.name}</span>
+          {#if item.desc}
+            <span class="step-tool-desc" class:failed={item.failed} class:blocked={item.blocked}>{item.desc}</span>
           {/if}
         {/if}
       </div>
@@ -125,6 +145,10 @@
     color: var(--accent-dim);
   }
 
+  .thinking-envelope.blocked .toggle-label {
+    color: var(--error);
+  }
+
   .thinking-toggle {
     padding: 4px 0;
     cursor: pointer;
@@ -137,7 +161,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
     font-style: italic;
-    color: var(--text-tertiary);
+    color: inherit;
     text-align: left;
     transition: color 150ms ease;
   }
@@ -147,7 +171,6 @@
   }
 
   .toggle-chevron {
-    color: var(--text-tertiary);
     display: flex;
     align-items: center;
     flex-shrink: 0;

@@ -93,11 +93,24 @@ func (l *Loop) Reload() {
 	path := filepath.Join(l.workspacePath, "HEARTBEAT.md")
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if l.log != nil && !os.IsNotExist(err) {
+			l.log.Warn("heartbeat_reload_failed", "path", path, "error", err)
+		}
 		return
 	}
 
 	l.entries = ParseCronEntries(string(data))
 	if l.log != nil {
+		// Count candidate lines (start with "- `") to detect parse failures.
+		candidates := 0
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "- `") {
+				candidates++
+			}
+		}
+		if skipped := candidates - len(l.entries); skipped > 0 {
+			l.log.Warn("heartbeat_parse_skipped", "skipped", skipped, "parsed", len(l.entries))
+		}
 		l.log.Info("heartbeat_reload", "entries", len(l.entries))
 	}
 }

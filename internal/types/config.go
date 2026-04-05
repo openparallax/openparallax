@@ -47,6 +47,9 @@ type AgentConfig struct {
 	// Calendar configures the calendar executor.
 	Calendar CalendarConfig `yaml:"calendar,omitempty" json:"calendar,omitempty"`
 
+	// Tools configures tool group availability.
+	Tools ToolsConfig `yaml:"tools,omitempty" json:"tools,omitempty"`
+
 	// Generation configures image and video generation providers.
 	Generation GenerationConfig `yaml:"generation,omitempty" json:"generation,omitempty"`
 
@@ -317,6 +320,12 @@ type AgentsConfig struct {
 	// SubAgentModel overrides the default sub-agent model.
 	// Empty means auto-detect cheapest model from the configured provider.
 	SubAgentModel string `yaml:"sub_agent_model,omitempty" json:"sub_agent_model,omitempty"`
+}
+
+// ToolsConfig configures tool group availability.
+type ToolsConfig struct {
+	// DisabledGroups lists tool group names that should not be available to the LLM.
+	DisabledGroups []string `yaml:"disabled_groups,omitempty" json:"disabled_groups,omitempty"`
 }
 
 // GeneralConfig holds global settings.

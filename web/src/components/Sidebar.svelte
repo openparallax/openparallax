@@ -31,7 +31,7 @@
 
   const navItems = [
     { id: 'chat' as const, label: 'Chat', icon: MessageSquare },
-    { id: 'artifacts' as const, label: 'Artifacts', icon: FileText },
+    // { id: 'artifacts' as const, label: 'Artifacts', icon: FileText },
     { id: 'console' as const, label: 'Console', icon: Eye },
   ];
 

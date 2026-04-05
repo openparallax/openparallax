@@ -51,6 +51,7 @@ export interface Artifact {
   language: string;
   size_bytes: number;
   preview_type: string;
+  storage_path?: string;
 }
 
 export interface WSEvent {

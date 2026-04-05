@@ -7,15 +7,14 @@
   type Tab = 'metrics' | 'live' | 'audit';
   let activeTab: Tab = 'metrics';
 
-  type Filter = 'all' | 'shield' | 'tools' | 'llm' | 'memory' | 'errors';
-  let activeFilterList: Filter[] = ['all'];
-  const filterOptions: { id: Filter; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'shield', label: 'Shield' },
-    { id: 'tools', label: 'Tools' },
-    { id: 'llm', label: 'LLM' },
-    { id: 'memory', label: 'Memory' },
-    { id: 'errors', label: 'Errors' },
+  type LevelFilter = '' | 'debug' | 'info' | 'warn' | 'error';
+  let activeLevelFilter: LevelFilter = '';
+  const levelOptions: { id: LevelFilter; label: string }[] = [
+    { id: '', label: 'All' },
+    { id: 'debug', label: 'Debug' },
+    { id: 'info', label: 'Info' },
+    { id: 'warn', label: 'Warn' },
+    { id: 'error', label: 'Error' },
   ];
   let searchQuery = '';
   let debounceTimer: ReturnType<typeof setTimeout>;
@@ -33,7 +32,7 @@
   let auditAutoScroll = false;
 
   type AuditFilter = 'all' | 'executed' | 'blocked' | 'failed' | 'sessions';
-  let activeAuditFilter: AuditFilter = 'all';
+  let activeAuditFilterList: AuditFilter[] = ['all'];
   const auditFilterOptions: { id: AuditFilter; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'executed', label: 'Executed' },
@@ -41,6 +40,28 @@
     { id: 'failed', label: 'Failed' },
     { id: 'sessions', label: 'Sessions' },
   ];
+
+  function toggleAuditFilter(f: AuditFilter) {
+    if (f === 'all') {
+      activeAuditFilterList = ['all'];
+    } else {
+      let next = activeAuditFilterList.filter(x => x !== 'all');
+      if (next.includes(f)) {
+        next = next.filter(x => x !== f);
+      } else {
+        next = [...next, f];
+      }
+      activeAuditFilterList = next.length === 0 ? ['all'] : next;
+    }
+  }
+
+  // Lazy loading state.
+  let logHasMore = false;
+  let logLoadedCount = 0;
+  let logLoading = false;
+  let auditHasMore = false;
+  let auditLoadedCount = 0;
+  let auditLoading = false;
 
   let metricsSummary: any = null;
   let dailyTokenData: any[] = [];
@@ -52,6 +73,8 @@
       const data = await getLogs(200);
       if (data.entries && data.entries.length > 0) {
         setLogEntries(data.entries);
+        logLoadedCount = data.entries.length;
+        logHasMore = data.has_more;
       }
     } catch {
       /* engine may not be ready */
@@ -65,29 +88,9 @@
     }
   });
 
-  function toggleFilter(f: Filter) {
-    if (f === 'all') {
-      activeFilterList = ['all'];
-    } else {
-      let next = activeFilterList.filter(x => x !== 'all');
-      if (next.includes(f)) {
-        next = next.filter(x => x !== f);
-      } else {
-        next = [...next, f];
-      }
-      activeFilterList = next.length === 0 ? ['all'] : next;
-    }
-  }
-
-  function matchesFilter(entry: LogEntry, filters: Filter[]): boolean {
-    if (filters.includes('all')) return true;
-    const evt = entry.event || '';
-    if (filters.includes('shield') && (evt.includes('shield') || evt.includes('ifc') || evt.includes('protection') || evt.includes('otr'))) return true;
-    if (filters.includes('tools') && (evt.includes('tool') || evt.includes('executor') || evt.includes('mcp'))) return true;
-    if (filters.includes('llm') && (evt.includes('llm') || evt.includes('compaction') || evt.includes('message_complete') || evt.includes('response_complete'))) return true;
-    if (filters.includes('memory') && evt.includes('memory')) return true;
-    if (filters.includes('errors') && (entry.level === 'warn' || entry.level === 'error')) return true;
-    return false;
+  function matchesLevel(entry: LogEntry, level: LevelFilter): boolean {
+    if (!level) return true;
+    return entry.level === level;
   }
 
   function matchesSearch(entry: LogEntry): boolean {
@@ -101,7 +104,7 @@
     return false;
   }
 
-  $: filteredEntries = $logEntries.filter(e => matchesFilter(e, activeFilterList) && matchesSearch(e));
+  $: filteredEntries = $logEntries.filter(e => matchesLevel(e, activeLevelFilter) && matchesSearch(e));
 
   function handleSearchInput() {
     clearTimeout(debounceTimer);
@@ -112,6 +115,9 @@
     if (!logEl) return;
     const dist = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight;
     autoScroll = dist < 50;
+    if (logEl.scrollTop < 60 && logHasMore && !logLoading) {
+      loadOlderLogs();
+    }
   }
 
   function scrollToBottom() {
@@ -123,6 +129,9 @@
     if (!auditEl) return;
     const dist = auditEl.scrollHeight - auditEl.scrollTop - auditEl.clientHeight;
     auditAutoScroll = dist >= 50;
+    if (auditEl.scrollTop < 60 && auditHasMore && !auditLoading) {
+      loadOlderAudit();
+    }
   }
 
   function scrollAuditToBottom() {
@@ -146,6 +155,8 @@
       auditChainValid = data.chain_valid;
       auditChainBreakAt = data.chain_break_at ?? -1;
       auditTotal = data.total_entries;
+      auditLoadedCount = auditEntries.length;
+      auditHasMore = data.has_more;
     } catch {
       auditEntries = [];
     }
@@ -153,6 +164,52 @@
     if (auditEl) {
       auditEl.scrollTop = auditEl.scrollHeight;
     }
+  }
+
+  async function loadOlderLogs() {
+    if (logLoading || !logHasMore) return;
+    logLoading = true;
+    try {
+      const data = await getLogs(200, '', '', logLoadedCount);
+      if (data.entries && data.entries.length > 0) {
+        const oldScroll = logEl ? logEl.scrollHeight : 0;
+        setLogEntries([...data.entries, ...$logEntries]);
+        logLoadedCount += data.entries.length;
+        logHasMore = data.has_more;
+        await tick();
+        if (logEl) {
+          logEl.scrollTop = logEl.scrollHeight - oldScroll;
+        }
+      } else {
+        logHasMore = false;
+      }
+    } catch {
+      /* ignore */
+    }
+    logLoading = false;
+  }
+
+  async function loadOlderAudit() {
+    if (auditLoading || !auditHasMore) return;
+    auditLoading = true;
+    try {
+      const data = await getAudit(200, auditLoadedCount);
+      if (data.entries && data.entries.length > 0) {
+        const oldScroll = auditEl ? auditEl.scrollHeight : 0;
+        auditEntries = [...data.entries, ...auditEntries];
+        auditLoadedCount += data.entries.length;
+        auditHasMore = data.has_more;
+        await tick();
+        if (auditEl) {
+          auditEl.scrollTop = auditEl.scrollHeight - oldScroll;
+        }
+      } else {
+        auditHasMore = false;
+      }
+    } catch {
+      /* ignore */
+    }
+    auditLoading = false;
   }
 
   async function loadMetrics() {
@@ -303,11 +360,12 @@
   $: auditTriplets = groupAuditEntries(auditEntries);
 
   $: filteredAuditTriplets = auditTriplets.filter(t => {
-    if (activeAuditFilter === 'all') return true;
-    if (activeAuditFilter === 'sessions') {
-      return t.entries.some((e: any) => e.event_type === 17 || e.event_type === 18);
-    }
-    return t.outcome === activeAuditFilter;
+    if (activeAuditFilterList.includes('all')) return true;
+    if (activeAuditFilterList.includes('sessions') && t.entries.some((e: any) => e.event_type === 17 || e.event_type === 18)) return true;
+    if (activeAuditFilterList.includes('executed') && t.outcome === 'executed') return true;
+    if (activeAuditFilterList.includes('blocked') && t.outcome === 'blocked') return true;
+    if (activeAuditFilterList.includes('failed') && t.outcome === 'failed') return true;
+    return false;
   });
 
   function groupAuditEntries(entries: any[]): AuditTriplet[] {
@@ -375,10 +433,7 @@
     return String(n);
   }
 
-  function formatPct(n: number): string {
-    return n.toFixed(1) + '%';
-  }
-
+  // Precompute donut values to avoid complex expressions in SVG attributes.
   $: chartMax = dailyTokenData.length > 0
     ? Math.max(...dailyTokenData.map((d: any) => (d.input_tokens || 0) + (d.output_tokens || 0)), 1)
     : 1;
@@ -416,75 +471,143 @@
       {:else if !metricsSummary}
         <div class="empty-state">No metrics data available</div>
       {:else}
+        {@const perf = metricsSummary.performance || {}}
+        {@const life = metricsSummary.lifetime || {}}
+        {@const shield = metricsSummary.shield_summary || {}}
+        {@const tools = metricsSummary.daily_metrics || {}}
+        {@const tokens = metricsSummary.token_usage || {}}
+        {@const topTools = metricsSummary.top_tools || []}
+        {@const toolTotal = tools.tool_calls || 0}
+        {@const toolSuccess = tools.tool_success || 0}
+        {@const successRate = toolTotal > 0 ? Math.round((toolSuccess / toolTotal) * 100) : 0}
+        <!-- Row 1: Usage -->
         <div class="metrics-grid">
-          <div class="metric-card">
+          <div class="metric-card" title="Total input + output tokens consumed by LLM API calls in this period">
             <div class="metric-label">Token Usage</div>
-            <div class="metric-value">{formatNumber(metricsSummary.total_tokens || 0)}</div>
+            <div class="metric-value">{formatNumber(tokens.total || 0)}</div>
             <div class="metric-sub">
-              <span class="metric-input">{formatNumber(metricsSummary.input_tokens || 0)} in</span>
+              <span class="metric-input">{formatNumber(tokens.input || 0)} in</span>
               <span class="metric-sep">/</span>
-              <span class="metric-output">{formatNumber(metricsSummary.output_tokens || 0)} out</span>
+              <span class="metric-output">{formatNumber(tokens.output || 0)} out</span>
             </div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card" title="Number of LLM API requests. One message can trigger multiple calls due to tool-use rounds">
             <div class="metric-label">LLM Calls</div>
-            <div class="metric-value">{formatNumber(metricsSummary.llm_calls || 0)}</div>
-            <div class="metric-sub">requests</div>
+            <div class="metric-value">{formatNumber(tokens.llm_calls || 0)}</div>
+            <div class="metric-sub">{perf.avg_latency_ms ? formatNumber(perf.avg_latency_ms) + 'ms avg' : 'requests'}</div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card" title="User + assistant messages in this period. Avg per session shown below">
             <div class="metric-label">Messages</div>
-            <div class="metric-value">{formatNumber(metricsSummary.messages || 0)}</div>
-            <div class="metric-sub">exchanges</div>
+            <div class="metric-value">{formatNumber(metricsSummary.message_count || 0)}</div>
+            <div class="metric-sub">{life.avg_msgs_per_session ? life.avg_msgs_per_session.toFixed(1) + '/session' : 'exchanges'}</div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card" title="Total sessions ever created (survives deletions). Period count shown below">
             <div class="metric-label">Sessions</div>
-            <div class="metric-value">{formatNumber(metricsSummary.sessions || 0)}</div>
-            <div class="metric-sub">active</div>
+            <div class="metric-value">{formatNumber(life.total_sessions || 0)}</div>
+            <div class="metric-sub">{metricsSummary.session_count || 0} this period</div>
           </div>
         </div>
 
+        <!-- Row 2: Performance -->
+        <div class="metrics-grid">
+          <div class="metric-card" title="Latency percentiles for LLM API calls. P50 = median, P95/P99 = tail latency">
+            <div class="metric-label">Latency</div>
+            <div class="metric-value">{formatNumber(perf.p50_latency_ms || 0)}<span class="metric-unit">ms</span></div>
+            <div class="metric-sub">
+              p50 · p95: {formatNumber(perf.p95_latency_ms || 0)}ms · p99: {formatNumber(perf.p99_latency_ms || 0)}ms
+            </div>
+          </div>
+          <div class="metric-card" title="Average tool-use rounds per LLM call. Higher = agent doing more work per message">
+            <div class="metric-label">Rounds/Call</div>
+            <div class="metric-value">{perf.avg_rounds_per_msg ? perf.avg_rounds_per_msg.toFixed(1) : '0'}</div>
+            <div class="metric-sub">avg tool loops</div>
+          </div>
+          <div class="metric-card" title="Prompt cache hit rate. Higher = more tokens served from cache, lower cost">
+            <div class="metric-label">Cache Rate</div>
+            <div class="metric-value">{perf.cache_hit_rate ? (perf.cache_hit_rate * 100).toFixed(0) : '0'}<span class="metric-unit">%</span></div>
+            <div class="metric-sub">{formatNumber(tokens.cache_read || 0)} cached tokens</div>
+          </div>
+          <div class="metric-card" title="Average tokens consumed per LLM API call. Monitors context size bloat">
+            <div class="metric-label">Tokens/Call</div>
+            <div class="metric-value">{formatNumber(perf.avg_tokens_per_msg || 0)}</div>
+            <div class="metric-sub">avg per request</div>
+          </div>
+        </div>
+
+        <!-- Row 3: Shield + Tools -->
         <div class="metrics-grid wide">
-          <div class="metric-card wide">
+          <div class="metric-card wide" title="Security shield decisions. Every tool call is evaluated before execution">
             <div class="metric-label">Shield</div>
             <div class="metric-row">
               <div class="metric-stat">
-                <span class="stat-value allow">{metricsSummary.shield_allow || 0}</span>
+                <span class="stat-value allow">{shield.shield_allow || 0}</span>
                 <span class="stat-label">allow</span>
               </div>
               <div class="metric-stat">
-                <span class="stat-value block">{metricsSummary.shield_block || 0}</span>
+                <span class="stat-value block">{shield.shield_block || 0}</span>
                 <span class="stat-label">block</span>
               </div>
               <div class="metric-stat">
-                <span class="stat-value escalate">{metricsSummary.shield_escalate || 0}</span>
+                <span class="stat-value escalate">{shield.shield_escalate || 0}</span>
                 <span class="stat-label">escalate</span>
               </div>
             </div>
             <div class="metric-tiers">
-              <span class="tier-badge">T0: {metricsSummary.shield_t0 || 0}</span>
-              <span class="tier-badge">T1: {metricsSummary.shield_t1 || 0}</span>
-              <span class="tier-badge">T2: {metricsSummary.shield_t2 || 0}</span>
+              <span class="tier-badge">T0: {shield.shield_t0 || 0}</span>
+              <span class="tier-badge">T1: {shield.shield_t1 || 0}</span>
+              <span class="tier-badge">T2: {shield.shield_t2 || 0}</span>
             </div>
           </div>
-          <div class="metric-card wide">
+          <div class="metric-card wide" title="Tool invocations: executed + blocked + load_tools. Success rate shown as gauge">
             <div class="metric-label">Tools</div>
             <div class="metric-row">
               <div class="metric-stat">
-                <span class="stat-value">{metricsSummary.tool_calls || 0}</span>
+                <span class="stat-value">{toolTotal}</span>
                 <span class="stat-label">total</span>
               </div>
               <div class="metric-stat">
-                <span class="stat-value allow">{metricsSummary.tool_success_rate != null ? formatPct(metricsSummary.tool_success_rate) : '---'}</span>
+                <span class="stat-value allow">{toolSuccess}</span>
                 <span class="stat-label">success</span>
               </div>
               <div class="metric-stat">
-                <span class="stat-value block">{metricsSummary.tool_failed || 0}</span>
+                <span class="stat-value block">{tools.tool_failed || 0}</span>
                 <span class="stat-label">failed</span>
               </div>
+              {#if toolTotal > 0}
+                <div class="gauge-wrap" title="{successRate}% success rate">
+                  <svg viewBox="0 0 36 20" class="gauge-svg">
+                    <path d="M3 18 A15 15 0 0 1 33 18" fill="none" stroke="var(--accent-ghost)" stroke-width="3" stroke-linecap="round"/>
+                    <path d="M3 18 A15 15 0 0 1 33 18" fill="none" stroke="var(--success)" stroke-width="3" stroke-linecap="round"
+                      stroke-dasharray="{successRate * 0.47} 100"/>
+                  </svg>
+                  <span class="gauge-label">{successRate}%</span>
+                </div>
+              {/if}
             </div>
           </div>
         </div>
 
+        <!-- Row 4: Top Tools -->
+        {#if topTools.length > 0}
+          {@const toolCounts = topTools.map(t => t.count || 0)}
+          {@const maxToolCount = Math.max(...toolCounts, 1)}
+          <div class="chart-section" title="Most frequently used tools in this period">
+            <div class="chart-label">Top Tools</div>
+            <div class="tool-bars">
+              {#each topTools as tool}
+                <div class="tool-bar-row">
+                  <span class="tool-bar-name">{tool.name}</span>
+                  <div class="tool-bar-track">
+                    <div class="tool-bar-fill" style="width: {(tool.count / maxToolCount) * 100}%"></div>
+                  </div>
+                  <span class="tool-bar-count">{tool.count}</span>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+
+        <!-- Row 5: Daily Tokens Chart -->
         {#if dailyTokenData.length > 0}
           <div class="chart-section">
             <div class="chart-label">Daily Tokens</div>
@@ -492,8 +615,8 @@
               {#each dailyTokenData as day}
                 <div class="chart-col" title="{formatChartDate(day.date)}: {formatNumber((day.input_tokens || 0) + (day.output_tokens || 0))} tokens">
                   <div class="chart-bar-stack" style="height: {chartBarHeight((day.input_tokens || 0) + (day.output_tokens || 0))}">
-                    <div class="chart-bar output" style="height: {(day.output_tokens || 0) / Math.max((day.input_tokens || 0) + (day.output_tokens || 0), 1) * 100}%"></div>
-                    <div class="chart-bar input" style="height: {(day.input_tokens || 0) / Math.max((day.input_tokens || 0) + (day.output_tokens || 0), 1) * 100}%"></div>
+                    <div class="chart-bar output" style="height: {Math.max((day.output_tokens || 0) / Math.max((day.input_tokens || 0) + (day.output_tokens || 0), 1) * 100, day.output_tokens ? 4 : 0)}%"></div>
+                    <div class="chart-bar input" style="height: {Math.max((day.input_tokens || 0) / Math.max((day.input_tokens || 0) + (day.output_tokens || 0), 1) * 100, day.input_tokens ? 4 : 0)}%"></div>
                   </div>
                   <span class="chart-date">{formatChartDate(day.date)}</span>
                 </div>
@@ -505,17 +628,39 @@
             </div>
           </div>
         {/if}
+
+        <!-- Row 6: Lifetime -->
+        <div class="metrics-grid lifetime" title="All-time totals independent of period filter">
+          <div class="metric-card" title="Total sessions ever created, including deleted ones">
+            <div class="metric-label">Lifetime Sessions</div>
+            <div class="metric-value sub">{formatNumber(life.total_sessions || 0)}</div>
+          </div>
+          <div class="metric-card" title="Total messages across all sessions ever">
+            <div class="metric-label">Lifetime Messages</div>
+            <div class="metric-value sub">{formatNumber(life.total_messages || 0)}</div>
+          </div>
+          <div class="metric-card" title="Total tokens consumed across all LLM calls ever">
+            <div class="metric-label">Lifetime Tokens</div>
+            <div class="metric-value sub">{formatNumber(life.total_tokens || 0)}</div>
+          </div>
+          <div class="metric-card" title="Average number of messages per session across all sessions">
+            <div class="metric-label">Avg Msgs/Session</div>
+            <div class="metric-value sub">{life.avg_msgs_per_session ? life.avg_msgs_per_session.toFixed(1) : '0'}</div>
+          </div>
+        </div>
       {/if}
     </div>
 
   {:else if activeTab === 'live'}
     <div class="console-header">
       <div class="filter-bar">
-        {#each filterOptions as opt}
+        {#each levelOptions as opt}
           <button
             class="filter-btn"
-            class:active={activeFilterList.includes(opt.id)}
-            on:click={() => toggleFilter(opt.id)}
+            class:active={activeLevelFilter === opt.id}
+            class:warn={opt.id === 'warn' && activeLevelFilter === 'warn'}
+            class:error={opt.id === 'error' && activeLevelFilter === 'error'}
+            on:click={() => { activeLevelFilter = opt.id; }}
           >{opt.label}</button>
         {/each}
       </div>
@@ -535,6 +680,11 @@
     </div>
 
     <div class="log-entries" bind:this={logEl} on:scroll={handleScroll}>
+      {#if logLoading}
+        <div class="load-more">Loading older entries...</div>
+      {:else if logHasMore}
+        <div class="load-more subtle">Scroll up for more</div>
+      {/if}
       {#if filteredEntries.length === 0}
         <div class="empty-state">No log entries yet</div>
       {:else}
@@ -562,8 +712,8 @@
         {#each auditFilterOptions as opt}
           <button
             class="filter-btn"
-            class:active={activeAuditFilter === opt.id}
-            on:click={() => { activeAuditFilter = opt.id; }}
+            class:active={activeAuditFilterList.includes(opt.id)}
+            on:click={() => toggleAuditFilter(opt.id)}
           >{opt.label}</button>
         {/each}
       </div>
@@ -577,6 +727,11 @@
     </div>
 
     <div class="log-entries" bind:this={auditEl} on:scroll={handleAuditScroll}>
+      {#if auditLoading}
+        <div class="load-more">Loading older entries...</div>
+      {:else if auditHasMore}
+        <div class="load-more subtle">Scroll up for more</div>
+      {/if}
       {#if filteredAuditTriplets.length === 0}
         <div class="empty-state">No audit entries yet</div>
       {:else}
@@ -630,8 +785,8 @@
 
   <div class="console-tabs">
     <button class="console-tab" class:active={activeTab === 'metrics'} on:click={() => switchTab('metrics')}>Metrics</button>
-    <button class="console-tab" class:active={activeTab === 'live'} on:click={() => switchTab('live')}>Live Log</button>
     <button class="console-tab" class:active={activeTab === 'audit'} on:click={() => switchTab('audit')}>Audit Trail</button>
+    <button class="console-tab" class:active={activeTab === 'live'} on:click={() => switchTab('live')}>Live Log</button>
   </div>
 </div>
 
@@ -1091,19 +1246,20 @@
     opacity: 0.9;
   }
   .chart-bar.output {
-    background: var(--accent-dim);
-    opacity: 0.5;
+    background: #a78bfa;
+    opacity: 0.85;
   }
 
   .chart-date {
     position: absolute;
-    bottom: -18px;
+    bottom: -16px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 8px;
+    font-size: 9px;
     color: var(--text-tertiary);
     white-space: nowrap;
-    transform: rotate(-45deg);
-    transform-origin: top left;
+    text-align: center;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   .chart-legend {
@@ -1132,7 +1288,107 @@
     opacity: 0.9;
   }
   .legend-swatch.output {
+    background: #a78bfa;
+  }
+
+  .metric-unit {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-tertiary);
+    margin-left: 2px;
+  }
+
+  .metric-value.sub {
+    font-size: 18px;
+  }
+
+  .metrics-grid.lifetime {
+    margin-top: 8px;
+    opacity: 0.7;
+  }
+
+  .gauge-wrap {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .gauge-svg {
+    width: 40px;
+    height: 22px;
+  }
+
+  .gauge-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--success);
+    margin-top: -2px;
+  }
+
+  .tool-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .tool-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tool-bar-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    width: 100px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tool-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--accent-ghost);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .tool-bar-fill {
+    height: 100%;
     background: var(--accent-dim);
+    border-radius: 3px;
+    min-width: 2px;
+    transition: width 300ms ease;
+  }
+
+  .load-more {
+    text-align: center;
+    padding: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-dim);
+    flex-shrink: 0;
+  }
+  .load-more.subtle {
+    color: var(--text-tertiary);
     opacity: 0.5;
+  }
+
+  .filter-btn.warn { background: rgba(255, 171, 0, 0.15); color: var(--warning); border-color: var(--warning); }
+  .filter-btn.error { background: rgba(255, 80, 80, 0.15); color: var(--error); border-color: var(--error); }
+
+  .tool-bar-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-dim);
+    width: 30px;
+    text-align: right;
+    flex-shrink: 0;
   }
 </style>

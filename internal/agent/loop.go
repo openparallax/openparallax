@@ -53,6 +53,7 @@ type LoopEvent struct {
 	// ResponseComplete
 	Content  string
 	Thoughts []types.Thought
+	Usage    *llm.TokenUsage
 
 	// Error
 	ErrorCode    string
@@ -300,11 +301,13 @@ func RunLoop(
 	}
 
 	fullResponse := toolStream.FullText()
+	usage := toolStream.Usage()
 
 	emit(LoopEvent{
 		Type:     EventComplete,
 		Content:  fullResponse,
 		Thoughts: thoughts,
+		Usage:    &usage,
 	})
 }
 

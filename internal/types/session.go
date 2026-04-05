@@ -11,6 +11,10 @@ const (
 
 	// SessionOTR is Off the Record mode with read-only access and no memory persistence.
 	SessionOTR SessionMode = "otr"
+
+	// SessionHeartbeat is used for scheduled tasks from HEARTBEAT.md. These
+	// sessions are hidden from the user-facing session list.
+	SessionHeartbeat SessionMode = "heartbeat"
 )
 
 // Session represents a conversation session.

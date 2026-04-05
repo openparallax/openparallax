@@ -1,7 +1,7 @@
 <script lang="ts">
   import { afterUpdate, onMount } from 'svelte';
   import { ChevronDown, X } from 'lucide-svelte';
-  import { messages, pendingToolCalls, streaming, streamingText, pendingApprovals, removeTier3Request } from '../stores/messages';
+  import { messages, pendingSteps, streaming, streamingText, pendingApprovals, removeTier3Request } from '../stores/messages';
   import { logEntries } from '../stores/console';
   import { artifactPanelOpen, activeTab, artifactPanelView } from '../stores/artifacts';
   import { getStatus } from '../lib/api';
@@ -30,7 +30,7 @@
   let prevMessageCount = 0;
   let showScrollBtn = false;
 
-  let panelWidth = parseInt(localStorage.getItem('op_panel_w') || '460');
+  let panelWidth = 0; // 0 = use 50% of wrapper width
   let resizingPanel = false;
 
   let wrapperEl: HTMLDivElement;
@@ -39,7 +39,7 @@
     e.preventDefault();
     resizingPanel = true;
     const startX = e.clientX;
-    const startW = panelWidth;
+    const startW = effectivePanelWidth;
     const totalW = wrapperEl ? wrapperEl.clientWidth : window.innerWidth;
     const minSide = Math.round(totalW * 0.25);
     const maxPanel = totalW - minSide;
@@ -107,6 +107,7 @@
   }
 
   $: renderArtifact = $artifactPanelOpen && $activeTab ? $activeTab.artifact : null;
+  $: effectivePanelWidth = panelWidth > 0 ? panelWidth : (wrapperEl ? Math.round(wrapperEl.clientWidth / 2) : 460);
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -123,7 +124,6 @@
         {#if $messages.length === 0 && !$streaming}
           <div class="empty-state">
             <div class="empty-orb"></div>
-            <span class="empty-text">Ready when you are.</span>
           </div>
         {/if}
         {#each $messages as msg (msg.id)}
@@ -135,8 +135,8 @@
           </div>
         {/each}
 
-        {#if $pendingToolCalls.length > 0}
-          <ToolCallEnvelope toolCalls={$pendingToolCalls} live={true} />
+        {#if $pendingSteps.length > 0}
+          <ToolCallEnvelope steps={$pendingSteps} live={true} />
         {/if}
 
         {#each $pendingApprovals as approval (approval.actionId)}
@@ -153,7 +153,7 @@
           <Message message={{ id: 'streaming', session_id: '', role: 'assistant', content: $streamingText, timestamp: new Date().toISOString() }} isStreaming={true} {agentName} {agentAvatar} />
         {/if}
 
-        {#if $streaming && !$streamingText && $pendingToolCalls.length === 0}
+        {#if $streaming && !$streamingText && $pendingSteps.length === 0}
           <div class="thinking">
             <div class="thinking-dot"></div>
             <div class="thinking-dot"></div>
@@ -176,7 +176,7 @@
 
   {#if renderArtifact}
     <div class="render-divider" on:mousedown={startPanelResize} role="separator" aria-label="Resize"></div>
-    <div class="render-side" style="--pw:{panelWidth}px">
+    <div class="render-side" style="--pw:{effectivePanelWidth}px">
       <button class="render-close" on:click={closeRender} aria-label="Close">
         <X size={14} />
       </button>
@@ -184,7 +184,7 @@
         <iframe
           class="render-frame"
           sandbox="allow-scripts allow-same-origin"
-          srcdoc={renderArtifact.content}
+          srcdoc={'<style>::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.25)}html{scrollbar-color:rgba(255,255,255,0.15) transparent}</style>' + renderArtifact.content}
           title={renderArtifact.title}
         ></iframe>
       {:else if renderArtifact.preview_type === 'markdown'}
@@ -316,12 +316,12 @@
     position: relative;
     overflow: hidden;
     border-left: 1px solid var(--accent-border);
-    animation: render-fade 200ms ease-out;
+    animation: render-slide-in 300ms ease-out;
   }
 
-  @keyframes render-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  @keyframes render-slide-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
   }
 
   .render-close {
@@ -433,14 +433,6 @@
         inset 0 0 30px rgba(0, 220, 255, 0.15);
       transform: scale(1.05);
     }
-  }
-
-  .empty-text {
-    font-family: 'Exo 2', sans-serif;
-    font-size: 15px;
-    font-weight: 400;
-    color: var(--text-secondary);
-    letter-spacing: 0.02em;
   }
 
   @keyframes fade-in {

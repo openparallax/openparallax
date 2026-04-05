@@ -17,6 +17,9 @@ func (db *DB) InsertSession(s *types.Session) error {
 		`INSERT INTO sessions (id, mode, title, created_at) VALUES (?, ?, ?, ?)`,
 		s.ID, s.Mode, s.Title, createdAt.Format(time.RFC3339),
 	)
+	if err == nil && s.Mode == types.SessionNormal {
+		db.IncrementDailyMetric("sessions_created", 1)
+	}
 	return err
 }
 
@@ -198,7 +201,7 @@ func (db *DB) SearchSessions(query string, limit int) ([]SearchSessionResult, er
 	seen := make(map[string]bool)
 
 	titleRows, err := db.conn.Query(
-		`SELECT id, COALESCE(title, '') FROM sessions WHERE title LIKE ? ORDER BY last_message_at DESC LIMIT ?`,
+		`SELECT id, COALESCE(title, '') FROM sessions WHERE mode = 'normal' AND title LIKE ? ORDER BY last_message_at DESC LIMIT ?`,
 		pattern, limit,
 	)
 	if err == nil {
@@ -218,7 +221,7 @@ func (db *DB) SearchSessions(query string, limit int) ([]SearchSessionResult, er
 		contentRows, err := db.conn.Query(
 			`SELECT m.session_id, COALESCE(s.title, ''), SUBSTR(m.content, MAX(1, INSTR(LOWER(m.content), LOWER(?)) - 30), 80)
 			 FROM messages m JOIN sessions s ON s.id = m.session_id
-			 WHERE m.content LIKE ?
+			 WHERE s.mode = 'normal' AND m.content LIKE ?
 			 ORDER BY m.timestamp DESC LIMIT ?`,
 			query, pattern, limit-len(results),
 		)
@@ -239,10 +242,10 @@ func (db *DB) SearchSessions(query string, limit int) ([]SearchSessionResult, er
 	return results, nil
 }
 
-// SessionCount returns the total number of sessions.
+// SessionCount returns the number of user-visible sessions (excludes heartbeat/internal).
 func (db *DB) SessionCount() (int, error) {
 	var count int
-	err := db.conn.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&count)
+	err := db.conn.QueryRow(`SELECT COUNT(*) FROM sessions WHERE mode = 'normal'`).Scan(&count)
 	return count, err
 }
 

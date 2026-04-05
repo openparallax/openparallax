@@ -98,7 +98,9 @@ func (l *Logger) Log(entry Entry) error {
 
 	// Index in SQLite for fast queries.
 	if l.db != nil {
-		_ = l.db.InsertAuditEntry(&auditEntry)
+		if dbErr := l.db.InsertAuditEntry(&auditEntry); dbErr != nil {
+			fmt.Fprintf(os.Stderr, "audit: db index failed for entry %s: %v\n", auditEntry.ID, dbErr)
+		}
 	}
 
 	return nil

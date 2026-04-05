@@ -23,13 +23,26 @@ type ToolGroup struct {
 
 // GroupRegistry manages tool groups and the load_tools meta-tool.
 type GroupRegistry struct {
-	groups map[string]*ToolGroup
-	mu     sync.RWMutex
+	groups   map[string]*ToolGroup
+	disabled map[string]bool
+	mu       sync.RWMutex
 }
 
 // NewGroupRegistry creates an empty group registry.
 func NewGroupRegistry() *GroupRegistry {
-	return &GroupRegistry{groups: make(map[string]*ToolGroup)}
+	return &GroupRegistry{
+		groups:   make(map[string]*ToolGroup),
+		disabled: make(map[string]bool),
+	}
+}
+
+// DisableGroups marks the given group names as unavailable to the LLM.
+func (r *GroupRegistry) DisableGroups(names []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, n := range names {
+		r.disabled[n] = true
+	}
 }
 
 // Register adds a tool group.
@@ -67,6 +80,9 @@ func (r *GroupRegistry) LoadToolsDefinition() llm.ToolDefinition {
 
 	var lines []string
 	for name, g := range r.groups {
+		if r.disabled[name] {
+			continue
+		}
 		lines = append(lines, fmt.Sprintf("- %s: %s", name, g.Description))
 	}
 
@@ -104,6 +120,10 @@ func (r *GroupRegistry) ResolveGroups(names []string, isOTR bool) ([]llm.ToolDef
 	var loaded []string
 
 	for _, name := range names {
+		if r.disabled[name] {
+			errors = append(errors, fmt.Sprintf("Group %q is disabled", name))
+			continue
+		}
 		g, ok := r.groups[name]
 		if !ok {
 			errors = append(errors, fmt.Sprintf("Unknown group: %q", name))
@@ -177,8 +197,8 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		"memory":           {Name: "memory", Description: "Write structured memories and search past conversations"},
 		"schedule":         {Name: "schedule", Description: "Manage recurring tasks via HEARTBEAT.md cron entries"},
 		"canvas":           {Name: "canvas", Description: "Create files, multi-file projects, and live-preview websites"},
-		"image_generation": {Name: "image_generation", Description: "Generate images using AI (DALL-E, Imagen, Stability AI)"},
-		"video_generation": {Name: "video_generation", Description: "Generate videos using AI (Sora)"},
+		"image_generation": {Name: "image_generation", Description: "Generate images using AI if supported by model"},
+		"video_generation": {Name: "video_generation", Description: "Generate videos using AI if supported by model"},
 		"agents":           {Name: "agents", Description: "Spawn and manage sub-agents for parallel task execution"},
 		"system":           {Name: "system", Description: "Clipboard access, launch files/URLs, OS notifications, system info, screenshots"},
 		"utilities":        {Name: "utilities", Description: "Math calculations, archive zip/extract, PDF text extraction, spreadsheet read/write"},

@@ -99,11 +99,17 @@ func (m *Manager) getOrCreateSession(adapterName, chatID string, mode types.Sess
 	sid := crypto.NewID()
 	m.sessions.Store(key, sid)
 
-	_ = m.engine.DB().InsertSession(&types.Session{
+	if err := m.engine.DB().InsertSession(&types.Session{
 		ID:        sid,
 		Mode:      mode,
 		CreatedAt: time.Now(),
-	})
+	}); err != nil {
+		m.log.Warn("channel_session_create_failed", "adapter", adapterName,
+			"chat_id", chatID, "session", sid, "error", err)
+	} else {
+		m.log.Info("channel_session_created", "adapter", adapterName,
+			"chat_id", chatID, "session", sid, "mode", mode)
+	}
 	return sid
 }
 
