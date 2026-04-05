@@ -20,7 +20,7 @@ type VideoExecutor struct {
 }
 
 // NewVideoExecutor creates a video executor. Returns nil if no provider is configured.
-func NewVideoExecutor(cfg types.GenProviderConfig, workspace string, log *logging.Logger) *VideoExecutor {
+func NewVideoExecutor(cfg generation.ProviderConfig, workspace string, log *logging.Logger) *VideoExecutor {
 	if cfg.Provider == "" || cfg.Provider == "none" {
 		return nil
 	}

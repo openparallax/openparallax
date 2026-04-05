@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/openparallax/openparallax/internal/generation"
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/oauth"
 	"github.com/openparallax/openparallax/internal/types"
@@ -53,12 +54,16 @@ func NewRegistry(workspacePath string, cfg *types.AgentConfig, oauthMgr *oauth.M
 			}
 		}
 
-		if image := NewImageExecutor(cfg.Generation.Image, workspacePath, log); image != nil {
-			r.register(image)
+		if imgCfg := resolveGenConfig(cfg, cfg.Roles.Image); imgCfg.Provider != "" {
+			if image := NewImageExecutor(imgCfg, workspacePath, log); image != nil {
+				r.register(image)
+			}
 		}
 
-		if video := NewVideoExecutor(cfg.Generation.Video, workspacePath, log); video != nil {
-			r.register(video)
+		if vidCfg := resolveGenConfig(cfg, cfg.Roles.Video); vidCfg.Provider != "" {
+			if video := NewVideoExecutor(vidCfg, workspacePath, log); video != nil {
+				r.register(video)
+			}
 		}
 	}
 
@@ -135,4 +140,23 @@ func (r *Registry) Execute(ctx context.Context, action *types.ActionRequest) *ty
 		}
 	}
 	return exec.Execute(ctx, action)
+}
+
+// resolveGenConfig looks up a model by role name in the config's model pool
+// and returns a generation.ProviderConfig. Returns empty config if not found.
+func resolveGenConfig(cfg *types.AgentConfig, roleName string) generation.ProviderConfig {
+	if roleName == "" {
+		return generation.ProviderConfig{}
+	}
+	for _, m := range cfg.Models {
+		if m.Name == roleName {
+			return generation.ProviderConfig{
+				Provider:  m.Provider,
+				Model:     m.Model,
+				APIKeyEnv: m.APIKeyEnv,
+				BaseURL:   m.BaseURL,
+			}
+		}
+	}
+	return generation.ProviderConfig{}
 }

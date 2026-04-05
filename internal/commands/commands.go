@@ -377,7 +377,7 @@ func cmdModel(ctx *Context, args []string) Result {
 		models := ctx.Engine.ModelList()
 		var lines []string
 		lines = append(lines, "Model roles:")
-		for _, role := range []string{"chat", "shield", "embedding", "sub_agent"} {
+		for _, role := range []string{"chat", "shield", "embedding", "sub_agent", "image", "video"} {
 			name := roles[role]
 			if name == "" {
 				name = "(not set)"

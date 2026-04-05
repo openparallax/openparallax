@@ -20,7 +20,7 @@ type ImageExecutor struct {
 }
 
 // NewImageExecutor creates an image executor. Returns nil if no provider is configured.
-func NewImageExecutor(cfg types.GenProviderConfig, workspace string, log *logging.Logger) *ImageExecutor {
+func NewImageExecutor(cfg generation.ProviderConfig, workspace string, log *logging.Logger) *ImageExecutor {
 	if cfg.Provider == "" || cfg.Provider == "none" {
 		return nil
 	}

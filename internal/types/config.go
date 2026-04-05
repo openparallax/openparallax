@@ -37,6 +37,12 @@ type RolesConfig struct {
 
 	// SubAgent is the model used for sub-agent tasks.
 	SubAgent string `yaml:"sub_agent,omitempty" json:"sub_agent,omitempty"`
+
+	// Image is the model used for image generation.
+	Image string `yaml:"image,omitempty" json:"image,omitempty"`
+
+	// Video is the model used for video generation.
+	Video string `yaml:"video,omitempty" json:"video,omitempty"`
 }
 
 // AgentConfig is the complete agent configuration loaded from config.yaml.
@@ -90,9 +96,6 @@ type AgentConfig struct {
 	// Tools configures tool group availability.
 	Tools ToolsConfig `yaml:"tools,omitempty" json:"tools,omitempty"`
 
-	// Generation configures image and video generation providers.
-	Generation GenerationConfig `yaml:"generation,omitempty" json:"generation,omitempty"`
-
 	// OAuth configures OAuth2 providers for email and calendar integrations.
 	OAuth OAuthConfig `yaml:"oauth,omitempty" json:"oauth,omitempty"`
 }
@@ -116,30 +119,6 @@ type OAuthProviderConfig struct {
 
 	// TenantID is the Azure AD tenant ID (Microsoft only, default "common").
 	TenantID string `yaml:"tenant_id,omitempty" json:"tenant_id,omitempty"`
-}
-
-// GenerationConfig configures media generation providers.
-type GenerationConfig struct {
-	// Image configures the image generation provider.
-	Image GenProviderConfig `yaml:"image,omitempty" json:"image,omitempty"`
-
-	// Video configures the video generation provider.
-	Video GenProviderConfig `yaml:"video,omitempty" json:"video,omitempty"`
-}
-
-// GenProviderConfig configures a single generation provider.
-type GenProviderConfig struct {
-	// Provider is the provider name: "openai", "google", "stability", "none".
-	Provider string `yaml:"provider,omitempty" json:"provider,omitempty"`
-
-	// Model is the provider-specific model string.
-	Model string `yaml:"model,omitempty" json:"model,omitempty"`
-
-	// APIKeyEnv is the environment variable holding the API key.
-	APIKeyEnv string `yaml:"api_key_env,omitempty" json:"api_key_env,omitempty"`
-
-	// BaseURL overrides the provider's default API endpoint.
-	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
 }
 
 // EmailConfig configures email sending and reading.

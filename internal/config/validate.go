@@ -61,6 +61,12 @@ func validate(cfg *types.AgentConfig) error {
 	if cfg.Roles.SubAgent != "" && !names[cfg.Roles.SubAgent] {
 		return fmt.Errorf("%w: roles.sub_agent references unknown model %q", types.ErrConfigInvalid, cfg.Roles.SubAgent)
 	}
+	if cfg.Roles.Image != "" && !names[cfg.Roles.Image] {
+		return fmt.Errorf("%w: roles.image references unknown model %q", types.ErrConfigInvalid, cfg.Roles.Image)
+	}
+	if cfg.Roles.Video != "" && !names[cfg.Roles.Video] {
+		return fmt.Errorf("%w: roles.video references unknown model %q", types.ErrConfigInvalid, cfg.Roles.Video)
+	}
 
 	if cfg.Shield.OnnxThreshold < 0 || cfg.Shield.OnnxThreshold > 1 {
 		return fmt.Errorf("%w: shield.onnx_threshold must be between 0 and 1",

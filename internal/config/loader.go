@@ -87,6 +87,9 @@ func deriveModelConfigs(cfg *types.AgentConfig) {
 	if m, ok := lookup[cfg.Roles.SubAgent]; ok {
 		cfg.Agents.SubAgentModel = m.Model
 	}
+
+	// Image and video generation roles are resolved by the engine's
+	// model registry at runtime — no legacy fields to derive.
 }
 
 // resolvePath resolves a path relative to the config file's directory.

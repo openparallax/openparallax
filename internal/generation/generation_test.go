@@ -4,35 +4,34 @@ import (
 	"context"
 	"testing"
 
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewImageProviderNone(t *testing.T) {
-	p, err := NewImageProvider(types.GenProviderConfig{Provider: "none"})
+	p, err := NewImageProvider(ProviderConfig{Provider: "none"})
 	assert.NoError(t, err)
 	assert.Nil(t, p)
 }
 
 func TestNewImageProviderEmpty(t *testing.T) {
-	p, err := NewImageProvider(types.GenProviderConfig{})
+	p, err := NewImageProvider(ProviderConfig{})
 	assert.NoError(t, err)
 	assert.Nil(t, p)
 }
 
 func TestNewImageProviderUnsupported(t *testing.T) {
-	_, err := NewImageProvider(types.GenProviderConfig{Provider: "nonexistent"})
+	_, err := NewImageProvider(ProviderConfig{Provider: "nonexistent"})
 	assert.Error(t, err)
 }
 
 func TestNewVideoProviderNone(t *testing.T) {
-	p, err := NewVideoProvider(types.GenProviderConfig{Provider: "none"})
+	p, err := NewVideoProvider(ProviderConfig{Provider: "none"})
 	assert.NoError(t, err)
 	assert.Nil(t, p)
 }
 
 func TestNewVideoProviderUnsupported(t *testing.T) {
-	_, err := NewVideoProvider(types.GenProviderConfig{Provider: "nonexistent"})
+	_, err := NewVideoProvider(ProviderConfig{Provider: "nonexistent"})
 	assert.Error(t, err)
 }
 
@@ -71,8 +70,8 @@ func TestGoogleEditUnsupported(t *testing.T) {
 func TestImageRequestDefaults(t *testing.T) {
 	req := ImageRequest{Prompt: "test"}
 	assert.Equal(t, "test", req.Prompt)
-	assert.Empty(t, req.Size)    // provider fills default
-	assert.Empty(t, req.Quality) // provider fills default
+	assert.Empty(t, req.Size)
+	assert.Empty(t, req.Quality)
 }
 
 func TestVideoRequestDuration(t *testing.T) {

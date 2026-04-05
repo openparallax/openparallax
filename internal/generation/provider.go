@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
-	"github.com/openparallax/openparallax/internal/types"
 )
 
 // ErrUnsupported is returned when an operation is not supported by the provider.
@@ -71,8 +69,16 @@ type VideoResult struct {
 	Format string // "mp4"
 }
 
+// ProviderConfig holds provider configuration for image/video generation.
+type ProviderConfig struct {
+	Provider  string
+	Model     string
+	APIKeyEnv string
+	BaseURL   string
+}
+
 // NewImageProvider creates an image provider from configuration.
-func NewImageProvider(cfg types.GenProviderConfig) (ImageProvider, error) {
+func NewImageProvider(cfg ProviderConfig) (ImageProvider, error) {
 	apiKey := resolveKey(cfg.APIKeyEnv)
 
 	switch cfg.Provider {
@@ -107,7 +113,7 @@ func NewImageProvider(cfg types.GenProviderConfig) (ImageProvider, error) {
 }
 
 // NewVideoProvider creates a video provider from configuration.
-func NewVideoProvider(cfg types.GenProviderConfig) (VideoProvider, error) {
+func NewVideoProvider(cfg ProviderConfig) (VideoProvider, error) {
 	apiKey := resolveKey(cfg.APIKeyEnv)
 
 	switch cfg.Provider {

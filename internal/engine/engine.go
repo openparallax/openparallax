@@ -138,6 +138,12 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	if cfg.Roles.SubAgent != "" {
 		_ = modelReg.SetRole("sub_agent", cfg.Roles.SubAgent)
 	}
+	if cfg.Roles.Image != "" {
+		_ = modelReg.SetRole("image", cfg.Roles.Image)
+	}
+	if cfg.Roles.Video != "" {
+		_ = modelReg.SetRole("video", cfg.Roles.Video)
+	}
 
 	dbPath := filepath.Join(cfg.Workspace, ".openparallax", "openparallax.db")
 	db, err := storage.Open(dbPath)
