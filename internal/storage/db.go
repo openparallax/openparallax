@@ -55,7 +55,6 @@ func (db *DB) migrate() error {
 			role TEXT NOT NULL,
 			content TEXT NOT NULL,
 			thoughts_json TEXT,
-			artifacts_json TEXT,
 			timestamp TEXT NOT NULL,
 			FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
 		)`,

@@ -17,10 +17,12 @@ func (e *Engine) storeMessage(sessionID, messageID, role, content string) {
 		messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	}
 	e.ensureSession(sessionID)
-	_ = e.db.InsertMessage(&types.Message{
+	if err := e.db.InsertMessage(&types.Message{
 		ID: messageID, SessionID: sessionID,
 		Role: role, Content: content, Timestamp: time.Now(),
-	})
+	}); err != nil {
+		e.log.Warn("store_message_failed", "session", sessionID, "role", role, "error", err)
+	}
 }
 
 // storeAssistantMessage saves an assistant message with thoughts (reasoning + tool calls).
@@ -30,17 +32,21 @@ func (e *Engine) storeAssistantMessage(sessionID string, msg *types.Message) {
 	}
 	msg.SessionID = sessionID
 	e.ensureSession(sessionID)
-	_ = e.db.InsertMessage(msg)
+	if err := e.db.InsertMessage(msg); err != nil {
+		e.log.Warn("store_assistant_message_failed", "session", sessionID, "error", err)
+	}
 }
 
 // ensureSession creates the session if it doesn't exist.
 func (e *Engine) ensureSession(sessionID string) {
 	if _, err := e.db.GetSession(sessionID); err != nil {
-		_ = e.db.InsertSession(&types.Session{
+		if insertErr := e.db.InsertSession(&types.Session{
 			ID:        sessionID,
 			Mode:      types.SessionNormal,
 			CreatedAt: time.Now(),
-		})
+		}); insertErr != nil {
+			e.log.Warn("ensure_session_failed", "session", sessionID, "error", insertErr)
+		}
 	}
 }
 
@@ -77,7 +83,9 @@ func (e *Engine) generateSessionTitle(sessionID string, history []llm.ChatMessag
 		return
 	}
 
-	_ = e.db.UpdateSessionTitle(sessionID, title)
+	if titleErr := e.db.UpdateSessionTitle(sessionID, title); titleErr != nil {
+		e.log.Warn("session_title_update_failed", "session", sessionID, "error", titleErr)
+	}
 	e.log.Debug("session_titled", "session", sessionID, "title", title)
 }
 
@@ -118,11 +126,13 @@ func (e *Engine) ProcessHeartbeatTask(ctx context.Context, task string) {
 		sid = crypto.NewID()
 		e.heartbeatSessionID = sid
 		e.mu.Unlock()
-		_ = e.db.InsertSession(&types.Session{
+		if hbErr := e.db.InsertSession(&types.Session{
 			ID:    sid,
 			Mode:  types.SessionHeartbeat,
 			Title: "Heartbeat",
-		})
+		}); hbErr != nil {
+			e.log.Warn("heartbeat_session_create_failed", "session", sid, "error", hbErr)
+		}
 	} else {
 		e.mu.Unlock()
 	}
