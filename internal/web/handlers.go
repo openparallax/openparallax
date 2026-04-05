@@ -38,6 +38,8 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/metrics", s.handleMetrics)
 	mux.HandleFunc("GET /api/metrics/session/{id}", s.handleSessionMetrics)
 	mux.HandleFunc("GET /api/metrics/daily", s.handleDailyTokens)
+	mux.HandleFunc("GET /api/channels", s.handleListChannels)
+	mux.HandleFunc("POST /api/channels/detach", s.handleDetachChannel)
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
@@ -477,4 +479,37 @@ func (s *Server) handleDailyTokens(w http.ResponseWriter, r *http.Request) {
 	}
 	s.log.Debug("api_daily_tokens", "days", days, "entries", len(data))
 	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) handleListChannels(w http.ResponseWriter, _ *http.Request) {
+	ctrl := s.engine.ChannelCtrl()
+	if ctrl == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"channels": []string{}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"channels": ctrl.AdapterNames()})
+}
+
+func (s *Server) handleDetachChannel(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Channel string `json:"channel"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Channel == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "channel name required"})
+		return
+	}
+
+	ctrl := s.engine.ChannelCtrl()
+	if ctrl == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "channel controller not available"})
+		return
+	}
+
+	if err := ctrl.Detach(req.Channel); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+
+	s.log.Info("channel_detached", "channel", req.Channel, "source", "api")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "detached", "channel": req.Channel})
 }

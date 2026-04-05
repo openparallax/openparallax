@@ -61,9 +61,10 @@ type Engine struct {
 	db            *storage.DB
 	mcpManager    *mcp.Manager
 
-	tier3Manager     *Tier3Manager
-	approvalNotifier ApprovalNotifier
-	subAgentManager  *SubAgentManager
+	tier3Manager      *Tier3Manager
+	approvalNotifier  ApprovalNotifier
+	channelController ChannelController
+	subAgentManager   *SubAgentManager
 	oauthManager    *oauth.Manager
 	broadcaster     *EventBroadcaster
 

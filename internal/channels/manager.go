@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -17,8 +18,10 @@ import (
 type Manager struct {
 	engine    *engine.Engine
 	log       *logging.Logger
+	mu        sync.RWMutex
 	adapters  []ChannelAdapter
-	sessions  sync.Map // chatKey → sessionID
+	cancels   map[string]context.CancelFunc // adapter name → cancel
+	sessions  sync.Map                      // chatKey → sessionID
 	commands  *commands.Registry
 	cmdEngine *commands.EngineAdapter
 }
@@ -28,28 +31,46 @@ func NewManager(eng *engine.Engine, log *logging.Logger) *Manager {
 	return &Manager{
 		engine:    eng,
 		log:       log,
+		cancels:   make(map[string]context.CancelFunc),
 		commands:  commands.NewRegistry(),
 		cmdEngine: &commands.EngineAdapter{Engine: eng},
 	}
 }
 
-// Register adds an adapter to the manager.
+// Register adds an adapter to the manager (called before StartAll).
 func (m *Manager) Register(adapter ChannelAdapter) {
 	if adapter.IsConfigured() {
+		m.mu.Lock()
 		m.adapters = append(m.adapters, adapter)
+		m.mu.Unlock()
 		m.log.Info("channel_registered", "adapter", adapter.Name())
 	}
 }
 
 // StartAll starts all registered adapters in goroutines with retry logic.
 func (m *Manager) StartAll(ctx context.Context) {
-	for _, adapter := range m.adapters {
-		go m.runWithRetry(ctx, adapter)
+	m.mu.RLock()
+	snapshot := make([]ChannelAdapter, len(m.adapters))
+	copy(snapshot, m.adapters)
+	m.mu.RUnlock()
+
+	for _, adapter := range snapshot {
+		adapterCtx, cancel := context.WithCancel(ctx)
+		m.mu.Lock()
+		m.cancels[adapter.Name()] = cancel
+		m.mu.Unlock()
+		go m.runWithRetry(adapterCtx, adapter)
 	}
 }
 
 // StopAll gracefully stops all adapters.
 func (m *Manager) StopAll() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for name, cancel := range m.cancels {
+		cancel()
+		delete(m.cancels, name)
+	}
 	for _, adapter := range m.adapters {
 		if err := adapter.Stop(); err != nil {
 			m.log.Warn("channel_stop_error", "adapter", adapter.Name(), "error", err)
@@ -58,7 +79,51 @@ func (m *Manager) StopAll() {
 }
 
 // AdapterCount returns the number of registered adapters.
-func (m *Manager) AdapterCount() int { return len(m.adapters) }
+func (m *Manager) AdapterCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.adapters)
+}
+
+// AdapterNames returns the names of all registered adapters.
+func (m *Manager) AdapterNames() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	names := make([]string, len(m.adapters))
+	for i, a := range m.adapters {
+		names[i] = a.Name()
+	}
+	return names
+}
+
+// Detach stops and removes a running adapter by name.
+func (m *Manager) Detach(name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	idx := -1
+	for i, a := range m.adapters {
+		if a.Name() == name {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("channel %q is not attached", name)
+	}
+
+	if cancel, ok := m.cancels[name]; ok {
+		cancel()
+		delete(m.cancels, name)
+	}
+	if err := m.adapters[idx].Stop(); err != nil {
+		m.log.Warn("channel_detach_stop_error", "adapter", name, "error", err)
+	}
+
+	m.adapters = append(m.adapters[:idx], m.adapters[idx+1:]...)
+	m.log.Info("channel_detached", "adapter", name)
+	return nil
+}
 
 func (m *Manager) runWithRetry(ctx context.Context, adapter ChannelAdapter) {
 	maxRetries := 5
@@ -162,7 +227,12 @@ func (m *Manager) getOrCreateSession(adapterName, chatID string, mode types.Sess
 // adapters that implement ApprovalHandler. Adapters that do not support
 // approval prompts are silently skipped.
 func (m *Manager) NotifyApproval(actionID, toolName, reasoning string, timeoutSecs int) {
-	for _, adapter := range m.adapters {
+	m.mu.RLock()
+	snapshot := make([]ChannelAdapter, len(m.adapters))
+	copy(snapshot, m.adapters)
+	m.mu.RUnlock()
+
+	for _, adapter := range snapshot {
 		handler, ok := adapter.(ApprovalHandler)
 		if !ok {
 			continue

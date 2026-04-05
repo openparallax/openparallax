@@ -131,6 +131,21 @@ func (m *Tier3Manager) resetIfNeeded() {
 	}
 }
 
+// ChannelController is implemented by the channel manager to support dynamic
+// attach/detach of messaging adapters at runtime.
+type ChannelController interface {
+	AdapterNames() []string
+	Detach(name string) error
+}
+
+// SetChannelController registers the channel manager for runtime control.
+func (e *Engine) SetChannelController(c ChannelController) {
+	e.channelController = c
+}
+
+// ChannelController returns the registered channel controller, or nil.
+func (e *Engine) ChannelCtrl() ChannelController { return e.channelController }
+
 // ApprovalNotifier is implemented by channel managers to forward Tier 3
 // approval requests to connected messaging platforms (Telegram, Discord, etc.).
 // The notifier sends a human-readable prompt and routes responses back via

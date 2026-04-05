@@ -177,6 +177,7 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	}
 	channelMgr.StartAll(channelCtx)
 	eng.SetApprovalNotifier(channelMgr)
+	eng.SetChannelController(channelMgr)
 
 	// Start heartbeat scheduler for HEARTBEAT.md cron entries.
 	hbLoop := heartbeat.NewLoop(cfg.Workspace, func(task string) {
