@@ -6,13 +6,53 @@ import (
 	"github.com/openparallax/openparallax/shield"
 )
 
+// ModelEntry defines a single LLM provider+model in the model pool.
+type ModelEntry struct {
+	// Name is the unique identifier for this model (e.g., "claude-sonnet", "gemini-flash").
+	Name string `yaml:"name" json:"name"`
+
+	// Provider is the LLM provider ("anthropic", "openai", "google", "ollama").
+	Provider string `yaml:"provider" json:"provider"`
+
+	// Model is the provider-specific model identifier.
+	Model string `yaml:"model" json:"model"`
+
+	// APIKeyEnv is the environment variable holding the API key.
+	APIKeyEnv string `yaml:"api_key_env,omitempty" json:"api_key_env,omitempty"`
+
+	// BaseURL overrides the provider's default API endpoint.
+	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
+}
+
+// RolesConfig maps functional roles to model names from the model pool.
+type RolesConfig struct {
+	// Chat is the model used for the main conversation.
+	Chat string `yaml:"chat" json:"chat"`
+
+	// Shield is the model used for Tier 2 Shield evaluation.
+	Shield string `yaml:"shield,omitempty" json:"shield,omitempty"`
+
+	// Embedding is the model used for vector embeddings.
+	Embedding string `yaml:"embedding,omitempty" json:"embedding,omitempty"`
+
+	// SubAgent is the model used for sub-agent tasks.
+	SubAgent string `yaml:"sub_agent,omitempty" json:"sub_agent,omitempty"`
+}
+
 // AgentConfig is the complete agent configuration loaded from config.yaml.
 type AgentConfig struct {
 	// Workspace is the root directory for the agent's workspace files.
 	Workspace string `yaml:"workspace" json:"workspace"`
 
-	// LLM configures the agent's LLM provider.
-	LLM LLMConfig `yaml:"llm" json:"llm"`
+	// Models defines the available LLM provider+model pool.
+	Models []ModelEntry `yaml:"models" json:"models"`
+
+	// Roles maps functional roles (chat, shield, embedding, sub_agent) to model names.
+	Roles RolesConfig `yaml:"roles" json:"roles"`
+
+	// LLM is derived from Models+Roles at load time for backward-compatible access.
+	// Not in config.yaml — populated by config.Load().
+	LLM LLMConfig `yaml:"-" json:"-"`
 
 	// Shield configures the Shield evaluation pipeline.
 	Shield ShieldConfig `yaml:"shield" json:"shield"`

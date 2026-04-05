@@ -102,6 +102,15 @@ type EngineAccess interface {
 
 	// DoctorChecks runs health checks and returns results.
 	DoctorChecks() []DoctorCheck
+
+	// ModelList returns all registered model names.
+	ModelList() []string
+
+	// ModelRoles returns the current role → model name mapping.
+	ModelRoles() map[string]string
+
+	// SetModelRole switches a role to a different model. Returns error if model not found.
+	SetModelRole(role, modelName string) error
 }
 
 // StatusInfo holds system status for the /status command.

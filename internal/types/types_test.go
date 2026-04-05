@@ -66,11 +66,10 @@ func TestSessionModeValues(t *testing.T) {
 func TestAgentConfigYAMLRoundTrip(t *testing.T) {
 	cfg := AgentConfig{
 		Workspace: "/tmp/workspace",
-		LLM: LLMConfig{
-			Provider:  "anthropic",
-			Model:     "claude-sonnet-4-20250514",
-			APIKeyEnv: "ANTHROPIC_API_KEY",
+		Models: []ModelEntry{
+			{Name: "chat", Provider: "anthropic", Model: "claude-sonnet-4-20250514", APIKeyEnv: "ANTHROPIC_API_KEY"},
 		},
+		Roles: RolesConfig{Chat: "chat"},
 		Shield: ShieldConfig{
 			PolicyFile:       "policies/default.yaml",
 			OnnxThreshold:    0.85,
@@ -91,8 +90,9 @@ func TestAgentConfigYAMLRoundTrip(t *testing.T) {
 	err = yaml.Unmarshal(data, &decoded)
 	require.NoError(t, err)
 
-	assert.Equal(t, cfg.LLM.Provider, decoded.LLM.Provider)
-	assert.Equal(t, cfg.LLM.Model, decoded.LLM.Model)
+	assert.Equal(t, cfg.Models[0].Provider, decoded.Models[0].Provider)
+	assert.Equal(t, cfg.Models[0].Model, decoded.Models[0].Model)
+	assert.Equal(t, cfg.Roles.Chat, decoded.Roles.Chat)
 	assert.Equal(t, cfg.Shield.OnnxThreshold, decoded.Shield.OnnxThreshold)
 	assert.Equal(t, cfg.General.FailClosed, decoded.General.FailClosed)
 }

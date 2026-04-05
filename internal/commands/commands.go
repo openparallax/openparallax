@@ -98,6 +98,12 @@ func (r *Registry) registerAll() {
 		Execute:     cmdConfig,
 	})
 
+	r.Register(&Command{
+		Name:        "model",
+		Description: "Show or switch model role mapping",
+		Execute:     cmdModel,
+	})
+
 	// Tier 5 — Maintenance (CLI + Web only).
 	r.Register(&Command{
 		Name:        "logs",
@@ -358,6 +364,42 @@ func cmdConfig(ctx *Context, args []string) Result {
 		return Result{Text: msg}
 	}
 	return Result{Text: "Usage: /config or /config set <key> <value>"}
+}
+
+func cmdModel(ctx *Context, args []string) Result {
+	if ctx.Engine == nil {
+		return Result{Text: "Engine not available."}
+	}
+
+	// /model — show current mapping.
+	if len(args) == 0 {
+		roles := ctx.Engine.ModelRoles()
+		models := ctx.Engine.ModelList()
+		var lines []string
+		lines = append(lines, "Model roles:")
+		for _, role := range []string{"chat", "shield", "embedding", "sub_agent"} {
+			name := roles[role]
+			if name == "" {
+				name = "(not set)"
+			}
+			lines = append(lines, fmt.Sprintf("  %-12s %s", role+":", name))
+		}
+		lines = append(lines, fmt.Sprintf("\nAvailable models: %s", strings.Join(models, ", ")))
+		lines = append(lines, "\nUsage: /model <role> <model-name>")
+		return Result{Text: strings.Join(lines, "\n")}
+	}
+
+	// /model <role> <model-name> — switch role.
+	if len(args) >= 2 {
+		role := args[0]
+		modelName := args[1]
+		if err := ctx.Engine.SetModelRole(role, modelName); err != nil {
+			return Result{Text: fmt.Sprintf("Failed: %s", err)}
+		}
+		return Result{Text: fmt.Sprintf("Switched %s to %s.", role, modelName)}
+	}
+
+	return Result{Text: "Usage: /model or /model <role> <model-name>"}
 }
 
 // --- Tier 5: Maintenance ---

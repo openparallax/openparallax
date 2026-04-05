@@ -19,28 +19,33 @@ func writeTestConfig(t *testing.T, dir string, content string) string {
 	return path
 }
 
-func TestLoadValidConfig(t *testing.T) {
-	dir := t.TempDir()
-	path := writeTestConfig(t, dir, `
+const validConfig = `
 workspace: ./workspace
-llm:
-  provider: anthropic
-  model: claude-sonnet-4-20250514
-  api_key_env: ANTHROPIC_API_KEY
-shield:
-  evaluator:
+models:
+  - name: chat
+    provider: anthropic
+    model: claude-sonnet-4-20250514
+    api_key_env: ANTHROPIC_API_KEY
+  - name: shield
     provider: openai
     model: gpt-4o
     api_key_env: OPENAI_API_KEY
-  policy_file: policies/default.yaml
+roles:
+  chat: chat
+  shield: shield
 general:
   fail_closed: true
   rate_limit: 30
-`)
+`
+
+func TestLoadValidConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestConfig(t, dir, validConfig)
 
 	cfg, err := Load(path)
 	require.NoError(t, err)
 
+	// Derived LLM config from models+roles.
 	assert.Equal(t, "anthropic", cfg.LLM.Provider)
 	assert.Equal(t, "claude-sonnet-4-20250514", cfg.LLM.Model)
 	assert.Equal(t, "ANTHROPIC_API_KEY", cfg.LLM.APIKeyEnv)
@@ -48,48 +53,52 @@ general:
 	assert.True(t, cfg.General.FailClosed)
 	assert.Equal(t, 30, cfg.General.RateLimit)
 
-	// Check that workspace path is resolved relative to config dir.
 	expected := filepath.Clean(filepath.Join(dir, "workspace"))
 	assert.Equal(t, expected, cfg.Workspace)
 }
 
-func TestLoadMissingProvider(t *testing.T) {
+func TestLoadMissingModels(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  model: gpt-4o
-  api_key_env: OPENAI_API_KEY
+roles:
+  chat: chat
 `)
 
 	_, err := Load(path)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, types.ErrConfigInvalid)
-	assert.Contains(t, err.Error(), "llm.provider")
+	assert.Contains(t, err.Error(), "models[]")
 }
 
 func TestLoadMissingModel(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  provider: anthropic
-  api_key_env: ANTHROPIC_API_KEY
+models:
+  - name: chat
+    provider: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+roles:
+  chat: chat
 `)
 
 	_, err := Load(path)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, types.ErrConfigInvalid)
-	assert.Contains(t, err.Error(), "llm.model")
+	assert.Contains(t, err.Error(), "missing the model field")
 }
 
 func TestLoadMissingAPIKeyForNonOllama(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  provider: openai
-  model: gpt-4o
+models:
+  - name: chat
+    provider: openai
+    model: gpt-4o
+roles:
+  chat: chat
 `)
 
 	_, err := Load(path)
@@ -102,9 +111,12 @@ func TestLoadOllamaNoAPIKey(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  provider: ollama
-  model: llama3.2
+models:
+  - name: chat
+    provider: ollama
+    model: llama3.2
+roles:
+  chat: chat
 `)
 
 	cfg, err := Load(path)
@@ -116,25 +128,31 @@ func TestLoadInvalidProvider(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  provider: invalid_provider
-  model: test
-  api_key_env: TEST_KEY
+models:
+  - name: chat
+    provider: invalid_provider
+    model: test
+    api_key_env: TEST_KEY
+roles:
+  chat: chat
 `)
 
 	_, err := Load(path)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, types.ErrConfigInvalid)
-	assert.Contains(t, err.Error(), "unsupported LLM provider")
+	assert.Contains(t, err.Error(), "unsupported")
 }
 
 func TestLoadInvalidOnnxThreshold(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  provider: ollama
-  model: llama3.2
+models:
+  - name: chat
+    provider: ollama
+    model: llama3.2
+roles:
+  chat: chat
 shield:
   onnx_threshold: 1.5
 `)
@@ -149,9 +167,12 @@ func TestLoadInvalidRateLimit(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  provider: ollama
-  model: llama3.2
+models:
+  - name: chat
+    provider: ollama
+    model: llama3.2
+roles:
+  chat: chat
 general:
   rate_limit: 0
 `)
@@ -184,18 +205,16 @@ func TestCrossModelWarning(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  provider: openai
-  model: gpt-4o
-  api_key_env: OPENAI_API_KEY
-shield:
-  evaluator:
+models:
+  - name: shared
     provider: openai
     model: gpt-4o
     api_key_env: OPENAI_API_KEY
+roles:
+  chat: shared
+  shield: shared
 `)
 
-	// Capture stderr
 	oldStderr := os.Stderr
 	r, w, _ := os.Pipe()
 	os.Stderr = w
@@ -221,15 +240,17 @@ func TestDefaultsApplied(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTestConfig(t, dir, `
 workspace: .
-llm:
-  provider: ollama
-  model: llama3.2
+models:
+  - name: chat
+    provider: ollama
+    model: llama3.2
+roles:
+  chat: chat
 `)
 
 	cfg, err := Load(path)
 	require.NoError(t, err)
 
-	// These should have default values
 	assert.Equal(t, 0.85, cfg.Shield.OnnxThreshold)
 	assert.True(t, cfg.Shield.HeuristicEnabled)
 	assert.Equal(t, 100, cfg.Chronicle.MaxSnapshots)
@@ -239,4 +260,22 @@ llm:
 	assert.True(t, cfg.General.FailClosed)
 	assert.Equal(t, 60, cfg.General.VerdictTTLSeconds)
 	assert.Equal(t, 100, cfg.General.DailyBudget)
+}
+
+func TestBadRoleReference(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestConfig(t, dir, `
+workspace: .
+models:
+  - name: chat
+    provider: ollama
+    model: llama3.2
+roles:
+  chat: chat
+  shield: nonexistent
+`)
+
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown model")
 }

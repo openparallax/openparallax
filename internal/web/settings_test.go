@@ -92,17 +92,16 @@ func TestSettingsEmptyBodyChangesNothing(t *testing.T) {
 }
 
 func createTestConfig() *types.AgentConfig {
-	return &types.AgentConfig{
+	cfg := &types.AgentConfig{
 		Workspace: "/tmp/test-workspace",
 		Identity: types.IdentityConfig{
 			Name:   "TestAgent",
 			Avatar: "⚡",
 		},
-		LLM: types.LLMConfig{
-			Provider:  "anthropic",
-			Model:     "claude-sonnet-4-20250514",
-			APIKeyEnv: "ANTHROPIC_API_KEY",
+		Models: []types.ModelEntry{
+			{Name: "chat", Provider: "anthropic", Model: "claude-sonnet-4-20250514", APIKeyEnv: "ANTHROPIC_API_KEY"},
 		},
+		Roles: types.RolesConfig{Chat: "chat"},
 		Shield: types.ShieldConfig{
 			PolicyFile:       "policies/default.yaml",
 			HeuristicEnabled: true,
@@ -123,4 +122,9 @@ func createTestConfig() *types.AgentConfig {
 			DailyBudget:       50,
 		},
 	}
+	// Derive LLM fields for backward compat.
+	cfg.LLM.Provider = "anthropic"
+	cfg.LLM.Model = "claude-sonnet-4-20250514"
+	cfg.LLM.APIKeyEnv = "ANTHROPIC_API_KEY"
+	return cfg
 }

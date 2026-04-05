@@ -26,6 +26,7 @@
     { cmd: '/restart', desc: 'Restart the engine' },
     { cmd: '/quit', desc: 'Close session, start new one' },
     { cmd: '/config', desc: 'Show or update config' },
+    { cmd: '/model', desc: 'Show or switch model roles' },
     { cmd: '/logs', desc: 'Manage logs' },
     { cmd: '/audit', desc: 'Verify audit trail' },
     { cmd: '/doctor', desc: 'Run health checks' },

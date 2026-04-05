@@ -858,37 +858,38 @@ func writeConfig(path, workspace, agentName, avatar string,
 	}
 	sb.WriteString("\n")
 
-	// LLM
-	sb.WriteString("llm:\n")
-	fmt.Fprintf(&sb, "  provider: %s\n", llmProvider)
-	fmt.Fprintf(&sb, "  model: %s\n", model)
+	// Models pool
+	shieldInfo := providers[shieldProv]
+	sb.WriteString("models:\n")
+
+	// Chat model
+	sb.WriteString("  - name: chat\n")
+	fmt.Fprintf(&sb, "    provider: %s\n", llmProvider)
+	fmt.Fprintf(&sb, "    model: %s\n", model)
 	if info.apiKeyEnv != "" {
-		fmt.Fprintf(&sb, "  api_key_env: %s\n", info.apiKeyEnv)
+		fmt.Fprintf(&sb, "    api_key_env: %s\n", info.apiKeyEnv)
 	}
 	if baseURL != "" {
-		fmt.Fprintf(&sb, "  base_url: %s\n", baseURL)
+		fmt.Fprintf(&sb, "    base_url: %s\n", baseURL)
 	}
-	sb.WriteString("\n")
 
-	// Shield
-	shieldInfo := providers[shieldProv]
-	sb.WriteString("shield:\n")
-	sb.WriteString("  evaluator:\n")
-	fmt.Fprintf(&sb, "    provider: %s\n", shieldProv)
-	fmt.Fprintf(&sb, "    model: %s\n", shieldModel)
-	if shieldInfo.apiKeyEnv != "" {
-		fmt.Fprintf(&sb, "    api_key_env: %s\n", shieldInfo.apiKeyEnv)
+	// Shield model (skip if same as chat)
+	sameAsChat := shieldProv == llmProvider && shieldModel == model
+	if !sameAsChat {
+		sb.WriteString("  - name: shield\n")
+		fmt.Fprintf(&sb, "    provider: %s\n", shieldProv)
+		fmt.Fprintf(&sb, "    model: %s\n", shieldModel)
+		if shieldInfo.apiKeyEnv != "" && shieldInfo.apiKeyEnv != info.apiKeyEnv {
+			fmt.Fprintf(&sb, "    api_key_env: %s\n", shieldInfo.apiKeyEnv)
+		}
+		if shieldBaseURL != "" {
+			fmt.Fprintf(&sb, "    base_url: %s\n", shieldBaseURL)
+		}
 	}
-	if shieldBaseURL != "" {
-		fmt.Fprintf(&sb, "    base_url: %s\n", shieldBaseURL)
-	}
-	sb.WriteString("  policy_file: policies/default.yaml\n")
-	sb.WriteString("  heuristic_enabled: true\n\n")
 
-	// Embedding
+	// Embedding model
 	if embProvider != "" {
-		sb.WriteString("memory:\n")
-		sb.WriteString("  embedding:\n")
+		sb.WriteString("  - name: embedding\n")
 		fmt.Fprintf(&sb, "    provider: %s\n", embProvider)
 		fmt.Fprintf(&sb, "    model: %s\n", embModel)
 		if embAPIKeyEnv != "" {
@@ -897,8 +898,26 @@ func writeConfig(path, workspace, agentName, avatar string,
 		if embBaseURL != "" {
 			fmt.Fprintf(&sb, "    base_url: %s\n", embBaseURL)
 		}
-		sb.WriteString("\n")
 	}
+	sb.WriteString("\n")
+
+	// Roles
+	sb.WriteString("roles:\n")
+	sb.WriteString("  chat: chat\n")
+	if sameAsChat {
+		sb.WriteString("  shield: chat\n")
+	} else {
+		sb.WriteString("  shield: shield\n")
+	}
+	if embProvider != "" {
+		sb.WriteString("  embedding: embedding\n")
+	}
+	sb.WriteString("  sub_agent: chat\n\n")
+
+	// Shield settings
+	sb.WriteString("shield:\n")
+	sb.WriteString("  policy_file: policies/default.yaml\n")
+	sb.WriteString("  heuristic_enabled: true\n\n")
 
 	// Chronicle
 	sb.WriteString("chronicle:\n")

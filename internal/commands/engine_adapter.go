@@ -312,6 +312,33 @@ func flushOldLines(path string, days int) (int, error) {
 	return removed, os.WriteFile(path, []byte(strings.Join(kept, "\n")+"\n"), 0o644)
 }
 
+// ModelList returns all registered model names.
+func (a *EngineAdapter) ModelList() []string {
+	reg := a.Engine.ModelRegistry()
+	if reg == nil {
+		return nil
+	}
+	return reg.ModelNames()
+}
+
+// ModelRoles returns the current role → model name mapping.
+func (a *EngineAdapter) ModelRoles() map[string]string {
+	reg := a.Engine.ModelRegistry()
+	if reg == nil {
+		return nil
+	}
+	return reg.RoleMapping()
+}
+
+// SetModelRole switches a role to a different model.
+func (a *EngineAdapter) SetModelRole(role, modelName string) error {
+	reg := a.Engine.ModelRegistry()
+	if reg == nil {
+		return fmt.Errorf("model registry not available")
+	}
+	return reg.SetRole(role, modelName)
+}
+
 func formatAge(d time.Duration) string {
 	if d < time.Minute {
 		return "just now"

@@ -46,19 +46,20 @@ type Engine struct {
 	pb.UnimplementedClientServiceServer
 	pb.UnimplementedSubAgentServiceServer
 
-	cfg        *types.AgentConfig
-	llm        llm.Provider
-	log        *logging.Logger
-	agent      *agent.Agent
-	executors  *executors.Registry
-	shield     *shield.Pipeline
-	enricher   *shield.MetadataEnricher
-	chronicle  *chronicle.Chronicle
-	memory     *memory.Manager
-	audit      *audit.Logger
-	verifier   *Verifier
-	db         *storage.DB
-	mcpManager *mcp.Manager
+	cfg           *types.AgentConfig
+	llm           llm.Provider
+	modelRegistry *llm.Registry
+	log           *logging.Logger
+	agent         *agent.Agent
+	executors     *executors.Registry
+	shield        *shield.Pipeline
+	enricher      *shield.MetadataEnricher
+	chronicle     *chronicle.Chronicle
+	memory        *memory.Manager
+	audit         *audit.Logger
+	verifier      *Verifier
+	db            *storage.DB
+	mcpManager    *mcp.Manager
 
 	tier3Manager    *Tier3Manager
 	subAgentManager *SubAgentManager
@@ -113,6 +114,29 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	provider, err := llm.NewProvider(cfg.LLM)
 	if err != nil {
 		return nil, fmt.Errorf("llm provider: %w", err)
+	}
+
+	// Build multi-model registry from config.
+	modelReg := llm.NewRegistry()
+	for _, m := range cfg.Models {
+		if regErr := modelReg.Register(llm.ModelEntry{
+			Name: m.Name, Provider: m.Provider,
+			Model: m.Model, APIKeyEnv: m.APIKeyEnv, BaseURL: m.BaseURL,
+		}); regErr != nil {
+			log.Warn("model_register_failed", "name", m.Name, "error", regErr)
+		}
+	}
+	if cfg.Roles.Chat != "" {
+		_ = modelReg.SetRole("chat", cfg.Roles.Chat)
+	}
+	if cfg.Roles.Shield != "" {
+		_ = modelReg.SetRole("shield", cfg.Roles.Shield)
+	}
+	if cfg.Roles.Embedding != "" {
+		_ = modelReg.SetRole("embedding", cfg.Roles.Embedding)
+	}
+	if cfg.Roles.SubAgent != "" {
+		_ = modelReg.SetRole("sub_agent", cfg.Roles.SubAgent)
 	}
 
 	dbPath := filepath.Join(cfg.Workspace, ".openparallax", "openparallax.db")
@@ -199,22 +223,23 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	eng := &Engine{
-		cfg:          cfg,
-		llm:          provider,
-		log:          log,
-		agent:        ag,
-		executors:    registry,
-		shield:       shieldPipeline,
-		enricher:     shield.NewMetadataEnricher(),
-		chronicle:    chron,
-		memory:       mem,
-		audit:        auditLogger,
-		verifier:     NewVerifier(),
-		db:           db,
-		mcpManager:   mcpMgr,
-		tier3Manager: NewTier3Manager(cfg.Shield.Tier3.MaxPerHour, cfg.Shield.Tier3.TimeoutSeconds),
-		oauthManager: oauthMgr,
-		broadcaster:  NewEventBroadcaster(),
+		cfg:           cfg,
+		llm:           provider,
+		modelRegistry: modelReg,
+		log:           log,
+		agent:         ag,
+		executors:     registry,
+		shield:        shieldPipeline,
+		enricher:      shield.NewMetadataEnricher(),
+		chronicle:     chron,
+		memory:        mem,
+		audit:         auditLogger,
+		verifier:      NewVerifier(),
+		db:            db,
+		mcpManager:    mcpMgr,
+		tier3Manager:  NewTier3Manager(cfg.Shield.Tier3.MaxPerHour, cfg.Shield.Tier3.TimeoutSeconds),
+		oauthManager:  oauthMgr,
+		broadcaster:   NewEventBroadcaster(),
 	}
 	eng.backgroundCtx, eng.backgroundCancel = context.WithCancel(context.Background())
 	return eng, nil
@@ -1604,6 +1629,9 @@ func (e *Engine) Config() *types.AgentConfig { return e.cfg }
 
 // Log returns the logger.
 func (e *Engine) Log() *logging.Logger { return e.log }
+
+// ModelRegistry returns the multi-model registry.
+func (e *Engine) ModelRegistry() *llm.Registry { return e.modelRegistry }
 
 // LLMModel returns the configured LLM model name.
 func (e *Engine) LLMModel() string { return e.llm.Model() }

@@ -36,6 +36,9 @@ func Load(configPath string) (*types.AgentConfig, error) {
 
 	cfg.Workspace = resolvePath(cfg.Workspace, filepath.Dir(configPath))
 
+	// Derive LLM config from Models + Roles for backward-compatible access.
+	deriveModelConfigs(&cfg)
+
 	if err := validate(&cfg); err != nil {
 		return nil, err
 	}
@@ -50,6 +53,40 @@ func Load(configPath string) (*types.AgentConfig, error) {
 	}
 
 	return &cfg, nil
+}
+
+// deriveModelConfigs populates legacy LLM/Shield/Memory/Agent config fields
+// from the new Models+Roles structure so existing code can access them.
+func deriveModelConfigs(cfg *types.AgentConfig) {
+	lookup := make(map[string]types.ModelEntry, len(cfg.Models))
+	for _, m := range cfg.Models {
+		lookup[m.Name] = m
+	}
+
+	if m, ok := lookup[cfg.Roles.Chat]; ok {
+		cfg.LLM.Provider = m.Provider
+		cfg.LLM.Model = m.Model
+		cfg.LLM.APIKeyEnv = m.APIKeyEnv
+		cfg.LLM.BaseURL = m.BaseURL
+	}
+
+	if m, ok := lookup[cfg.Roles.Shield]; ok {
+		cfg.Shield.Evaluator.Provider = m.Provider
+		cfg.Shield.Evaluator.Model = m.Model
+		cfg.Shield.Evaluator.APIKeyEnv = m.APIKeyEnv
+		cfg.Shield.Evaluator.BaseURL = m.BaseURL
+	}
+
+	if m, ok := lookup[cfg.Roles.Embedding]; ok {
+		cfg.Memory.Embedding.Provider = m.Provider
+		cfg.Memory.Embedding.Model = m.Model
+		cfg.Memory.Embedding.APIKeyEnv = m.APIKeyEnv
+		cfg.Memory.Embedding.BaseURL = m.BaseURL
+	}
+
+	if m, ok := lookup[cfg.Roles.SubAgent]; ok {
+		cfg.Agents.SubAgentModel = m.Model
+	}
 }
 
 // resolvePath resolves a path relative to the config file's directory.
