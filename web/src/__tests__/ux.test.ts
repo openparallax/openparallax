@@ -1,18 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 import { messages, addSystemMessage, addUserMessage, clearMessages } from '../stores/messages';
-import { artifactTabs, activeTabId, openArtifactTab, closeArtifactTab, togglePinTab, clearArtifactTabs } from '../stores/artifacts';
 import { settingsOpen, sidebarOpen, activeNavItem } from '../stores/settings';
 import { logEntries, addLogEntry, clearLogEntries } from '../stores/console';
-import type { Artifact } from '../lib/types';
-
-function makeArtifact(id: string, title = 'test.html'): Artifact {
-  return {
-    id, type: 'file', title, path: `/workspace/${title}`,
-    content: '<h1>Test</h1>', language: 'html',
-    size_bytes: 100, preview_type: 'html',
-  };
-}
 
 describe('system messages', () => {
   beforeEach(() => clearMessages());
@@ -43,47 +33,6 @@ describe('/clear preserves history concept', () => {
     addUserMessage('two');
     messages.set([]);
     expect(get(messages)).toHaveLength(0);
-  });
-});
-
-describe('pin artifact tabs', () => {
-  beforeEach(() => clearArtifactTabs());
-
-  it('togglePinTab pins a tab', () => {
-    openArtifactTab(makeArtifact('a1'));
-    togglePinTab('a1');
-    const tabs = get(artifactTabs);
-    expect(tabs[0].pinned).toBe(true);
-  });
-
-  it('togglePinTab unpins a pinned tab', () => {
-    openArtifactTab(makeArtifact('a1'));
-    togglePinTab('a1');
-    togglePinTab('a1');
-    const tabs = get(artifactTabs);
-    expect(tabs[0].pinned).toBe(false);
-  });
-
-  it('pinned tabs sort before unpinned', () => {
-    openArtifactTab(makeArtifact('a1', 'first.html'));
-    openArtifactTab(makeArtifact('a2', 'second.html'));
-    togglePinTab('a2');
-    const tabs = get(artifactTabs);
-    expect(tabs[0].id).toBe('a2');
-    expect(tabs[0].pinned).toBe(true);
-    expect(tabs[1].id).toBe('a1');
-  });
-
-  it('6-tab limit only closes unpinned tabs', () => {
-    openArtifactTab(makeArtifact('pinned1'));
-    togglePinTab('pinned1');
-    for (let i = 0; i < 7; i++) {
-      openArtifactTab(makeArtifact(`u${i}`, `file${i}.html`));
-    }
-    const tabs = get(artifactTabs);
-    const pinned = tabs.filter(t => t.pinned);
-    expect(pinned).toHaveLength(1);
-    expect(pinned[0].id).toBe('pinned1');
   });
 });
 

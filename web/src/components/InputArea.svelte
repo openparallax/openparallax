@@ -6,7 +6,7 @@
   import { streaming, addUserMessage, addSystemMessage, clearMessages, messages } from '../stores/messages';
   import { connected } from '../stores/connection';
   import { activeNavItem, sidebarOpen } from '../stores/settings';
-  import { clearArtifactTabs } from '../stores/artifacts';
+
   import { sendMessage } from '../lib/websocket';
   import { createSession, getStatus, deleteSession } from '../lib/api';
   import type { SandboxStatusData } from '../lib/types';
@@ -164,8 +164,7 @@
 
       case '/quit':
         clearMessages();
-        clearArtifactTabs();
-        currentSessionId.set(null);
+            currentSessionId.set(null);
         currentMode.set('normal');
         await createNewSession('normal');
         break;
@@ -233,8 +232,7 @@
         await deleteSession(sid);
         sessions.update(s => s.filter(sess => sess.id !== sid));
         clearMessages();
-        clearArtifactTabs();
-        currentSessionId.set(null);
+            currentSessionId.set(null);
         currentMode.set('normal');
         addSystemMessage('Session deleted.');
         await createNewSession('normal');
@@ -299,8 +297,7 @@
       currentSessionId.set(sess.id);
       currentMode.set(mode);
       clearMessages();
-      clearArtifactTabs();
-      activeNavItem.set('chat');
+        activeNavItem.set('chat');
     } catch {
       /* ignore */
     }

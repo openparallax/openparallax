@@ -1,4 +1,4 @@
-import type { Session, Message, StatusResponse, Artifact } from './types';
+import type { Session, Message, StatusResponse } from './types';
 
 const BASE = '/api';
 
@@ -55,14 +55,6 @@ export async function searchMemory(query: string, limit: number = 10) {
 
 export async function readMemory(fileType: string) {
   return fetchJSON<{ type: string; content: string }>(`/memory/${fileType}`);
-}
-
-export async function listArtifacts(): Promise<Artifact[]> {
-  return fetchJSON('/artifacts');
-}
-
-export async function getArtifactContent(path: string): Promise<{ content: string }> {
-  return fetchJSON(`/artifacts/${encodeURIComponent(path)}`);
 }
 
 export async function getLogs(lines = 200, level = '', event = '', offset = 0): Promise<{ entries: any[]; total_lines: number; has_more: boolean }> {

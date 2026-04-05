@@ -160,22 +160,6 @@ func (db *DB) migrate() error {
 			PRIMARY KEY (date, metric)
 		)`,
 
-		// Dedicated artifact metadata for persisted artifacts.
-		`CREATE TABLE IF NOT EXISTS artifacts (
-			id TEXT PRIMARY KEY,
-			session_id TEXT NOT NULL,
-			type TEXT NOT NULL,
-			title TEXT NOT NULL,
-			path TEXT,
-			language TEXT,
-			size_bytes INTEGER NOT NULL DEFAULT 0,
-			preview_type TEXT,
-			storage_path TEXT NOT NULL,
-			created_at TEXT NOT NULL DEFAULT (datetime('now')),
-			FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id)`,
-
 		// OAuth2 token storage (encrypted at rest).
 		`CREATE TABLE IF NOT EXISTS oauth_tokens (
 			provider TEXT NOT NULL,

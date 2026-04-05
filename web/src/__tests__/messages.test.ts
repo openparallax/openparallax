@@ -1,18 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
 import {
-  messages, pendingSteps, artifacts, shieldLog,
+  messages, pendingSteps, shieldLog,
   streaming, streamingText,
   addUserMessage, appendToken, addToolCallWithFlush, updateToolCallVerdict,
-  completeToolCall, addArtifact, finalizeResponse, clearMessages,
+  completeToolCall, finalizeResponse, clearMessages,
   setStreaming, startNewStream,
 } from '../stores/messages';
-import { artifactTabs, clearArtifactTabs } from '../stores/artifacts';
 
 describe('messages store', () => {
   beforeEach(() => {
     clearMessages();
-    clearArtifactTabs();
   });
 
   it('starts empty', () => {
@@ -85,17 +83,6 @@ describe('messages store', () => {
     expect(tool?.result?.success).toBe(true);
   });
 
-  it('addArtifact pushes to artifacts and opens tab', () => {
-    addArtifact({
-      id: 'a1', type: 'file', title: 'test.html',
-      path: '/test.html', content: '<h1>Hi</h1>',
-      language: 'html', size_bytes: 50, preview_type: 'html',
-    });
-
-    expect(get(artifacts)).toHaveLength(1);
-    expect(get(artifactTabs)).toHaveLength(1);
-  });
-
   it('finalizeResponse creates assistant message', () => {
     appendToken('Hi there');
     finalizeResponse('Hi there');
@@ -109,17 +96,11 @@ describe('messages store', () => {
 
   it('clearMessages resets all state', () => {
     addUserMessage('test');
-    addArtifact({
-      id: 'a1', type: 'file', title: 'test.html',
-      path: '/test.html', content: '', language: 'html',
-      size_bytes: 0, preview_type: 'html',
-    });
     setStreaming(true);
 
     clearMessages();
 
     expect(get(messages)).toEqual([]);
-    expect(get(artifacts)).toEqual([]);
     expect(get(pendingSteps)).toEqual([]);
     expect(get(streaming)).toBe(false);
   });

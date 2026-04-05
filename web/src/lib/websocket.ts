@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { connected, reconnecting } from '../stores/connection';
 import { currentSessionId } from '../stores/session';
-import { appendToken, addToolCallWithFlush, updateToolCallVerdict, completeToolCall, addArtifact, finalizeResponse, setStreaming, startNewStream, clearStreamingText, addTier3Request } from '../stores/messages';
+import { appendToken, addToolCallWithFlush, updateToolCallVerdict, completeToolCall, finalizeResponse, setStreaming, startNewStream, clearStreamingText, addTier3Request } from '../stores/messages';
 import { addSubAgent, updateSubAgentProgress, completeSubAgent, failSubAgent, cancelSubAgent } from '../stores/subagents';
 import { addLogEntry } from '../stores/console';
 import type { WSEvent } from './types';
@@ -112,12 +112,6 @@ function handleEvent(event: WSEvent) {
     case 'action_completed':
       if (event.action_completed) {
         completeToolCall(event.action_completed);
-      }
-      break;
-
-    case 'action_artifact':
-      if (event.action_artifact) {
-        addArtifact(event.action_artifact.artifact, false);
       }
       break;
 

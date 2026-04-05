@@ -2,7 +2,6 @@
   import { Trash2 } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode } from '../stores/session';
   import { clearMessages, loadMessages } from '../stores/messages';
-  import { clearArtifactTabs } from '../stores/artifacts';
   import { activeNavItem, sidebarOpen } from '../stores/settings';
   import { getMessages, deleteSession } from '../lib/api';
   import { formatRelativeTime } from '../lib/format';
@@ -21,7 +20,6 @@
     activeNavItem.set('chat');
     sidebarOpen.set(false);
     clearMessages();
-    clearArtifactTabs();
 
     if (prevOTR && prevOTR !== id) {
       sessions.update(s => s.filter(sess => sess.id !== prevOTR));

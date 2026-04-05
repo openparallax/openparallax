@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import Sidebar from './components/Sidebar.svelte';
   import ChatPanel from './components/ChatPanel.svelte';
-  import ArtifactBrowser from './components/ArtifactBrowser.svelte';
   import ConsoleViewer from './components/ConsoleViewer.svelte';
   import Particles from './components/Particles.svelte';
   import SettingsPanel from './components/SettingsPanel.svelte';
@@ -13,7 +12,6 @@
   import { sessions, currentSessionId, currentMode } from './stores/session';
   import { sidebarOpen, settingsOpen, activeNavItem } from './stores/settings';
   import { clearMessages, addSystemMessage, messages } from './stores/messages';
-  import { clearArtifactTabs } from './stores/artifacts';
   import { createSession, getStatus } from './lib/api';
 
   let agentName = 'ATLAS';
@@ -103,7 +101,6 @@
       currentSessionId.set(sess.id);
       currentMode.set(mode);
       clearMessages();
-      clearArtifactTabs();
     } catch {
       /* ignore */
     }
@@ -155,10 +152,6 @@
     <div class="main-area">
       {#if showChat}
         <ChatPanel />
-      {:else if $activeNavItem === 'artifacts'}
-        <div class="alt-view glass">
-          <ArtifactBrowser />
-        </div>
       {:else if $activeNavItem === 'console'}
         <div class="alt-view glass">
           <ConsoleViewer />

@@ -4,7 +4,6 @@
   import { sessions, currentSessionId, currentMode, scrollToMessageId } from '../stores/session';
   import { activeNavItem, settingsOpen, sidebarOpen } from '../stores/settings';
   import { clearMessages, loadMessages } from '../stores/messages';
-  import { clearArtifactTabs } from '../stores/artifacts';
   import { listSessions, createSession, getMessages, searchSessions, getStatus } from '../lib/api';
 
   let sessionSearch = '';
@@ -72,8 +71,7 @@
       currentSessionId.set(sess.id);
       currentMode.set(mode);
       clearMessages();
-      clearArtifactTabs();
-      activeNavItem.set('chat');
+        activeNavItem.set('chat');
     } catch {
       // Handle error silently.
     }
@@ -112,7 +110,6 @@
     activeNavItem.set('chat');
     sidebarOpen.set(false);
     clearMessages();
-    clearArtifactTabs();
     if (prevOTR && prevOTR !== id) {
       sessions.update(s => s.filter(sess => sess.id !== prevOTR));
     }

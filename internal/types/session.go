@@ -76,9 +76,6 @@ type Message struct {
 	// Thoughts are pipeline stage observations recorded during processing.
 	Thoughts []Thought `json:"thoughts,omitempty"`
 
-	// Artifacts are viewable outputs produced during processing.
-	Artifacts []Artifact `json:"artifacts,omitempty"`
-
 	// Timestamp is when the message was created.
 	Timestamp time.Time `json:"timestamp"`
 }

@@ -429,11 +429,6 @@ func (s *SystemExecutor) screenshot(ctx context.Context, action *types.ActionReq
 		RequestID: action.RequestID, Success: true,
 		Output:  fmt.Sprintf("Screenshot saved to %s (%s)", screenshotPath, formatFileSize(info.Size())),
 		Summary: "screenshot captured",
-		Artifact: &types.Artifact{
-			Type: "image", Title: "Screenshot",
-			Path: screenshotPath, SizeBytes: info.Size(),
-			PreviewType: "image",
-		},
 	}
 }
 

@@ -140,14 +140,6 @@ func (e *ImageExecutor) generate(ctx context.Context, action *types.ActionReques
 		Success:   true,
 		Output:    outPath,
 		Summary:   fmt.Sprintf("Generated image saved to %s (%s, %d bytes)", filename, size, len(result.Data)),
-		Artifact: &types.Artifact{
-			ID:          crypto.NewID(),
-			Type:        "image",
-			Title:       filename,
-			Path:        outPath,
-			PreviewType: "image",
-			SizeBytes:   int64(len(result.Data)),
-		},
 	}
 }
 

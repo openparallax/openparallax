@@ -128,13 +128,5 @@ func (e *VideoExecutor) generate(ctx context.Context, action *types.ActionReques
 		Success:   true,
 		Output:    outPath,
 		Summary:   fmt.Sprintf("Generated %ds video saved to %s (%s)", duration, filename, resolution),
-		Artifact: &types.Artifact{
-			ID:          crypto.NewID(),
-			Type:        "video",
-			Title:       filename,
-			Path:        outPath,
-			PreviewType: "video",
-			SizeBytes:   int64(len(result.Data)),
-		},
 	}
 }

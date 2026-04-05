@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -151,11 +150,6 @@ func (c *CanvasExecutor) createFile(action *types.ActionRequest) *types.ActionRe
 		Output:       fmt.Sprintf("Created %s (%s, %d bytes)", filepath.Base(path), contentType, len(content)),
 		Summary:      fmt.Sprintf("created %s (%s)", filepath.Base(path), contentType),
 		BytesWritten: int64(len(content)),
-		Artifact: &types.Artifact{
-			ID: crypto.NewID(), Type: "file", Title: filepath.Base(path),
-			Path: path, Content: content, Language: contentType,
-			SizeBytes: int64(len(content)), PreviewType: detectCanvasPreview(contentType),
-		},
 	}
 }
 
@@ -277,18 +271,5 @@ func inferTypeFromExt(path string) string {
 		return "mermaid"
 	default:
 		return ""
-	}
-}
-
-func detectCanvasPreview(contentType string) string {
-	switch contentType {
-	case "html":
-		return "html"
-	case "markdown":
-		return "markdown"
-	case "svg":
-		return "image"
-	default:
-		return "code"
 	}
 }

@@ -24,8 +24,6 @@ func TestFileReadExisting(t *testing.T) {
 
 	assert.True(t, result.Success)
 	assert.Equal(t, "hello world", result.Output)
-	assert.NotNil(t, result.Artifact)
-	assert.Equal(t, "text", result.Artifact.Language)
 }
 
 func TestFileReadNonexistent(t *testing.T) {
@@ -190,8 +188,6 @@ func TestShellEchoHello(t *testing.T) {
 
 	assert.True(t, result.Success)
 	assert.Contains(t, result.Output, "hello")
-	assert.NotNil(t, result.Artifact)
-	assert.Equal(t, "terminal", result.Artifact.PreviewType)
 }
 
 func TestShellTimeout(t *testing.T) {

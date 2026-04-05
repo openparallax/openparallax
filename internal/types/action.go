@@ -199,9 +199,6 @@ type ActionResult struct {
 	// Summary is a human-readable one-line summary.
 	Summary string `json:"summary"`
 
-	// Artifact is a viewable artifact produced by this action.
-	Artifact *Artifact `json:"artifact,omitempty"`
-
 	// DurationMs is how long execution took.
 	DurationMs int64 `json:"duration_ms"`
 

@@ -10,7 +10,6 @@ const (
 	EventActionStarted     EventType = "action_started"
 	EventShieldVerdict     EventType = "shield_verdict"
 	EventActionCompleted   EventType = "action_completed"
-	EventActionArtifact    EventType = "action_artifact"
 	EventResponseComplete  EventType = "response_complete"
 	EventOTRBlocked        EventType = "otr_blocked"
 	EventError             EventType = "error"
@@ -33,7 +32,6 @@ type PipelineEvent struct {
 	ActionStarted    *ActionStartedEvent    `json:"action_started,omitempty"`
 	ShieldVerdict    *ShieldVerdictEvent    `json:"shield_verdict,omitempty"`
 	ActionCompleted  *ActionCompletedEvent  `json:"action_completed,omitempty"`
-	ActionArtifact   *ActionArtifactEvent   `json:"action_artifact,omitempty"`
 	ResponseComplete *ResponseCompleteEvent `json:"response_complete,omitempty"`
 	OTRBlocked       *OTRBlockedEvent       `json:"otr_blocked,omitempty"`
 	Error            *PipelineErrorEvent    `json:"error,omitempty"`
@@ -71,11 +69,6 @@ type ActionCompletedEvent struct {
 	ToolName string `json:"tool_name"`
 	Success  bool   `json:"success"`
 	Summary  string `json:"summary"`
-}
-
-// ActionArtifactEvent carries a generated artifact.
-type ActionArtifactEvent struct {
-	Artifact *types.Artifact `json:"artifact"`
 }
 
 // ResponseCompleteEvent carries the full assistant response text and thoughts.

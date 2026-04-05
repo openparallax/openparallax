@@ -18,9 +18,9 @@ describe('settings store', () => {
     expect(get(activeNavItem)).toBe('chat');
   });
 
-  it('activeNavItem changes to artifacts', () => {
-    activeNavItem.set('artifacts');
-    expect(get(activeNavItem)).toBe('artifacts');
+  it('activeNavItem changes to console', () => {
+    activeNavItem.set('console');
+    expect(get(activeNavItem)).toBe('console');
     activeNavItem.set('chat');
   });
 

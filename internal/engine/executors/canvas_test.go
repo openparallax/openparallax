@@ -22,7 +22,6 @@ func TestCanvasCreateHTML(t *testing.T) {
 
 	assert.True(t, result.Success)
 	assert.Contains(t, result.Output, "index.html")
-	assert.NotNil(t, result.Artifact)
 
 	data, err := os.ReadFile(filepath.Join(dir, "index.html"))
 	require.NoError(t, err)

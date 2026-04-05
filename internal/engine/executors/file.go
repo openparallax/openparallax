@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/types"
 )
 
@@ -101,11 +100,6 @@ func (f *FileExecutor) readFile(action *types.ActionRequest) *types.ActionResult
 	return &types.ActionResult{
 		RequestID: action.RequestID, Success: true,
 		Output: content, Summary: fmt.Sprintf("read %s (%d bytes)", filepath.Base(path), len(data)),
-		Artifact: &types.Artifact{
-			ID: crypto.NewID(), Type: "file", Title: filepath.Base(path),
-			Path: path, Content: content, Language: detectLanguage(path),
-			SizeBytes: int64(len(data)), PreviewType: detectPreviewType(path),
-		},
 	}
 }
 
@@ -132,11 +126,6 @@ func (f *FileExecutor) writeFile(action *types.ActionRequest) *types.ActionResul
 		Output:       fmt.Sprintf("wrote %d bytes to %s", len(content), path),
 		Summary:      fmt.Sprintf("wrote %s (%d bytes)", filepath.Base(path), len(content)),
 		BytesWritten: int64(len(content)),
-		Artifact: &types.Artifact{
-			ID: crypto.NewID(), Type: "file", Title: filepath.Base(path),
-			Path: path, Content: content, Language: detectLanguage(path),
-			SizeBytes: int64(len(content)), PreviewType: detectPreviewType(path),
-		},
 	}
 }
 
@@ -215,10 +204,6 @@ func (f *FileExecutor) listDir(action *types.ActionRequest) *types.ActionResult 
 	return &types.ActionResult{
 		RequestID: action.RequestID, Success: true,
 		Output: output, Summary: fmt.Sprintf("listed %d entries in %s", len(entries), filepath.Base(path)),
-		Artifact: &types.Artifact{
-			ID: crypto.NewID(), Type: "command_output", Title: fmt.Sprintf("ls %s", filepath.Base(path)),
-			Content: output, SizeBytes: int64(len(output)), PreviewType: "terminal",
-		},
 	}
 }
 
@@ -257,10 +242,6 @@ func (f *FileExecutor) listDirRecursive(requestID, root string) *types.ActionRes
 	return &types.ActionResult{
 		RequestID: requestID, Success: true,
 		Output: output, Summary: fmt.Sprintf("listed %d entries recursively in %s", count, filepath.Base(root)),
-		Artifact: &types.Artifact{
-			ID: crypto.NewID(), Type: "command_output", Title: fmt.Sprintf("ls -R %s", filepath.Base(root)),
-			Content: output, SizeBytes: int64(len(output)), PreviewType: "terminal",
-		},
 	}
 }
 

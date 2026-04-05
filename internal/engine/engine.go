@@ -71,9 +71,8 @@ type Engine struct {
 	agentStream   pb.AgentService_RunSessionServer
 	currentMsgOTR bool
 
-	sandboxStatus        sandboxInfo
-	lastProposalArtifact *types.Artifact
-	heartbeatSessionID   string
+	sandboxStatus      sandboxInfo
+	heartbeatSessionID string
 
 	backgroundCtx    context.Context
 	backgroundCancel context.CancelFunc
@@ -404,9 +403,7 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		e.log.Info("agent_disconnected", "id", ready.AgentId)
 	}()
 
-	// Track artifacts and tool calls produced during the current message
-	// so they can be attached to the assistant message on ResponseComplete.
-	var pendingArtifacts []*types.Artifact
+	// Track tool calls produced during the current message.
 	var pendingThoughts []types.Thought
 
 	// Read agent events in a loop.
@@ -430,10 +427,7 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 
 		case *pb.AgentEvent_ToolProposal:
 			tp := ev.ToolProposal
-			result, artifact := e.handleToolProposalWithArtifact(ctx, tp)
-			if artifact != nil {
-				pendingArtifacts = append(pendingArtifacts, artifact)
-			}
+			result := e.handleToolProposal(ctx, tp)
 
 			// Track tool call as a thought for persistence.
 			summary := tp.ToolName
@@ -533,13 +527,6 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 			}
 			pendingThoughts = nil
 
-			// Attach artifacts produced during this message.
-			var msgArtifacts []types.Artifact
-			for _, a := range pendingArtifacts {
-				msgArtifacts = append(msgArtifacts, *a)
-			}
-			pendingArtifacts = nil
-
 			e.mu.Lock()
 			isOTR := e.currentMsgOTR
 			e.mu.Unlock()
@@ -569,7 +556,6 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 					Content:   rc.Content,
 					Timestamp: time.Now(),
 					Thoughts:  thoughts,
-					Artifacts: msgArtifacts,
 				}
 				e.storeAssistantMessage(sid, msg)
 			}
@@ -607,23 +593,6 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 			})
 		}
 	}
-}
-
-// handleToolProposalWithArtifact wraps handleToolProposal and also returns
-// any artifact produced by the tool execution.
-func (e *Engine) handleToolProposalWithArtifact(ctx context.Context, tp *pb.ToolCallProposed) (*pb.ToolResultDelivery, *types.Artifact) {
-	e.mu.Lock()
-	e.lastProposalArtifact = nil
-	e.mu.Unlock()
-
-	result := e.handleToolProposal(ctx, tp)
-
-	e.mu.Lock()
-	art := e.lastProposalArtifact
-	e.lastProposalArtifact = nil
-	e.mu.Unlock()
-
-	return result, art
 }
 
 // handleToolProposal processes a tool call proposed by the Agent through the
@@ -792,19 +761,6 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 		SessionID: sid, MessageID: mid, Type: EventActionCompleted,
 		ActionCompleted: &ActionCompletedEvent{ToolName: tp.ToolName, Success: result.Success, Summary: result.Summary},
 	})
-
-	if result.Artifact != nil {
-		if !isOTRAction {
-			e.PersistArtifact(result.Artifact, sid)
-		}
-		e.mu.Lock()
-		e.lastProposalArtifact = result.Artifact
-		e.mu.Unlock()
-		e.broadcaster.Broadcast(&PipelineEvent{
-			SessionID: sid, MessageID: mid, Type: EventActionArtifact,
-			ActionArtifact: &ActionArtifactEvent{Artifact: result.Artifact},
-		})
-	}
 
 	content := result.Output
 	if !result.Success {
@@ -1338,14 +1294,6 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 		ActionCompleted: &ActionCompletedEvent{ToolName: tc.Name, Success: result.Success, Summary: result.Summary},
 	})
 
-	if result.Artifact != nil {
-		e.PersistArtifact(result.Artifact, sid)
-		_ = sender.SendEvent(&PipelineEvent{
-			SessionID: sid, MessageID: mid, Type: EventActionArtifact,
-			ActionArtifact: &ActionArtifactEvent{Artifact: result.Artifact},
-		})
-	}
-
 	// Format result for the LLM. On failure, prefer the full output (which
 	// includes stderr) so the LLM knows *why* the command failed, not just
 	// "exit status 1".
@@ -1854,44 +1802,6 @@ func (e *Engine) AuditPath() string {
 	return filepath.Join(e.cfg.Workspace, ".openparallax", "audit.jsonl")
 }
 
-// PersistArtifact saves artifact content to the workspace filesystem and stores
-// metadata in SQLite. The file is written to {workspace}/.openparallax/artifacts/{id}/{filename}.
-func (e *Engine) PersistArtifact(artifact *types.Artifact, sessionID string) {
-	if artifact == nil || artifact.Content == "" {
-		return
-	}
-
-	artifact.SessionID = sessionID
-
-	// Derive a safe filename from the title or fall back to the artifact ID.
-	filename := artifact.Title
-	if filename == "" {
-		filename = artifact.ID
-	}
-
-	dir := filepath.Join(e.cfg.Workspace, ".openparallax", "artifacts", artifact.ID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		e.log.Error("artifact_persist_mkdir_failed", "artifact", artifact.ID, "error", err)
-		return
-	}
-
-	storagePath := filepath.Join(dir, filename)
-	if err := os.WriteFile(storagePath, []byte(artifact.Content), 0o644); err != nil {
-		e.log.Error("artifact_persist_write_failed", "artifact", artifact.ID, "error", err)
-		return
-	}
-
-	artifact.StoragePath = storagePath
-	artifact.SizeBytes = int64(len(artifact.Content))
-
-	if err := e.db.InsertArtifact(artifact); err != nil {
-		e.log.Error("artifact_persist_db_failed", "artifact", artifact.ID, "error", err)
-		return
-	}
-
-	e.log.Info("artifact_persisted", "artifact", artifact.ID, "path", storagePath, "size", artifact.SizeBytes)
-}
-
 // --- Conversion helpers ---
 
 func formatToolCallSummary(tc *llm.ToolCall) string {
@@ -1912,14 +1822,6 @@ func formatToolCallSummary(tc *llm.ToolCall) string {
 		return fmt.Sprintf("Running: %s", cmd)
 	default:
 		return tc.Name
-	}
-}
-
-func toProtoArtifact(a *types.Artifact) *pb.Artifact {
-	return &pb.Artifact{
-		Id: a.ID, Type: a.Type, Title: a.Title, Path: a.Path,
-		Content: a.Content, Language: a.Language,
-		SizeBytes: a.SizeBytes, PreviewType: a.PreviewType,
 	}
 }
 

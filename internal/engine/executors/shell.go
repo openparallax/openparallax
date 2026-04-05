@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/openparallax/openparallax/crypto"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/platform"
 )
@@ -106,10 +105,6 @@ func (s *ShellExecutor) Execute(ctx context.Context, action *types.ActionRequest
 		Output:     output,
 		Summary:    fmt.Sprintf("ran: %s", truncateCmd(command)),
 		DurationMs: duration.Milliseconds(),
-		Artifact: &types.Artifact{
-			ID: crypto.NewID(), Type: "command_output", Title: truncateCmd(command),
-			Content: output, SizeBytes: int64(len(output)), PreviewType: "terminal",
-		},
 	}
 }
 

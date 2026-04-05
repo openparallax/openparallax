@@ -44,12 +44,6 @@ func (g *grpcEventSender) SendEvent(event *PipelineEvent) error {
 			Summary: event.ActionCompleted.Summary,
 		}
 
-	case EventActionArtifact:
-		pbEvent.EventType = pb.PipelineEventType_ACTION_ARTIFACT
-		pbEvent.ActionArtifact = &pb.ActionArtifact{
-			Artifact: toProtoArtifact(event.ActionArtifact.Artifact),
-		}
-
 	case EventResponseComplete:
 		pbEvent.EventType = pb.PipelineEventType_RESPONSE_COMPLETE
 		pbEvent.ResponseComplete = &pb.ResponseComplete{Content: event.ResponseComplete.Content}

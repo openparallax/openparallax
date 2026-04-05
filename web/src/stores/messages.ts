@@ -1,6 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { Message, ShieldVerdict, Artifact, Thought } from '../lib/types';
-import { openArtifactTab } from './artifacts';
+import type { Message, ShieldVerdict, Thought } from '../lib/types';
 
 // A single step in the streaming timeline: either reasoning text or a tool call.
 export interface PipelineStep {
@@ -15,8 +14,6 @@ export interface PipelineStep {
 
 export const messages = writable<Message[]>([]);
 export const pendingSteps = writable<PipelineStep[]>([]);
-export const pendingArtifacts = writable<Artifact[]>([]);
-export const artifacts = writable<Artifact[]>([]);
 export const shieldLog = writable<ShieldVerdict[]>([]);
 export const streaming = writable(false);
 export const streamingText = writable('');
@@ -99,14 +96,6 @@ export function completeToolCall(result: { tool_name: string; success: boolean; 
   });
 }
 
-export function addArtifact(artifact: Artifact, showPanel = true) {
-  artifacts.update(a => [...a, artifact]);
-  if (artifact.type === 'file') {
-    pendingArtifacts.update(a => [...a, artifact]);
-  }
-  if (showPanel) openArtifactTab(artifact, true);
-}
-
 export function finalizeResponse(content: string, thoughts?: Thought[]) {
   const currentText = get(streamingText);
   let finalContent = content || currentText;
@@ -131,9 +120,6 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
   let finalThoughts: Thought[] | undefined;
 
   if (thoughts && thoughts.length > 0) {
-    // Server-side thoughts exist. Enrich tool_call entries with live
-    // shield/result data from pending steps, but DO NOT overwrite
-    // fields already set by the server (e.g. detail.shield = "BLOCK").
     finalThoughts = thoughts.map(t => {
       if (t.stage !== 'tool_call' || !t.summary) return t;
       const step = steps.find(s => s.type === 'tool_call' && s.toolName && t.summary.includes(s.toolName));
@@ -147,7 +133,6 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
       return { ...t, detail: merged };
     });
   } else if (steps.length > 0) {
-    // No server thoughts — build from pipeline steps.
     finalThoughts = steps.map(s => {
       if (s.type === 'reasoning') {
         return { stage: 'reasoning' as const, summary: s.content || '' };
@@ -167,8 +152,6 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
     });
   }
 
-  const msgArtifacts = get(pendingArtifacts);
-
   messages.update(msgs => [...msgs, {
     id: 'msg-' + Date.now(),
     session_id: '',
@@ -176,28 +159,14 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
     content: finalContent,
     timestamp: new Date().toISOString(),
     thoughts: finalThoughts,
-    artifacts: msgArtifacts.length > 0 ? msgArtifacts : undefined,
   }]);
 
   streamingText.set('');
   pendingSteps.set([]);
-  pendingArtifacts.set([]);
 }
 
 export function loadMessages(msgs: Message[]) {
   messages.set(msgs);
-  const restored: Artifact[] = [];
-  for (const msg of msgs) {
-    if (msg.artifacts && msg.artifacts.length > 0) {
-      for (const a of msg.artifacts) {
-        restored.push(a);
-        openArtifactTab(a);
-      }
-    }
-  }
-  if (restored.length > 0) {
-    artifacts.set(restored);
-  }
 }
 
 export function addSystemMessage(content: string) {
@@ -219,14 +188,11 @@ export function addUserMessage(content: string) {
     timestamp: new Date().toISOString(),
   }]);
   pendingSteps.set([]);
-  pendingArtifacts.set([]);
 }
 
 export function clearMessages() {
   messages.set([]);
   pendingSteps.set([]);
-  pendingArtifacts.set([]);
-  artifacts.set([]);
   shieldLog.set([]);
   streamingText.set('');
   streaming.set(false);

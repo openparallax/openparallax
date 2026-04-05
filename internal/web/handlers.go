@@ -24,8 +24,6 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.handleDeleteSession)
 	mux.HandleFunc("PATCH /api/sessions/{id}", s.handleUpdateSession)
 	mux.HandleFunc("GET /api/sessions/{id}/messages", s.handleGetMessages)
-	mux.HandleFunc("GET /api/artifacts", s.handleListArtifacts)
-	mux.HandleFunc("GET /api/artifacts/{id}/download", s.handleDownloadArtifact)
 	mux.HandleFunc("GET /api/tools", s.handleListTools)
 	mux.HandleFunc("GET /api/sessions/search", s.handleSearchSessions)
 	mux.HandleFunc("POST /api/restart", s.handleRestart)
@@ -60,44 +58,6 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		"shield":        s.engine.ShieldStatus(),
 		"sandbox":       s.engine.SandboxStatus(),
 	})
-}
-
-func (s *Server) handleListArtifacts(w http.ResponseWriter, _ *http.Request) {
-	artifacts, err := s.engine.DB().ListArtifacts()
-	if err != nil {
-		s.log.Error("api_list_artifacts_failed", "error", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if artifacts == nil {
-		artifacts = []types.Artifact{}
-	}
-	s.log.Debug("api_list_artifacts", "count", len(artifacts))
-	writeJSON(w, http.StatusOK, artifacts)
-}
-
-func (s *Server) handleDownloadArtifact(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	artifact, err := s.engine.DB().GetArtifact(id)
-	if err != nil {
-		s.log.Debug("api_download_artifact_not_found", "artifact", id)
-		writeError(w, http.StatusNotFound, "artifact not found")
-		return
-	}
-
-	if artifact.StoragePath == "" {
-		writeError(w, http.StatusNotFound, "artifact has no persisted file")
-		return
-	}
-
-	filename := artifact.Title
-	if filename == "" {
-		filename = artifact.ID
-	}
-
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
-	s.log.Info("api_download_artifact", "artifact", id, "path", artifact.StoragePath)
-	http.ServeFile(w, r, artifact.StoragePath)
 }
 
 func (s *Server) handleListSessions(w http.ResponseWriter, _ *http.Request) {

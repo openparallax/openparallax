@@ -14,9 +14,7 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  toolCalls?: ToolCall[];
   thoughts?: Thought[];
-  artifacts?: Artifact[];
 }
 
 export interface Thought {
@@ -42,18 +40,6 @@ export interface ShieldVerdict {
   reasoning: string;
 }
 
-export interface Artifact {
-  id: string;
-  type: string;
-  title: string;
-  path: string;
-  content: string;
-  language: string;
-  size_bytes: number;
-  preview_type: string;
-  storage_path?: string;
-}
-
 export interface WSEvent {
   type: string;
   session_id: string;
@@ -62,7 +48,6 @@ export interface WSEvent {
   action_started?: { tool_name: string; summary: string };
   shield_verdict?: ShieldVerdict;
   action_completed?: { tool_name: string; success: boolean; summary: string };
-  action_artifact?: { artifact: Artifact };
   response_complete?: { content: string; thoughts?: Thought[] };
   otr_blocked?: { reason: string };
   error?: { code: string; message: string };
@@ -97,9 +82,4 @@ export interface StatusResponse {
   workspace?: string;
   shield?: ShieldStatusData;
   sandbox?: SandboxStatusData;
-}
-
-export interface ArtifactTab {
-  id: string;
-  artifact: Artifact;
 }

@@ -1,12 +1,10 @@
 <script lang="ts">
   import { afterUpdate, onMount, tick } from 'svelte';
-  import { ChevronDown, X } from 'lucide-svelte';
+  import { ChevronDown } from 'lucide-svelte';
   import { messages, pendingSteps, streaming, streamingText, pendingApprovals, removeTier3Request } from '../stores/messages';
   import { scrollToMessageId } from '../stores/session';
   import { logEntries } from '../stores/console';
-  import { artifactPanelOpen, activeTab, artifactPanelView } from '../stores/artifacts';
   import { getStatus } from '../lib/api';
-  import { renderMarkdown } from '../lib/format';
   import Message from './Message.svelte';
   import ToolCallEnvelope from './ToolCallEnvelope.svelte';
   import Tier3Approval from './Tier3Approval.svelte';
@@ -31,38 +29,6 @@
   let prevMessageCount = 0;
   let showScrollBtn = false;
 
-  let panelWidth = 0; // 0 = use 50% of wrapper width
-  let resizingPanel = false;
-
-  let wrapperEl: HTMLDivElement;
-
-  function startPanelResize(e: MouseEvent) {
-    e.preventDefault();
-    resizingPanel = true;
-    const startX = e.clientX;
-    const startW = effectivePanelWidth;
-    const totalW = wrapperEl ? wrapperEl.clientWidth : window.innerWidth;
-    const minSide = Math.round(totalW * 0.25);
-    const maxPanel = totalW - minSide;
-
-    function onMove(ev: MouseEvent) {
-      panelWidth = Math.max(minSide, Math.min(maxPanel, startW - (ev.clientX - startX)));
-    }
-
-    function onUp() {
-      resizingPanel = false;
-      localStorage.setItem('op_panel_w', String(panelWidth));
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    }
-
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }
-
-  function closeRender() {
-    artifactPanelOpen.set(false);
-  }
 
   afterUpdate(async () => {
     if (!messagesEl) return;
@@ -103,11 +69,6 @@
     messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
   }
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && $artifactPanelOpen) {
-      artifactPanelOpen.set(false);
-    }
-  }
 
   $: messageCount = $messages.filter(m => m.role !== 'system').length;
 
@@ -123,13 +84,9 @@
     return String(n);
   }
 
-  $: renderArtifact = $artifactPanelOpen && $activeTab ? $activeTab.artifact : null;
-  $: effectivePanelWidth = panelWidth > 0 ? panelWidth : (wrapperEl ? Math.round(wrapperEl.clientWidth / 2) : 460);
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
-
-<div class="chat-wrapper glass" class:streaming={$streaming} class:resizing={resizingPanel} bind:this={wrapperEl}>
+<div class="chat-wrapper glass" class:streaming={$streaming}>
   <div class="chat-side">
     <div class="chat-header">
       <span>CHAT</span>
@@ -137,7 +94,7 @@
     </div>
 
     <div class="messages-container">
-      <div class="messages" class:compact={$artifactPanelOpen} bind:this={messagesEl} on:scroll={handleScroll}>
+      <div class="messages" bind:this={messagesEl} on:scroll={handleScroll}>
         {#if $messages.length === 0 && !$streaming}
           <div class="empty-state">
             <div class="empty-orb"></div>
@@ -186,39 +143,11 @@
       {/if}
     </div>
 
-    <div class="input-wrap" class:compact={$artifactPanelOpen}>
+    <div class="input-wrap">
       <InputArea />
     </div>
   </div>
 
-  {#if renderArtifact}
-    <div class="render-divider" on:mousedown={startPanelResize} role="separator" aria-label="Resize"></div>
-    <div class="render-side" style="--pw:{effectivePanelWidth}px">
-      <button class="render-close" on:click={closeRender} aria-label="Close">
-        <X size={14} />
-      </button>
-      {#if renderArtifact.preview_type === 'html'}
-        <iframe
-          class="render-frame"
-          sandbox="allow-scripts allow-same-origin"
-          srcdoc={'<style>::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.25)}html{scrollbar-color:rgba(255,255,255,0.15) transparent}</style>' + renderArtifact.content}
-          title={renderArtifact.title}
-        ></iframe>
-      {:else if renderArtifact.preview_type === 'markdown'}
-        <div class="render-markdown markdown-content">
-          {@html renderMarkdown(renderArtifact.content)}
-        </div>
-      {:else if renderArtifact.language === 'svg'}
-        <div class="render-svg">
-          {@html renderArtifact.content}
-        </div>
-      {:else if renderArtifact.preview_type === 'image'}
-        <img class="render-image" src={`/api/artifacts/${encodeURIComponent(renderArtifact.path)}`} alt={renderArtifact.title} />
-      {:else}
-        <pre class="render-code"><code>{renderArtifact.content}</code></pre>
-      {/if}
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -232,15 +161,6 @@
 
   .chat-wrapper.streaming {
     animation: breathe 2.5s ease-in-out infinite;
-  }
-
-  .chat-wrapper.resizing {
-    cursor: col-resize;
-    user-select: none;
-  }
-
-  .chat-wrapper.resizing .render-side {
-    pointer-events: none;
   }
 
   .chat-side {
@@ -285,125 +205,8 @@
     transition: padding 300ms ease;
   }
 
-  .messages.compact {
-    padding: 24px 20px;
-  }
-
   .input-wrap {
-    transition: padding 300ms ease;
     padding: 0 clamp(6px, 3vw, 46px);
-  }
-
-  .input-wrap.compact {
-    padding: 0 6px;
-  }
-
-  /* --- Render split --- */
-
-  .render-divider {
-    width: 6px;
-    cursor: col-resize;
-    flex-shrink: 0;
-    position: relative;
-    transition: background 200ms ease;
-  }
-
-  .render-divider::after {
-    content: '';
-    position: absolute;
-    top: 0; bottom: 0;
-    left: 50%;
-    width: 1px;
-    background: var(--accent-border);
-    transition: background 200ms ease;
-  }
-
-  .render-divider:hover::after {
-    background: var(--accent-border-active);
-  }
-
-  .render-divider:hover {
-    background: var(--accent-ghost);
-  }
-
-  .render-side {
-    width: var(--pw, 460px);
-    min-width: 25%;
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
-    border-left: 1px solid var(--accent-border);
-    animation: render-slide-in 300ms ease-out;
-  }
-
-  @keyframes render-slide-in {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-
-  .render-close {
-    position: absolute;
-    top: 8px; right: 8px;
-    z-index: 5;
-    width: 24px; height: 24px;
-    border-radius: 4px;
-    border: 1px solid var(--accent-border);
-    background: rgba(12, 16, 28, 0.85);
-    backdrop-filter: blur(8px);
-    color: var(--text-tertiary);
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 150ms ease;
-  }
-
-  .render-close:hover {
-    color: var(--text-primary);
-    border-color: var(--accent-border-active);
-    background: var(--bg-surface-hover);
-  }
-
-  .render-frame {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background: #0d0d14;
-  }
-
-  .render-markdown {
-    padding: 20px;
-    overflow: auto;
-    height: 100%;
-  }
-
-  .render-svg {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%; height: 100%;
-  }
-  .render-svg :global(svg) {
-    max-width: 100%;
-    max-height: 100%;
-  }
-
-  .render-image {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    padding: 16px;
-  }
-
-  .render-code {
-    margin: 0;
-    padding: 16px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--text-primary);
-    overflow: auto;
-    height: 100%;
-    white-space: pre;
-    tab-size: 2;
   }
 
   .msg-group {
@@ -514,24 +317,8 @@
 
   /* --- Responsive --- */
 
-  @media (max-width: 1200px) {
-    .render-side { width: 40% !important; min-width: 25% !important; }
-  }
-
   @media (max-width: 800px) {
     .messages { padding: 16px 16px; }
-    .messages.compact { padding: 16px 12px; }
     .input-wrap { padding: 0 12px; }
-    .input-wrap.compact { padding: 0 8px; }
-    .render-side {
-      position: fixed;
-      inset: 0;
-      width: 100% !important;
-      min-width: 0 !important;
-      z-index: 40;
-      background: var(--bg-base);
-      border-left: none;
-    }
-    .render-divider { display: none; }
   }
 </style>

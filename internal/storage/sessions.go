@@ -83,12 +83,11 @@ func (db *DB) ListSessions() ([]types.SessionMetadata, error) {
 // last_message_at timestamp.
 func (db *DB) InsertMessage(m *types.Message) error {
 	thoughtsJSON, _ := json.Marshal(m.Thoughts)
-	artifactsJSON, _ := json.Marshal(m.Artifacts)
 
 	ts := m.Timestamp.Format(time.RFC3339)
 	_, err := db.conn.Exec(
-		`INSERT INTO messages (id, session_id, role, content, thoughts_json, artifacts_json, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		m.ID, m.SessionID, m.Role, m.Content, string(thoughtsJSON), string(artifactsJSON), ts,
+		`INSERT INTO messages (id, session_id, role, content, thoughts_json, timestamp) VALUES (?, ?, ?, ?, ?, ?)`,
+		m.ID, m.SessionID, m.Role, m.Content, string(thoughtsJSON), ts,
 	)
 	if err != nil {
 		return err
@@ -101,7 +100,7 @@ func (db *DB) InsertMessage(m *types.Message) error {
 // GetMessages returns all messages in a session ordered by timestamp.
 func (db *DB) GetMessages(sessionID string) ([]types.Message, error) {
 	rows, err := db.conn.Query(
-		`SELECT id, session_id, role, content, thoughts_json, artifacts_json, timestamp
+		`SELECT id, session_id, role, content, thoughts_json, timestamp
 		 FROM messages WHERE session_id = ? ORDER BY timestamp ASC`, sessionID,
 	)
 	if err != nil {
@@ -112,13 +111,12 @@ func (db *DB) GetMessages(sessionID string) ([]types.Message, error) {
 	var messages []types.Message
 	for rows.Next() {
 		var m types.Message
-		var thoughtsJSON, artifactsJSON, tsStr string
-		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &thoughtsJSON, &artifactsJSON, &tsStr); err != nil {
+		var thoughtsJSON, tsStr string
+		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Content, &thoughtsJSON, &tsStr); err != nil {
 			continue
 		}
 		m.Timestamp, _ = time.Parse(time.RFC3339, tsStr)
 		_ = json.Unmarshal([]byte(thoughtsJSON), &m.Thoughts)
-		_ = json.Unmarshal([]byte(artifactsJSON), &m.Artifacts)
 		messages = append(messages, m)
 	}
 	return messages, rows.Err()
@@ -139,47 +137,6 @@ func (db *DB) DeleteSession(id string) error {
 func (db *DB) UpdateSessionTitle(id, title string) error {
 	_, err := db.conn.Exec(`UPDATE sessions SET title = ? WHERE id = ?`, title, id)
 	return err
-}
-
-// ListArtifacts returns all artifacts from both the dedicated artifacts table
-// and legacy artifacts_json embedded in messages.
-func (db *DB) ListArtifacts() ([]types.Artifact, error) {
-	// Primary source: dedicated artifacts table.
-	persisted, err := db.ListPersistedArtifacts()
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[string]bool, len(persisted))
-	for _, a := range persisted {
-		seen[a.ID] = true
-	}
-
-	// Secondary source: legacy artifacts_json in messages (for backward compat).
-	rows, err := db.conn.Query(
-		`SELECT artifacts_json FROM messages WHERE artifacts_json IS NOT NULL AND artifacts_json != '' AND artifacts_json != 'null' ORDER BY timestamp DESC`,
-	)
-	if err != nil {
-		return persisted, nil
-	}
-	defer func() { _ = rows.Close() }()
-
-	for rows.Next() {
-		var raw string
-		if err := rows.Scan(&raw); err != nil {
-			continue
-		}
-		var artifacts []types.Artifact
-		if err := json.Unmarshal([]byte(raw), &artifacts); err != nil {
-			continue
-		}
-		for _, a := range artifacts {
-			if !seen[a.ID] {
-				seen[a.ID] = true
-				persisted = append(persisted, a)
-			}
-		}
-	}
-	return persisted, rows.Err()
 }
 
 // SearchSessionResult is a session search match with optional content snippet.
