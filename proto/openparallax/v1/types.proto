@@ -15,6 +15,7 @@ enum ActionType {
   CREATE_DIRECTORY = 6;
   LIST_DIRECTORY = 7;
   SEARCH_FILES = 8;
+  GREP_FILES = 9;
 
   // Shell
   EXECUTE_COMMAND = 10;
@@ -22,6 +23,11 @@ enum ActionType {
   // Communication
   SEND_MESSAGE = 20;
   SEND_EMAIL = 21;
+  EMAIL_LIST = 22;
+  EMAIL_READ = 23;
+  EMAIL_SEARCH = 24;
+  EMAIL_MOVE = 25;
+  EMAIL_MARK = 26;
 
   // HTTP
   HTTP_REQUEST = 30;
@@ -53,6 +59,7 @@ enum ActionType {
   GIT_LOG = 75;
   GIT_BRANCH = 76;
   GIT_CHECKOUT = 77;
+  GIT_CLONE = 78;
 
   // Memory
   MEMORY_WRITE = 80;
@@ -61,6 +68,8 @@ enum ActionType {
   // Canvas
   CANVAS_CREATE = 90;
   CANVAS_UPDATE = 91;
+  CANVAS_PROJECT = 92;
+  CANVAS_PREVIEW = 93;
 
   // Sub-agents
   CREATE_AGENT = 100;
@@ -69,6 +78,34 @@ enum ActionType {
   AGENT_MESSAGE = 103;
   DELETE_AGENT = 104;
   LIST_AGENTS = 105;
+
+  // Directory operations
+  COPY_DIRECTORY = 106;
+  MOVE_DIRECTORY = 107;
+  DELETE_DIRECTORY = 108;
+
+  // Image and video generation
+  GENERATE_IMAGE = 110;
+  EDIT_IMAGE = 111;
+  GENERATE_VIDEO = 112;
+
+  // Clipboard
+  CLIPBOARD_READ = 120;
+  CLIPBOARD_WRITE = 121;
+
+  // System
+  OPEN = 130;
+  NOTIFY = 131;
+  SYSTEM_INFO = 132;
+  SCREENSHOT = 133;
+  CALCULATE = 134;
+
+  // File format operations
+  ARCHIVE_CREATE = 140;
+  ARCHIVE_EXTRACT = 141;
+  PDF_READ = 142;
+  SPREADSHEET_READ = 143;
+  SPREADSHEET_WRITE = 144;
 }
 
 // VerdictDecision is the security evaluation outcome.
@@ -174,6 +211,7 @@ enum SessionMode {
   SESSION_MODE_UNSPECIFIED = 0;
   NORMAL = 1;
   OTR = 2;
+  HEARTBEAT = 3;
 }
 
 // AuditEventType identifies the category of audit event.

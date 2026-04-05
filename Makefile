@@ -1,4 +1,4 @@
-.PHONY: proto build build-web build-shield build-all test lint clean
+.PHONY: proto build build-web build-shield build-bridges build-all test lint clean
 
 PROTOC ?= protoc
 
@@ -21,7 +21,15 @@ build-shield:
 	@mkdir -p dist
 	go build -o dist/openparallax-shield ./cmd/shield
 
-build-all: proto build-web build build-shield
+build-bridges:
+	@mkdir -p dist
+	go build -o dist/openparallax-shield-bridge ./cmd/shield-bridge
+	go build -o dist/openparallax-audit-bridge ./cmd/audit-bridge
+	go build -o dist/openparallax-memory-bridge ./cmd/memory-bridge
+	go build -o dist/openparallax-sandbox-bridge ./cmd/sandbox-bridge
+	go build -o dist/openparallax-channels-bridge ./cmd/channels-bridge
+
+build-all: proto build-web build build-shield build-bridges
 
 test:
 	go test -race -count=1 ./...

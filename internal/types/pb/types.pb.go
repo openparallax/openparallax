@@ -35,11 +35,17 @@ const (
 	ActionType_CREATE_DIRECTORY ActionType = 6
 	ActionType_LIST_DIRECTORY   ActionType = 7
 	ActionType_SEARCH_FILES     ActionType = 8
+	ActionType_GREP_FILES       ActionType = 9
 	// Shell
 	ActionType_EXECUTE_COMMAND ActionType = 10
 	// Communication
 	ActionType_SEND_MESSAGE ActionType = 20
 	ActionType_SEND_EMAIL   ActionType = 21
+	ActionType_EMAIL_LIST   ActionType = 22
+	ActionType_EMAIL_READ   ActionType = 23
+	ActionType_EMAIL_SEARCH ActionType = 24
+	ActionType_EMAIL_MOVE   ActionType = 25
+	ActionType_EMAIL_MARK   ActionType = 26
 	// HTTP
 	ActionType_HTTP_REQUEST ActionType = 30
 	// Browser
@@ -66,12 +72,15 @@ const (
 	ActionType_GIT_LOG      ActionType = 75
 	ActionType_GIT_BRANCH   ActionType = 76
 	ActionType_GIT_CHECKOUT ActionType = 77
+	ActionType_GIT_CLONE    ActionType = 78
 	// Memory
 	ActionType_MEMORY_WRITE  ActionType = 80
 	ActionType_MEMORY_SEARCH ActionType = 81
 	// Canvas
-	ActionType_CANVAS_CREATE ActionType = 90
-	ActionType_CANVAS_UPDATE ActionType = 91
+	ActionType_CANVAS_CREATE  ActionType = 90
+	ActionType_CANVAS_UPDATE  ActionType = 91
+	ActionType_CANVAS_PROJECT ActionType = 92
+	ActionType_CANVAS_PREVIEW ActionType = 93
 	// Sub-agents
 	ActionType_CREATE_AGENT  ActionType = 100
 	ActionType_AGENT_STATUS  ActionType = 101
@@ -79,6 +88,29 @@ const (
 	ActionType_AGENT_MESSAGE ActionType = 103
 	ActionType_DELETE_AGENT  ActionType = 104
 	ActionType_LIST_AGENTS   ActionType = 105
+	// Directory operations
+	ActionType_COPY_DIRECTORY   ActionType = 106
+	ActionType_MOVE_DIRECTORY   ActionType = 107
+	ActionType_DELETE_DIRECTORY ActionType = 108
+	// Image and video generation
+	ActionType_GENERATE_IMAGE ActionType = 110
+	ActionType_EDIT_IMAGE     ActionType = 111
+	ActionType_GENERATE_VIDEO ActionType = 112
+	// Clipboard
+	ActionType_CLIPBOARD_READ  ActionType = 120
+	ActionType_CLIPBOARD_WRITE ActionType = 121
+	// System
+	ActionType_OPEN        ActionType = 130
+	ActionType_NOTIFY      ActionType = 131
+	ActionType_SYSTEM_INFO ActionType = 132
+	ActionType_SCREENSHOT  ActionType = 133
+	ActionType_CALCULATE   ActionType = 134
+	// File format operations
+	ActionType_ARCHIVE_CREATE    ActionType = 140
+	ActionType_ARCHIVE_EXTRACT   ActionType = 141
+	ActionType_PDF_READ          ActionType = 142
+	ActionType_SPREADSHEET_READ  ActionType = 143
+	ActionType_SPREADSHEET_WRITE ActionType = 144
 )
 
 // Enum value maps for ActionType.
@@ -93,9 +125,15 @@ var (
 		6:   "CREATE_DIRECTORY",
 		7:   "LIST_DIRECTORY",
 		8:   "SEARCH_FILES",
+		9:   "GREP_FILES",
 		10:  "EXECUTE_COMMAND",
 		20:  "SEND_MESSAGE",
 		21:  "SEND_EMAIL",
+		22:  "EMAIL_LIST",
+		23:  "EMAIL_READ",
+		24:  "EMAIL_SEARCH",
+		25:  "EMAIL_MOVE",
+		26:  "EMAIL_MARK",
 		30:  "HTTP_REQUEST",
 		40:  "BROWSER_NAVIGATE",
 		41:  "BROWSER_CLICK",
@@ -117,16 +155,37 @@ var (
 		75:  "GIT_LOG",
 		76:  "GIT_BRANCH",
 		77:  "GIT_CHECKOUT",
+		78:  "GIT_CLONE",
 		80:  "MEMORY_WRITE",
 		81:  "MEMORY_SEARCH",
 		90:  "CANVAS_CREATE",
 		91:  "CANVAS_UPDATE",
+		92:  "CANVAS_PROJECT",
+		93:  "CANVAS_PREVIEW",
 		100: "CREATE_AGENT",
 		101: "AGENT_STATUS",
 		102: "AGENT_RESULT",
 		103: "AGENT_MESSAGE",
 		104: "DELETE_AGENT",
 		105: "LIST_AGENTS",
+		106: "COPY_DIRECTORY",
+		107: "MOVE_DIRECTORY",
+		108: "DELETE_DIRECTORY",
+		110: "GENERATE_IMAGE",
+		111: "EDIT_IMAGE",
+		112: "GENERATE_VIDEO",
+		120: "CLIPBOARD_READ",
+		121: "CLIPBOARD_WRITE",
+		130: "OPEN",
+		131: "NOTIFY",
+		132: "SYSTEM_INFO",
+		133: "SCREENSHOT",
+		134: "CALCULATE",
+		140: "ARCHIVE_CREATE",
+		141: "ARCHIVE_EXTRACT",
+		142: "PDF_READ",
+		143: "SPREADSHEET_READ",
+		144: "SPREADSHEET_WRITE",
 	}
 	ActionType_value = map[string]int32{
 		"ACTION_TYPE_UNSPECIFIED": 0,
@@ -138,9 +197,15 @@ var (
 		"CREATE_DIRECTORY":        6,
 		"LIST_DIRECTORY":          7,
 		"SEARCH_FILES":            8,
+		"GREP_FILES":              9,
 		"EXECUTE_COMMAND":         10,
 		"SEND_MESSAGE":            20,
 		"SEND_EMAIL":              21,
+		"EMAIL_LIST":              22,
+		"EMAIL_READ":              23,
+		"EMAIL_SEARCH":            24,
+		"EMAIL_MOVE":              25,
+		"EMAIL_MARK":              26,
 		"HTTP_REQUEST":            30,
 		"BROWSER_NAVIGATE":        40,
 		"BROWSER_CLICK":           41,
@@ -162,16 +227,37 @@ var (
 		"GIT_LOG":                 75,
 		"GIT_BRANCH":              76,
 		"GIT_CHECKOUT":            77,
+		"GIT_CLONE":               78,
 		"MEMORY_WRITE":            80,
 		"MEMORY_SEARCH":           81,
 		"CANVAS_CREATE":           90,
 		"CANVAS_UPDATE":           91,
+		"CANVAS_PROJECT":          92,
+		"CANVAS_PREVIEW":          93,
 		"CREATE_AGENT":            100,
 		"AGENT_STATUS":            101,
 		"AGENT_RESULT":            102,
 		"AGENT_MESSAGE":           103,
 		"DELETE_AGENT":            104,
 		"LIST_AGENTS":             105,
+		"COPY_DIRECTORY":          106,
+		"MOVE_DIRECTORY":          107,
+		"DELETE_DIRECTORY":        108,
+		"GENERATE_IMAGE":          110,
+		"EDIT_IMAGE":              111,
+		"GENERATE_VIDEO":          112,
+		"CLIPBOARD_READ":          120,
+		"CLIPBOARD_WRITE":         121,
+		"OPEN":                    130,
+		"NOTIFY":                  131,
+		"SYSTEM_INFO":             132,
+		"SCREENSHOT":              133,
+		"CALCULATE":               134,
+		"ARCHIVE_CREATE":          140,
+		"ARCHIVE_EXTRACT":         141,
+		"PDF_READ":                142,
+		"SPREADSHEET_READ":        143,
+		"SPREADSHEET_WRITE":       144,
 	}
 )
 
@@ -404,6 +490,7 @@ const (
 	SessionMode_SESSION_MODE_UNSPECIFIED SessionMode = 0
 	SessionMode_NORMAL                   SessionMode = 1
 	SessionMode_OTR                      SessionMode = 2
+	SessionMode_HEARTBEAT                SessionMode = 3
 )
 
 // Enum value maps for SessionMode.
@@ -412,11 +499,13 @@ var (
 		0: "SESSION_MODE_UNSPECIFIED",
 		1: "NORMAL",
 		2: "OTR",
+		3: "HEARTBEAT",
 	}
 	SessionMode_value = map[string]int32{
 		"SESSION_MODE_UNSPECIFIED": 0,
 		"NORMAL":                   1,
 		"OTR":                      2,
+		"HEARTBEAT":                3,
 	}
 )
 
@@ -1271,7 +1360,8 @@ const file_openparallax_v1_types_proto_rawDesc = "" +
 	"\x04hash\x18\b \x01(\tR\x04hash\x12\x10\n" +
 	"\x03otr\x18\t \x01(\bR\x03otr\x12\x16\n" +
 	"\x06source\x18\n" +
-	" \x01(\tR\x06source*\x9b\x06\n" +
+	" \x01(\tR\x06source*\x87\n" +
+	"\n" +
 	"\n" +
 	"ActionType\x12\x1b\n" +
 	"\x17ACTION_TYPE_UNSPECIFIED\x10\x00\x12\r\n" +
@@ -1283,12 +1373,23 @@ const file_openparallax_v1_types_proto_rawDesc = "" +
 	"\tCOPY_FILE\x10\x05\x12\x14\n" +
 	"\x10CREATE_DIRECTORY\x10\x06\x12\x12\n" +
 	"\x0eLIST_DIRECTORY\x10\a\x12\x10\n" +
-	"\fSEARCH_FILES\x10\b\x12\x13\n" +
+	"\fSEARCH_FILES\x10\b\x12\x0e\n" +
+	"\n" +
+	"GREP_FILES\x10\t\x12\x13\n" +
 	"\x0fEXECUTE_COMMAND\x10\n" +
 	"\x12\x10\n" +
 	"\fSEND_MESSAGE\x10\x14\x12\x0e\n" +
 	"\n" +
-	"SEND_EMAIL\x10\x15\x12\x10\n" +
+	"SEND_EMAIL\x10\x15\x12\x0e\n" +
+	"\n" +
+	"EMAIL_LIST\x10\x16\x12\x0e\n" +
+	"\n" +
+	"EMAIL_READ\x10\x17\x12\x10\n" +
+	"\fEMAIL_SEARCH\x10\x18\x12\x0e\n" +
+	"\n" +
+	"EMAIL_MOVE\x10\x19\x12\x0e\n" +
+	"\n" +
+	"EMAIL_MARK\x10\x1a\x12\x10\n" +
 	"\fHTTP_REQUEST\x10\x1e\x12\x14\n" +
 	"\x10BROWSER_NAVIGATE\x10(\x12\x11\n" +
 	"\rBROWSER_CLICK\x10)\x12\x10\n" +
@@ -1312,17 +1413,40 @@ const file_openparallax_v1_types_proto_rawDesc = "" +
 	"\aGIT_LOG\x10K\x12\x0e\n" +
 	"\n" +
 	"GIT_BRANCH\x10L\x12\x10\n" +
-	"\fGIT_CHECKOUT\x10M\x12\x10\n" +
+	"\fGIT_CHECKOUT\x10M\x12\r\n" +
+	"\tGIT_CLONE\x10N\x12\x10\n" +
 	"\fMEMORY_WRITE\x10P\x12\x11\n" +
 	"\rMEMORY_SEARCH\x10Q\x12\x11\n" +
 	"\rCANVAS_CREATE\x10Z\x12\x11\n" +
-	"\rCANVAS_UPDATE\x10[\x12\x10\n" +
+	"\rCANVAS_UPDATE\x10[\x12\x12\n" +
+	"\x0eCANVAS_PROJECT\x10\\\x12\x12\n" +
+	"\x0eCANVAS_PREVIEW\x10]\x12\x10\n" +
 	"\fCREATE_AGENT\x10d\x12\x10\n" +
 	"\fAGENT_STATUS\x10e\x12\x10\n" +
 	"\fAGENT_RESULT\x10f\x12\x11\n" +
 	"\rAGENT_MESSAGE\x10g\x12\x10\n" +
 	"\fDELETE_AGENT\x10h\x12\x0f\n" +
-	"\vLIST_AGENTS\x10i*W\n" +
+	"\vLIST_AGENTS\x10i\x12\x12\n" +
+	"\x0eCOPY_DIRECTORY\x10j\x12\x12\n" +
+	"\x0eMOVE_DIRECTORY\x10k\x12\x14\n" +
+	"\x10DELETE_DIRECTORY\x10l\x12\x12\n" +
+	"\x0eGENERATE_IMAGE\x10n\x12\x0e\n" +
+	"\n" +
+	"EDIT_IMAGE\x10o\x12\x12\n" +
+	"\x0eGENERATE_VIDEO\x10p\x12\x12\n" +
+	"\x0eCLIPBOARD_READ\x10x\x12\x13\n" +
+	"\x0fCLIPBOARD_WRITE\x10y\x12\t\n" +
+	"\x04OPEN\x10\x82\x01\x12\v\n" +
+	"\x06NOTIFY\x10\x83\x01\x12\x10\n" +
+	"\vSYSTEM_INFO\x10\x84\x01\x12\x0f\n" +
+	"\n" +
+	"SCREENSHOT\x10\x85\x01\x12\x0e\n" +
+	"\tCALCULATE\x10\x86\x01\x12\x13\n" +
+	"\x0eARCHIVE_CREATE\x10\x8c\x01\x12\x14\n" +
+	"\x0fARCHIVE_EXTRACT\x10\x8d\x01\x12\r\n" +
+	"\bPDF_READ\x10\x8e\x01\x12\x15\n" +
+	"\x10SPREADSHEET_READ\x10\x8f\x01\x12\x16\n" +
+	"\x11SPREADSHEET_WRITE\x10\x90\x01*W\n" +
 	"\x0fVerdictDecision\x12 \n" +
 	"\x1cVERDICT_DECISION_UNSPECIFIED\x10\x00\x12\t\n" +
 	"\x05ALLOW\x10\x01\x12\t\n" +
@@ -1353,12 +1477,13 @@ const file_openparallax_v1_types_proto_rawDesc = "" +
 	"\x12\f\n" +
 	"\bCREATIVE\x10\v\x12\x10\n" +
 	"\fCONVERSATION\x10\f\x12\f\n" +
-	"\bCALENDAR\x10\r*@\n" +
+	"\bCALENDAR\x10\r*O\n" +
 	"\vSessionMode\x12\x1c\n" +
 	"\x18SESSION_MODE_UNSPECIFIED\x10\x00\x12\n" +
 	"\n" +
 	"\x06NORMAL\x10\x01\x12\a\n" +
-	"\x03OTR\x10\x02*\xad\x03\n" +
+	"\x03OTR\x10\x02\x12\r\n" +
+	"\tHEARTBEAT\x10\x03*\xad\x03\n" +
 	"\x0eAuditEventType\x12\x1b\n" +
 	"\x17AUDIT_EVENT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fACTION_PROPOSED\x10\x01\x12\x14\n" +
