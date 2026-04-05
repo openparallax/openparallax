@@ -7,7 +7,7 @@ OpenParallax is a reference implementation of the architecture proposed in [*Par
 ## What You Get
 
 - **CLI interface** — a terminal-native conversation UI built with Bubbletea
-- **Web UI** — a glassmorphism three-panel interface with artifact canvas, session management, and real-time streaming
+- **Web UI** — a glassmorphism interface with session management and real-time streaming
 - **50+ tool actions** — file operations, git, shell commands, browser automation, email, calendar, canvas, HTTP requests, and more
 - **Semantic memory** — FTS5 full-text search plus vector embeddings that persist across sessions
 - **Custom skills** — define domain-specific guidance in markdown that the agent loads on demand

@@ -177,7 +177,7 @@ This is the security-critical path. Every tool call proposed by the Agent passes
 13. **IFC check** -- information flow control labels.
 14. **Execute** -- via MCP client or built-in executor.
 15. **Audit: EXECUTED/FAILED** entry.
-16. **Broadcast ActionCompleted** (and ActionArtifact if applicable).
+16. **Broadcast ActionCompleted**.
 17. **Log to daily action log**.
 18. **Return ToolResultDelivery** to Agent.
 

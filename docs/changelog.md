@@ -14,7 +14,7 @@ The first public release of OpenParallax. A reference implementation of the arch
 - **Three-process model** — Process Manager spawns Engine, Engine spawns sandboxed Agent. Clean restart via exit code 75. Crash recovery with budget.
 - **gRPC services** — AgentService (bidirectional streaming between Agent and Engine), ClientService (server streaming to CLI/web clients), SubAgentService (parallel task execution).
 - **EventBroadcaster** — fan-out pipeline events to all subscribed clients by session. Supports session-scoped and global subscriptions.
-- **Transport-neutral entry point** — any channel adapter calls `ProcessMessageForWeb()` with an `EventSender` implementation. 8 event types: `llm_token`, `action_started`, `shield_verdict`, `action_completed`, `action_artifact`, `response_complete`, `otr_blocked`, `error`.
+- **Transport-neutral entry point** — any channel adapter calls `ProcessMessageForWeb()` with an `EventSender` implementation. 7 event types: `llm_token`, `action_started`, `shield_verdict`, `action_completed`, `response_complete`, `otr_blocked`, `error`.
 
 ### Security
 
@@ -32,7 +32,7 @@ The first public release of OpenParallax. A reference implementation of the arch
 - **50+ tool actions** — file operations, git, shell commands, browser automation, email, calendar, canvas, memory, HTTP requests, scheduling. Organized into groups with lazy loading via `load_tools` meta-tool.
 - **Custom skills** — domain-specific guidance in `skills/<name>/SKILL.md` with YAML frontmatter. Discovery summary in system prompt, on-demand loading via `load_skills` meta-tool.
 - **Multi-channel messaging** — WhatsApp (Cloud API), Telegram (Bot API), Discord (bot), Slack (Socket Mode), Signal (signal-cli), Teams (Graph API), iMessage (AppleScript bridge, macOS).
-- **Web UI** — glassmorphism three-panel layout (sidebar, artifact canvas, chat panel). Drag-to-resize, responsive breakpoints (full/compact/mobile), artifact tabs with pinning, real-time streaming via WebSocket.
+- **Web UI** — glassmorphism two-panel layout (sidebar, chat panel). Drag-to-resize, responsive breakpoints (full/compact/mobile), real-time streaming via WebSocket.
 - **CLI** — Cobra + Bubbletea TUI. Commands: `start`, `init`, `status`, `doctor`, `attach`, `detach`, `session`, `memory`, `logs`, `audit`, `get-classifier`. Slash commands: `/help`, `/new`, `/otr`, `/quit`, `/clear`, `/status`, `/restart`, `/export`, `/delete`, `/sessions`.
 - **OTR mode** — off-the-record sessions with read-only tools, no memory persistence, amber UI accents, data in `sync.Map` instead of SQLite.
 - **Semantic memory** — FTS5 full-text search + vector embeddings with pluggable backend architecture. Daily conversation logs. Memory files: SOUL.md, IDENTITY.md, USER.md, MEMORY.md, TOOLS.md, BOOT.md, HEARTBEAT.md, AGENTS.md.

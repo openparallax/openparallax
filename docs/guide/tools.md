@@ -156,11 +156,11 @@ Create files and projects with live preview.
 | Tool | Description |
 |------|-------------|
 | `canvas_create` | Create a single file (HTML, SVG, Markdown, etc.) |
-| `canvas_update` | Update an existing canvas artifact |
+| `canvas_update` | Update an existing canvas file |
 | `canvas_project` | Create a multi-file project |
-| `canvas_preview` | Generate a live preview URL for an HTML artifact |
+| `canvas_preview` | Generate a live preview URL for an HTML file |
 
-Canvas artifacts appear in the web UI's Artifact Canvas panel with live preview support for HTML content.
+Canvas outputs are rendered inline in the chat panel with live preview support for HTML content.
 
 ### image_generation
 

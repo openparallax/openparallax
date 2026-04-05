@@ -6,7 +6,7 @@ OpenParallax uses an event-driven architecture for real-time communication betwe
 
 Events flow in one direction: **Engine → Client**. The Engine processes messages, evaluates security, executes tools, and streams events back. Clients subscribe to events for a specific session (or globally for system events) and render them appropriately.
 
-There are **8 event types**, each carrying a specific payload. Every event includes a `session_id` for routing — the WebSocket handler filters events so clients only see events for their active session. The exception is `log_entry`, which is global (processed before the session filter).
+There are **7 event types**, each carrying a specific payload. Every event includes a `session_id` for routing — the WebSocket handler filters events so clients only see events for their active session. The exception is `log_entry`, which is global (processed before the session filter).
 
 ## Event Types
 
@@ -49,7 +49,7 @@ There are **8 event types**, each carrying a specific payload. Every event inclu
 
 **Notes:**
 - This event fires *before* Shield evaluation. The action hasn't been approved yet.
-- The `action_id` links this event to the subsequent `shield_verdict`, `action_completed`, and `action_artifact` events.
+- The `action_id` links this event to the subsequent `shield_verdict` and `action_completed` events.
 
 ---
 
@@ -98,30 +98,6 @@ There are **8 event types**, each carrying a specific payload. Every event inclu
 - This event only fires after `shield_verdict` with decision `ALLOW`.
 - The `result` is the same content sent back to the Agent for the next LLM round.
 - Results may be redacted if they contain detected secrets.
-
----
-
-### `action_artifact`
-
-**Emitted when:** A tool call produces a displayable artifact (file content, image, canvas, etc.).
-
-**Purpose:** Delivers rich content to the web UI's artifact canvas. The CLI ignores this event — it's web-specific.
-
-**Payload:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `action_id` | string | Links to the `action_started` event. |
-| `artifact_type` | string | Type of artifact: `file`, `image`, `canvas`, `diff`, `table`, `html`. |
-| `title` | string | Display title for the artifact tab. |
-| `content` | string | The artifact content. Format depends on `artifact_type`. |
-| `metadata` | object | Additional metadata (e.g., `path` for files, `language` for code). |
-| `session_id` | string | Session context. |
-
-**Notes:**
-- The web UI renders artifacts in the center panel (ArtifactCanvas) with tabs.
-- Maximum 6 unpinned tabs. Pinned tabs persist via localStorage.
-- Artifacts are not stored in the database — they exist only for the duration of the WebSocket connection.
 
 ---
 
@@ -209,11 +185,10 @@ User: "Read the file src/main.go"
 4. [action_started]   tool=read_file, args={path: "src/main.go"}
 5. [shield_verdict]   decision=ALLOW, tier=0, reason="read_file allowed by default policy"
 6. [action_completed] tool=read_file, result="package main\n\nimport..."
-7. [action_artifact]  type=file, title="src/main.go", content="package main..."
-8. [llm_token]       "Here's the "
-9. [llm_token]       "contents of "
-10. [llm_token]      "`src/main.go`..."
-11. [response_complete] content="I'll read that file for you. Here's the contents..."
+7. [llm_token]       "Here's the "
+8. [llm_token]       "contents of "
+9. [llm_token]      "`src/main.go`..."
+10. [response_complete] content="I'll read that file for you. Here's the contents..."
 ```
 
 For a blocked action:

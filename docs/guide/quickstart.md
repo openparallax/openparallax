@@ -86,7 +86,6 @@ Open your browser to the URL printed at startup (default: `http://127.0.0.1:3100
 The three-panel layout appears:
 
 - **Sidebar** (left) — session list, new session button, settings
-- **Artifact Canvas** (center) — displays generated files, code, diagrams
 - **Chat Panel** (right) — conversation input and message stream
 
 Type a message in the chat panel:
@@ -125,20 +124,6 @@ Create a file called hello.txt with "Hello from OpenParallax!" in it
 This time Shield evaluates the `write_file` action. With the default policy, file writes in the workspace are allowed through Tier 0/1. In the web UI, you can see the Shield verdict in the action envelope.
 
 ## 5. Check the Web UI Features
-
-### Artifacts
-
-When the agent creates files, generates code, or produces diagrams, they appear as tabs in the Artifact Canvas. Try:
-
-```
-Create an HTML page with a simple counter app
-```
-
-The generated HTML appears in a live-preview tab in the center panel. You can:
-
-- Click tabs to switch between artifacts
-- Right-click a tab to pin it (pinned tabs persist across sessions)
-- Close unpinned tabs (maximum 6 unpinned tabs)
 
 ### Session Management
 

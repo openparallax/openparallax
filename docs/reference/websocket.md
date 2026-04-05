@@ -159,25 +159,6 @@ A tool call is being evaluated. Show a loading/thinking indicator.
 }
 ```
 
-### Event: `action_artifact`
-
-```json
-{
-  "type": "action_artifact",
-  "session_id": "01HWXYZ...",
-  "timestamp": 1711929601250,
-  "data": {
-    "action_id": "01HWDEF...",
-    "artifact_type": "file",
-    "title": "src/main.go",
-    "content": "package main\n\nimport \"fmt\"\n...",
-    "metadata": {"path": "src/main.go", "language": "go"}
-  }
-}
-```
-
-Web-specific. The web UI renders this as a tab in the ArtifactCanvas panel.
-
 ### Event: `response_complete`
 
 ```json
@@ -286,7 +267,6 @@ Client                          Engine
   │◄── action_started ───────────┤
   │◄── shield_verdict ───────────┤
   │◄── action_completed ─────────┤
-  │◄── action_artifact ──────────┤
   │◄── llm_token ────────────────┤
   │◄── response_complete ────────┤
   │                               │

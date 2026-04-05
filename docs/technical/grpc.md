@@ -246,7 +246,6 @@ message PipelineEvent {
   ShieldVerdict shield_verdict = 13;
   ActionStarted action_started = 14;
   ActionCompleted action_completed = 15;
-  ActionArtifact action_artifact = 16;
   ResponseComplete response_complete = 18;
   ApprovalNeeded approval_needed = 19;
   OTRBlocked otr_blocked = 20;
@@ -331,7 +330,7 @@ Defined in `proto/openparallax/v1/types.proto`:
 - `VerdictDecision`: ALLOW, BLOCK, ESCALATE
 - `ActionRequest`: Full action description with payload
 - `Verdict`: Shield evaluation result
-- `Artifact`: Viewable artifact with type, title, content, MIME type
+- `ActionResult`: Tool execution outcome with output, error, and summary
 
 ## Proto File Locations
 
@@ -339,7 +338,7 @@ Defined in `proto/openparallax/v1/types.proto`:
 |---|---|
 | `proto/openparallax/v1/pipeline.proto` | AgentService, ClientService, SubAgentService, all request/response messages |
 | `proto/openparallax/v1/shield.proto` | ShieldService (standalone Shield gRPC service) |
-| `proto/openparallax/v1/types.proto` | Shared enums, ActionRequest, Verdict, Artifact |
+| `proto/openparallax/v1/types.proto` | Shared enums, ActionRequest, Verdict, ActionResult |
 
 Generated Go code: `internal/types/pb/`
 

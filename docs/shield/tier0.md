@@ -87,7 +87,7 @@ Action types are matched by exact string comparison. Shield defines 50+ action t
 | `memory_write` | Write to memory |
 | `memory_search` | Search memory |
 | `browser_navigate` | Navigate browser |
-| `canvas_create` | Create a canvas artifact |
+| `canvas_create` | Create a canvas file |
 
 ### Path Patterns
 

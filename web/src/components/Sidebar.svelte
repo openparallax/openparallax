@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { MessageSquare, FileText, Eye, Plus, Settings, ChevronDown, RotateCw, Search } from 'lucide-svelte';
+  import { MessageSquare, Eye, Plus, Settings, ChevronDown, RotateCw, Search } from 'lucide-svelte';
   import { sessions, currentSessionId, currentMode, scrollToMessageId } from '../stores/session';
   import { activeNavItem, settingsOpen, sidebarOpen } from '../stores/settings';
   import { clearMessages, loadMessages } from '../stores/messages';
@@ -30,7 +30,6 @@
 
   const navItems = [
     { id: 'chat' as const, label: 'Chat', icon: MessageSquare },
-    // { id: 'artifacts' as const, label: 'Artifacts', icon: FileText },
     { id: 'console' as const, label: 'Console', icon: Eye },
   ];
 

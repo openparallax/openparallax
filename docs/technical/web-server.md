@@ -111,7 +111,6 @@ All REST endpoints are registered in `registerAPIRoutes`:
 | PATCH | `/api/sessions/{id}` | `handleUpdateSession` | Update session title |
 | GET | `/api/sessions/{id}/messages` | `handleGetMessages` | Get conversation history |
 | GET | `/api/sessions/search` | `handleSearchSessions` | FTS5 search across sessions |
-| GET | `/api/artifacts` | `handleListArtifacts` | List all artifacts |
 | GET | `/api/tools` | `handleListTools` | List available tools |
 | GET | `/api/memory/search` | `handleMemorySearch` | FTS5 search across memory |
 | GET | `/api/memory/{type}` | `handleReadMemory` | Read a memory file |

@@ -789,7 +789,7 @@ OTR (Off-The-Record) mode is designed to leave no persistent trace. The followin
 
 **Why can't I write files in OTR?**
 
-OTR mode filters tools at the definition level. Tools that create persistent artifacts (file writes, memory writes) are removed from the tool list before the LLM sees them. The agent cannot call tools it does not know about. This is by design -- OTR means no persistent changes.
+OTR mode filters tools at the definition level. Tools that create persistent outputs (file writes, memory writes) are removed from the tool list before the LLM sees them. The agent cannot call tools it does not know about. This is by design -- OTR means no persistent changes.
 
 **Activating OTR:**
 

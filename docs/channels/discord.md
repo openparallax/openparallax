@@ -1,6 +1,6 @@
 # Discord
 
-The Discord adapter connects your agent to Discord using the Gateway WebSocket API for real-time message delivery and the REST API for sending responses. The bot can operate in guild channels (when @mentioned or in designated channels), in threads, and in direct messages. Responses use Discord's native Markdown, and file artifacts are delivered as attachments.
+The Discord adapter connects your agent to Discord using the Gateway WebSocket API for real-time message delivery and the REST API for sending responses. The bot can operate in guild channels (when @mentioned or in designated channels), in threads, and in direct messages. Responses use Discord's native Markdown, and file outputs are delivered as attachments.
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ The Message Content Intent is classified as privileged. For bots in fewer than 1
 3. Under "Bot Permissions", select:
    - `Send Messages` -- send responses
    - `Read Message History` -- read conversation context
-   - `Attach Files` -- send file artifacts
+   - `Attach Files` -- send file outputs
    - `Use Slash Commands` -- register and respond to slash commands
    - `Create Public Threads` -- create threads for long conversations (optional)
    - `Send Messages in Threads` -- respond in threads (optional)
@@ -170,7 +170,7 @@ To enable thread creation, the bot needs the `Create Public Threads` and `Send M
 | Type | Supported | Notes |
 |---|---|---|
 | Text (Markdown) | Yes | Discord natively supports Markdown -- no escaping needed |
-| File attachments | Yes | Sent via `ChannelFileSend` for artifacts |
+| File attachments | Yes | Sent via `ChannelFileSend` for file outputs |
 | Embeds | Yes | Used for structured responses (see below) |
 | Reactions | No | — |
 | Voice | No | — |

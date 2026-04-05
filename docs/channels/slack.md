@@ -30,7 +30,7 @@ Go to "OAuth & Permissions" in the left sidebar. Under "Bot Token Scopes", add:
 | `im:read` | View DM info |
 | `im:write` | Open DMs with users |
 | `app_mentions:read` | Receive @mention events |
-| `files:write` | Upload file artifacts |
+| `files:write` | Upload file outputs |
 
 These are bot token scopes (the `xoxb-` token), not user token scopes. The bot acts as its own identity in the workspace, not as a user.
 

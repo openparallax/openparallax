@@ -974,7 +974,6 @@ type ActionResult struct {
 	Output        string                 `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"`
 	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
 	Summary       string                 `protobuf:"bytes,5,opt,name=summary,proto3" json:"summary,omitempty"`
-	Artifact      *Artifact              `protobuf:"bytes,6,opt,name=artifact,proto3" json:"artifact,omitempty"`
 	DurationMs    int64                  `protobuf:"varint,7,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1045,119 +1044,11 @@ func (x *ActionResult) GetSummary() string {
 	return ""
 }
 
-func (x *ActionResult) GetArtifact() *Artifact {
-	if x != nil {
-		return x.Artifact
-	}
-	return nil
-}
-
 func (x *ActionResult) GetDurationMs() int64 {
 	if x != nil {
 		return x.DurationMs
 	}
 	return 0
-}
-
-// Artifact is a viewable output produced by an action.
-type Artifact struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
-	Path          string                 `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
-	Content       string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
-	Language      string                 `protobuf:"bytes,6,opt,name=language,proto3" json:"language,omitempty"`
-	SizeBytes     int64                  `protobuf:"varint,7,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
-	PreviewType   string                 `protobuf:"bytes,8,opt,name=preview_type,json=previewType,proto3" json:"preview_type,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Artifact) Reset() {
-	*x = Artifact{}
-	mi := &file_openparallax_v1_types_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Artifact) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Artifact) ProtoMessage() {}
-
-func (x *Artifact) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_types_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Artifact.ProtoReflect.Descriptor instead.
-func (*Artifact) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_types_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *Artifact) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *Artifact) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *Artifact) GetTitle() string {
-	if x != nil {
-		return x.Title
-	}
-	return ""
-}
-
-func (x *Artifact) GetPath() string {
-	if x != nil {
-		return x.Path
-	}
-	return ""
-}
-
-func (x *Artifact) GetContent() string {
-	if x != nil {
-		return x.Content
-	}
-	return ""
-}
-
-func (x *Artifact) GetLanguage() string {
-	if x != nil {
-		return x.Language
-	}
-	return ""
-}
-
-func (x *Artifact) GetSizeBytes() int64 {
-	if x != nil {
-		return x.SizeBytes
-	}
-	return 0
-}
-
-func (x *Artifact) GetPreviewType() string {
-	if x != nil {
-		return x.PreviewType
-	}
-	return ""
 }
 
 // AuditEntry is a single audit log entry.
@@ -1179,7 +1070,7 @@ type AuditEntry struct {
 
 func (x *AuditEntry) Reset() {
 	*x = AuditEntry{}
-	mi := &file_openparallax_v1_types_proto_msgTypes[6]
+	mi := &file_openparallax_v1_types_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1191,7 +1082,7 @@ func (x *AuditEntry) String() string {
 func (*AuditEntry) ProtoMessage() {}
 
 func (x *AuditEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_types_proto_msgTypes[6]
+	mi := &file_openparallax_v1_types_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1204,7 +1095,7 @@ func (x *AuditEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuditEntry.ProtoReflect.Descriptor instead.
 func (*AuditEntry) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_types_proto_rawDescGZIP(), []int{6}
+	return file_openparallax_v1_types_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *AuditEntry) GetId() string {
@@ -1324,27 +1215,16 @@ const file_openparallax_v1_types_proto_rawDesc = "" +
 	"\traw_input\x18\a \x01(\tR\brawInput\x1a=\n" +
 	"\x0fParametersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe7\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb6\x01\n" +
 	"\fActionResult\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x16\n" +
 	"\x06output\x18\x03 \x01(\tR\x06output\x12\x14\n" +
 	"\x05error\x18\x04 \x01(\tR\x05error\x12\x18\n" +
-	"\asummary\x18\x05 \x01(\tR\asummary\x125\n" +
-	"\bartifact\x18\x06 \x01(\v2\x19.openparallax.v1.ArtifactR\bartifact\x12\x1f\n" +
+	"\asummary\x18\x05 \x01(\tR\asummary\x12\x1f\n" +
 	"\vduration_ms\x18\a \x01(\x03R\n" +
-	"durationMs\"\xd0\x01\n" +
-	"\bArtifact\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\x12\x14\n" +
-	"\x05title\x18\x03 \x01(\tR\x05title\x12\x12\n" +
-	"\x04path\x18\x04 \x01(\tR\x04path\x12\x18\n" +
-	"\acontent\x18\x05 \x01(\tR\acontent\x12\x1a\n" +
-	"\blanguage\x18\x06 \x01(\tR\blanguage\x12\x1d\n" +
-	"\n" +
-	"size_bytes\x18\a \x01(\x03R\tsizeBytes\x12!\n" +
-	"\fpreview_type\x18\b \x01(\tR\vpreviewType\"\xc0\x02\n" +
+	"durationMsJ\x04\b\x06\x10\a\"\xc0\x02\n" +
 	"\n" +
 	"AuditEntry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12>\n" +
@@ -1519,7 +1399,7 @@ func file_openparallax_v1_types_proto_rawDescGZIP() []byte {
 }
 
 var file_openparallax_v1_types_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_openparallax_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_openparallax_v1_types_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_openparallax_v1_types_proto_goTypes = []any{
 	(ActionType)(0),            // 0: openparallax.v1.ActionType
 	(VerdictDecision)(0),       // 1: openparallax.v1.VerdictDecision
@@ -1532,28 +1412,26 @@ var file_openparallax_v1_types_proto_goTypes = []any{
 	(*DataClassification)(nil), // 8: openparallax.v1.DataClassification
 	(*StructuredIntent)(nil),   // 9: openparallax.v1.StructuredIntent
 	(*ActionResult)(nil),       // 10: openparallax.v1.ActionResult
-	(*Artifact)(nil),           // 11: openparallax.v1.Artifact
-	(*AuditEntry)(nil),         // 12: openparallax.v1.AuditEntry
-	nil,                        // 13: openparallax.v1.ActionRequest.PayloadEntry
-	nil,                        // 14: openparallax.v1.StructuredIntent.ParametersEntry
+	(*AuditEntry)(nil),         // 11: openparallax.v1.AuditEntry
+	nil,                        // 12: openparallax.v1.ActionRequest.PayloadEntry
+	nil,                        // 13: openparallax.v1.StructuredIntent.ParametersEntry
 }
 var file_openparallax_v1_types_proto_depIdxs = []int32{
 	1,  // 0: openparallax.v1.Verdict.decision:type_name -> openparallax.v1.VerdictDecision
 	0,  // 1: openparallax.v1.ActionRequest.type:type_name -> openparallax.v1.ActionType
-	13, // 2: openparallax.v1.ActionRequest.payload:type_name -> openparallax.v1.ActionRequest.PayloadEntry
+	12, // 2: openparallax.v1.ActionRequest.payload:type_name -> openparallax.v1.ActionRequest.PayloadEntry
 	8,  // 3: openparallax.v1.ActionRequest.data_classification:type_name -> openparallax.v1.DataClassification
 	2,  // 4: openparallax.v1.DataClassification.sensitivity:type_name -> openparallax.v1.SensitivityLevel
 	3,  // 5: openparallax.v1.StructuredIntent.goal:type_name -> openparallax.v1.GoalType
 	0,  // 6: openparallax.v1.StructuredIntent.primary_action:type_name -> openparallax.v1.ActionType
-	14, // 7: openparallax.v1.StructuredIntent.parameters:type_name -> openparallax.v1.StructuredIntent.ParametersEntry
+	13, // 7: openparallax.v1.StructuredIntent.parameters:type_name -> openparallax.v1.StructuredIntent.ParametersEntry
 	2,  // 8: openparallax.v1.StructuredIntent.sensitivity:type_name -> openparallax.v1.SensitivityLevel
-	11, // 9: openparallax.v1.ActionResult.artifact:type_name -> openparallax.v1.Artifact
-	5,  // 10: openparallax.v1.AuditEntry.event_type:type_name -> openparallax.v1.AuditEventType
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	5,  // 9: openparallax.v1.AuditEntry.event_type:type_name -> openparallax.v1.AuditEventType
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_openparallax_v1_types_proto_init() }
@@ -1567,7 +1445,7 @@ func file_openparallax_v1_types_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_openparallax_v1_types_proto_rawDesc), len(file_openparallax_v1_types_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   9,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

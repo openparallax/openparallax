@@ -4,7 +4,7 @@ The event system provides transport-neutral streaming of pipeline events from th
 
 ## Event Types
 
-8 core event types are defined in `internal/engine/eventsender.go`:
+7 core event types are defined in `internal/engine/eventsender.go`:
 
 | Event Type | Constant | Payload Struct | Description |
 |---|---|---|---|
@@ -12,7 +12,6 @@ The event system provides transport-neutral streaming of pipeline events from th
 | `action_started` | `EventActionStarted` | `ActionStartedEvent` | Tool call is beginning execution |
 | `shield_verdict` | `EventShieldVerdict` | `ShieldVerdictEvent` | Shield security evaluation result |
 | `action_completed` | `EventActionCompleted` | `ActionCompletedEvent` | Tool call finished (success or failure) |
-| `action_artifact` | `EventActionArtifact` | `ActionArtifactEvent` | Tool produced a viewable artifact |
 | `response_complete` | `EventResponseComplete` | `ResponseCompleteEvent` | Full response with thoughts |
 | `otr_blocked` | `EventOTRBlocked` | `OTRBlockedEvent` | Action blocked by OTR mode |
 | `error` | `EventError` | `PipelineErrorEvent` | Pipeline stage error |
@@ -42,7 +41,6 @@ type PipelineEvent struct {
     ActionStarted    *ActionStartedEvent    `json:"action_started,omitempty"`
     ShieldVerdict    *ShieldVerdictEvent    `json:"shield_verdict,omitempty"`
     ActionCompleted  *ActionCompletedEvent  `json:"action_completed,omitempty"`
-    ActionArtifact   *ActionArtifactEvent   `json:"action_artifact,omitempty"`
     ResponseComplete *ResponseCompleteEvent `json:"response_complete,omitempty"`
     OTRBlocked       *OTRBlockedEvent       `json:"otr_blocked,omitempty"`
     Error            *PipelineErrorEvent    `json:"error,omitempty"`
@@ -96,16 +94,6 @@ type ActionCompletedEvent struct {
     Summary  string `json:"summary"`   // Result summary or error message
 }
 ```
-
-### ActionArtifactEvent
-
-```go
-type ActionArtifactEvent struct {
-    Artifact *types.Artifact `json:"artifact"`
-}
-```
-
-Artifacts have a type (code, html, image, markdown, etc.), title, content, MIME type, and file path.
 
 ### ResponseCompleteEvent
 

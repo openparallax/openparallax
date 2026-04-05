@@ -14,19 +14,19 @@ The port is configurable via `web.port` in config.yaml or the `--port` flag on `
 
 If authentication is enabled (`web.auth: true`), you will be prompted for a password. On first start with no password configured, the engine generates a one-time password and prints it to the console.
 
-## Three-Panel Layout
+## Two-Panel Layout
 
-The interface uses a three-panel layout:
+The interface uses a two-panel layout:
 
 ```
-┌──────────┬─────────────────────────┬──────────────┐
-│          │                         │              │
-│ Sidebar  │   Artifact Canvas       │  Chat Panel  │
-│  240px   │     (flex: 1)           │    380px     │
-│          │                         │              │
-│          │                         │              │
-│          │                         │              │
-└──────────┴─────────────────────────┴──────────────┘
+┌──────────┬──────────────────────────────────────┐
+│          │                                      │
+│ Sidebar  │           Chat Panel                 │
+│  240px   │           (flex: 1)                  │
+│          │                                      │
+│          │                                      │
+│          │                                      │
+└──────────┴──────────────────────────────────────┘
 ```
 
 ### Sidebar (240px)
@@ -39,30 +39,11 @@ The left panel provides navigation and session management:
 - **Settings** — gear icon opens the settings panel
 - **OTR indicator** — amber badge when in Off-the-Record mode
 
-Click a session to switch to it. Full message history, artifacts, and tool call results are preserved.
+Click a session to switch to it. Full message history and tool call results are preserved.
 
-### Artifact Canvas (flex: 1)
+### Chat Panel (flex: 1)
 
-The center panel displays generated content. When the agent creates files, code, diagrams, or web pages, they appear here as tabbed artifacts.
-
-**Tab management:**
-
-- Maximum 6 unpinned tabs at a time. When a 7th artifact is created, the oldest unpinned tab is replaced.
-- **Pin a tab** by right-clicking it. Pinned tabs persist across sessions and are saved to localStorage.
-- **Close a tab** by clicking the X button. Pinned tabs must be unpinned first.
-- Tabs show the artifact type and a truncated filename.
-
-**Artifact types:**
-
-- **Code** — syntax-highlighted source files
-- **HTML** — live preview in an iframe with hot reload
-- **Markdown** — rendered markdown with formatting
-- **SVG/Mermaid** — rendered diagrams
-- **Files** — downloadable file artifacts
-
-### Chat Panel (380px)
-
-The right panel is the conversation interface:
+The main panel is the conversation interface:
 
 - **Message input** at the bottom with a send button
 - **Message stream** showing user messages, agent responses, and tool call envelopes
@@ -71,7 +52,7 @@ The right panel is the conversation interface:
 
 ### Drag-to-Resize
 
-Panel widths are adjustable by dragging the dividers between panels. The widths are stored as CSS custom properties (`--sw` for sidebar width, `--cw` for chat panel width) and persist in localStorage.
+Panel widths are adjustable by dragging the divider between panels. The widths are stored as CSS custom properties (`--sw` for sidebar width) and persist in localStorage.
 
 ## Responsive Breakpoints
 
@@ -79,8 +60,8 @@ The layout adapts to different screen sizes:
 
 | Breakpoint | Width | Layout |
 |------------|-------|--------|
-| Full | > 1200px | All three panels visible |
-| Compact | 800-1200px | Sidebar collapses to icons, canvas and chat share space |
+| Full | > 1200px | Both panels visible |
+| Compact | 800-1200px | Sidebar collapses to icons, chat panel fills space |
 | Mobile | < 800px | Single panel view with navigation tabs |
 
 On compact and mobile layouts, the sidebar can be toggled with a hamburger menu button.
@@ -107,7 +88,7 @@ The color change is applied by overriding all 8 `--accent-*` CSS tokens. See [Se
 
 ## Real-Time Events
 
-The web UI receives 8 event types from the engine via WebSocket:
+The web UI receives 7 event types from the engine via WebSocket:
 
 | Event | Description |
 |-------|-------------|
@@ -115,7 +96,6 @@ The web UI receives 8 event types from the engine via WebSocket:
 | `action_started` | A tool call has been proposed and is being evaluated |
 | `shield_verdict` | Shield has evaluated the tool call (ALLOW/BLOCK/ESCALATE) |
 | `action_completed` | A tool call has been executed |
-| `action_artifact` | An artifact (file, code, etc.) was produced by a tool call |
 | `response_complete` | The LLM has finished its response |
 | `otr_blocked` | A tool call was blocked because the session is OTR |
 | `error` | An error occurred during processing |

@@ -239,9 +239,6 @@ Audit: log EXECUTED or FAILED entry
 Broadcast ActionCompleted event
     |
     v
-Broadcast ActionArtifact event (if artifact was produced)
-    |
-    v
 Log to daily action log (memory)
     |
     v
@@ -304,9 +301,8 @@ Events emitted during a typical message with one tool call:
 3. action_started (tool call beginning)
 4. shield_verdict (security evaluation result)
 5. action_completed (tool execution result)
-6. action_artifact (if the tool produced a viewable artifact)
-7. llm_token (LLM response after tool result)
-8. response_complete (final response with thoughts)
+6. llm_token (LLM response after tool result)
+7. response_complete (final response with thoughts)
 ```
 
 ## Key Source Files

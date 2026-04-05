@@ -62,7 +62,7 @@ Browser actions control a headless browser for web interaction.
 | `browser_extract` | Extract specific content from the current page using CSS selectors. | Yes |
 | `browser_click` | Click an element on the current page. | No |
 | `browser_type` | Type text into an input field. | No |
-| `browser_screenshot` | Take a screenshot of the current page. Returns image data as an artifact. | Yes |
+| `browser_screenshot` | Take a screenshot of the current page. Returns base64-encoded image data. | Yes |
 | `browser_scroll` | Scroll the page. | No |
 
 ### Email Operations
@@ -88,12 +88,12 @@ Calendar actions interact with configured calendar services.
 
 ### Canvas Operations
 
-Canvas actions create and manage rich visual artifacts in the web UI.
+Canvas actions create and manage rich visual content.
 
 | Action Type | Description | OTR Allowed? |
 |------------|-------------|:------------:|
-| `canvas_create` | Create a new canvas artifact. Takes `title`, `content_type` (markdown, html, code, mermaid), `content`. | No |
-| `canvas_update` | Update an existing canvas artifact. | No |
+| `canvas_create` | Create a new canvas file. Takes `title`, `content_type` (markdown, html, code, mermaid), `content`. | No |
+| `canvas_update` | Update an existing canvas file. | No |
 
 ### Memory Operations
 
@@ -156,7 +156,7 @@ Additional tool groups are loaded when the Agent needs them:
 | `git_extended` | `git_commit`, `git_branch`, `git_checkout`, `git_merge`, `git_stash`, `git_tag`, `git_remote` | Agent needs to make git changes |
 | `email` | `send_email`, `read_email`, `search_email` | User asks about email |
 | `calendar` | `read_calendar`, `create_event`, `update_event`, `delete_event` | User asks about calendar |
-| `canvas` | `canvas_create`, `canvas_update` | Agent wants to create visual artifacts |
+| `canvas` | `canvas_create`, `canvas_update` | Agent wants to create visual content |
 | `memory_write` | `memory_store`, `memory_delete`, `memory_daily_log` | Agent needs to persist information |
 | `browser_extended` | `browser_click`, `browser_type`, `browser_screenshot`, `browser_scroll` | Agent needs to interact with a webpage |
 | `http` | `http_request` | Agent needs to call external APIs |

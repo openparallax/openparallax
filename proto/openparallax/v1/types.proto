@@ -190,20 +190,8 @@ message ActionResult {
   string output = 3;
   string error = 4;
   string summary = 5;
-  Artifact artifact = 6;
+  reserved 6;
   int64 duration_ms = 7;
-}
-
-// Artifact is a viewable output produced by an action.
-message Artifact {
-  string id = 1;
-  string type = 2;
-  string title = 3;
-  string path = 4;
-  string content = 5;
-  string language = 6;
-  int64 size_bytes = 7;
-  string preview_type = 8;
 }
 
 // SessionMode controls what the agent can do in a session.

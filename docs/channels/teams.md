@@ -258,7 +258,7 @@ For structured responses, the adapter renders output using [Adaptive Cards](http
 | Action approvals | Adaptive Card with Approve/Deny buttons |
 | Status reports | Adaptive Card with structured fields |
 | Error messages | Adaptive Card with error styling |
-| File artifacts | Adaptive Card with download link |
+| File outputs | Adaptive Card with download link |
 
 ### Shield Verdict Card
 

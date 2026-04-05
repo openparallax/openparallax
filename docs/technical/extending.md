@@ -259,27 +259,6 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 
 The LLM discovers your tool by calling `load_tools({"groups": ["my_group"]})`.
 
-### Returning Artifacts
-
-If your executor produces viewable content (HTML, code, images), return it as an artifact:
-
-```go
-return &types.ActionResult{
-    RequestID: action.RequestID,
-    Success:   true,
-    Output:    "Created visualization",
-    Summary:   "Visualization generated",
-    Artifact: &types.Artifact{
-        Type:     "html",
-        Title:    "Data Visualization",
-        Content:  htmlContent,
-        MimeType: "text/html",
-    },
-}
-```
-
-Artifacts are broadcast as `action_artifact` events and displayed in the web UI's artifact canvas.
-
 ## Adding a New Action Type
 
 To add a completely new tool action type:

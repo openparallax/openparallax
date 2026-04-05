@@ -181,7 +181,7 @@ Built-in rate limiting: 30 messages per minute per user. The rate limiter uses a
 | Type | Supported | Notes |
 |---|---|---|
 | Text (MarkdownV2) | Yes | All responses are formatted with MarkdownV2 |
-| Documents | Yes | File artifacts from the engine are sent via `sendDocument` |
+| Documents | Yes | File outputs from the engine are sent via `sendDocument` |
 | Inline keyboards | Yes | Used for Shield action approvals (see below) |
 | Images | No | — |
 | Audio | No | — |

@@ -1,6 +1,6 @@
 # Sessions
 
-Every conversation with OpenParallax happens within a session. Sessions track message history, tool call results, artifacts, and metadata. There are two session types: normal and OTR (Off-the-Record).
+Every conversation with OpenParallax happens within a session. Sessions track message history, tool call results, and metadata. There are two session types: normal and OTR (Off-the-Record).
 
 ## Normal Sessions
 
@@ -17,7 +17,7 @@ Normal sessions are the default. When you open the web UI or start a TUI convers
 ### Session Lifecycle
 
 1. **Creation** — a session is created when you send your first message in a new conversation (or use `/new`)
-2. **Active** — messages flow through the pipeline, tools are called, artifacts are generated
+2. **Active** — messages flow through the pipeline, tools are called, outputs are generated
 3. **Title generation** — after 3 user-agent exchanges, the LLM generates a concise title for the session
 4. **Idle** — the session remains accessible in the sidebar/session list for future use
 5. **Deletion** — sessions can be explicitly deleted via `/delete`, the CLI, or the web UI
@@ -94,7 +94,7 @@ openparallax session list
 
 ### Switching Sessions
 
-**Web UI:** Click any session in the sidebar to switch to it. The chat panel loads the full message history and the artifact canvas restores any associated artifacts.
+**Web UI:** Click any session in the sidebar to switch to it. The chat panel loads the full message history.
 
 **CLI TUI:** Use `/sessions` to list sessions, then start a new TUI connection specifying the session.
 
