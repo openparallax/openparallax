@@ -15,11 +15,24 @@ renderer.link = function ({ href, title, text }) {
 };
 marked.use({ renderer });
 
+const markdownCache = new Map<string, string>();
+const MAX_CACHE_SIZE = 500;
+
 export function renderMarkdown(text: string): string {
-  const html = marked.parse(text) as string;
-  return DOMPurify.sanitize(html, {
+  const cached = markdownCache.get(text);
+  if (cached !== undefined) return cached;
+
+  const html = DOMPurify.sanitize(marked.parse(text) as string, {
     ADD_ATTR: ['target'],
   });
+
+  if (markdownCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = markdownCache.keys().next().value;
+    if (firstKey !== undefined) markdownCache.delete(firstKey);
+  }
+  markdownCache.set(text, html);
+
+  return html;
 }
 
 export function formatTimestamp(iso: string): string {
