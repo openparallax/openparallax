@@ -51,6 +51,9 @@ service SubAgentService {
 
   // SubAgentFailed reports that a sub-agent encountered an error.
   rpc SubAgentFailed(SubAgentFailedRequest) returns (SubAgentFailedResponse);
+
+  // SubAgentPollMessage checks for a pending follow-up message from the main agent.
+  rpc SubAgentPollMessage(SubAgentPollRequest) returns (SubAgentPollResponse);
 }
 
 // --- AgentService messages ---
@@ -250,7 +253,7 @@ message PipelineEvent {
   ShieldVerdict shield_verdict = 13;
   ActionStarted action_started = 14;
   ActionCompleted action_completed = 15;
-  ActionArtifact action_artifact = 16;
+  reserved 16;
   LLMToken llm_token = 17;
   ResponseComplete response_complete = 18;
   ApprovalNeeded approval_needed = 19;
@@ -267,7 +270,7 @@ enum PipelineEventType {
   SHIELD_VERDICT = 4;
   ACTION_STARTED = 5;
   ACTION_COMPLETED = 6;
-  ACTION_ARTIFACT = 7;
+  reserved 7;
   LLM_TOKEN = 8;
   COMPOSING = 9;
   RESPONSE_COMPLETE = 10;
@@ -321,11 +324,6 @@ message ActionCompleted {
   ActionType action_type = 1;
   bool success = 2;
   string summary = 3;
-}
-
-// ActionArtifact is emitted when an action produces a viewable artifact.
-message ActionArtifact {
-  Artifact artifact = 1;
 }
 
 // LLMToken carries a single streaming token from the LLM.
@@ -483,3 +481,14 @@ message SubAgentFailedRequest {
 
 // SubAgentFailedResponse acknowledges failure.
 message SubAgentFailedResponse {}
+
+// SubAgentPollRequest asks whether the main agent has sent a follow-up message.
+message SubAgentPollRequest {
+  string name = 1;
+}
+
+// SubAgentPollResponse returns a pending message if one exists.
+message SubAgentPollResponse {
+  bool has_message = 1;
+  string content = 2;
+}

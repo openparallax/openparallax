@@ -64,6 +64,7 @@ type SubAgent struct {
 	authToken string
 	cancel    context.CancelFunc
 	resultCh  chan struct{}
+	messageCh chan string
 	cmd       *exec.Cmd
 	tools     []llm.ToolDefinition
 	sessionID string
@@ -194,6 +195,7 @@ func (m *SubAgentManager) Create(req SubAgentRequest) (string, error) {
 		authToken:  token,
 		cancel:     cancel,
 		resultCh:   make(chan struct{}),
+		messageCh:  make(chan string, 1),
 		tools:      toolDefs,
 		sessionID:  req.SessionID,
 		provider:   m.engine.llm.Name(),
@@ -403,6 +405,44 @@ func (m *SubAgentManager) IncrementLLMCall(name string) {
 	defer m.mu.Unlock()
 	if sa, ok := m.agents[name]; ok {
 		sa.LLMCallCount++
+	}
+}
+
+// SendMessage delivers a follow-up instruction to a running sub-agent.
+// The message is buffered (capacity 1); if a previous message has not been
+// consumed yet, the call returns an error.
+func (m *SubAgentManager) SendMessage(name, content string) error {
+	m.mu.RLock()
+	sa, ok := m.agents[name]
+	m.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("sub-agent %q not found", name)
+	}
+	if sa.Status != StatusWorking {
+		return fmt.Errorf("sub-agent %q is not running (status: %s)", name, sa.Status)
+	}
+	select {
+	case sa.messageCh <- content:
+		return nil
+	default:
+		return fmt.Errorf("sub-agent %q has a pending message — wait for it to process", name)
+	}
+}
+
+// PollMessage returns a pending follow-up message for the named sub-agent.
+// Non-blocking: returns ("", false) when no message is queued.
+func (m *SubAgentManager) PollMessage(name string) (string, bool) {
+	m.mu.RLock()
+	sa, ok := m.agents[name]
+	m.mu.RUnlock()
+	if !ok {
+		return "", false
+	}
+	select {
+	case msg := <-sa.messageCh:
+		return msg, true
+	default:
+		return "", false
 	}
 }
 
@@ -640,6 +680,11 @@ func (a *SubAgentManagerAdapter) Status(name string) (executors.SubAgentInfo, er
 // Result delegates to SubAgentManager.Result.
 func (a *SubAgentManagerAdapter) Result(name string, timeout time.Duration) (string, error) {
 	return a.mgr.Result(name, timeout)
+}
+
+// SendMessage delegates to SubAgentManager.SendMessage.
+func (a *SubAgentManagerAdapter) SendMessage(name, content string) error {
+	return a.mgr.SendMessage(name, content)
 }
 
 // Delete delegates to SubAgentManager.Delete.

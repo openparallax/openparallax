@@ -242,6 +242,15 @@ func (e *Engine) SubAgentFailed(_ context.Context, req *pb.SubAgentFailedRequest
 	return &pb.SubAgentFailedResponse{}, nil
 }
 
+// SubAgentPollMessage implements the SubAgentService gRPC method.
+func (e *Engine) SubAgentPollMessage(_ context.Context, req *pb.SubAgentPollRequest) (*pb.SubAgentPollResponse, error) {
+	if e.subAgentManager == nil {
+		return nil, fmt.Errorf("sub-agent manager not initialized")
+	}
+	content, hasMessage := e.subAgentManager.PollMessage(req.Name)
+	return &pb.SubAgentPollResponse{HasMessage: hasMessage, Content: content}, nil
+}
+
 // noopEventSender discards events. Used for sub-agent tool calls where events
 // are managed by the SubAgentManager instead of a client connection.
 type noopEventSender struct{}

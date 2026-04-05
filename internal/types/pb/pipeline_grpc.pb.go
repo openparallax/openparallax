@@ -449,6 +449,7 @@ const (
 	SubAgentService_SubAgentExecuteTool_FullMethodName = "/openparallax.v1.SubAgentService/SubAgentExecuteTool"
 	SubAgentService_SubAgentComplete_FullMethodName    = "/openparallax.v1.SubAgentService/SubAgentComplete"
 	SubAgentService_SubAgentFailed_FullMethodName      = "/openparallax.v1.SubAgentService/SubAgentFailed"
+	SubAgentService_SubAgentPollMessage_FullMethodName = "/openparallax.v1.SubAgentService/SubAgentPollMessage"
 )
 
 // SubAgentServiceClient is the client API for SubAgentService service.
@@ -466,6 +467,8 @@ type SubAgentServiceClient interface {
 	SubAgentComplete(ctx context.Context, in *SubAgentCompleteRequest, opts ...grpc.CallOption) (*SubAgentCompleteResponse, error)
 	// SubAgentFailed reports that a sub-agent encountered an error.
 	SubAgentFailed(ctx context.Context, in *SubAgentFailedRequest, opts ...grpc.CallOption) (*SubAgentFailedResponse, error)
+	// SubAgentPollMessage checks for a pending follow-up message from the main agent.
+	SubAgentPollMessage(ctx context.Context, in *SubAgentPollRequest, opts ...grpc.CallOption) (*SubAgentPollResponse, error)
 }
 
 type subAgentServiceClient struct {
@@ -516,6 +519,16 @@ func (c *subAgentServiceClient) SubAgentFailed(ctx context.Context, in *SubAgent
 	return out, nil
 }
 
+func (c *subAgentServiceClient) SubAgentPollMessage(ctx context.Context, in *SubAgentPollRequest, opts ...grpc.CallOption) (*SubAgentPollResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubAgentPollResponse)
+	err := c.cc.Invoke(ctx, SubAgentService_SubAgentPollMessage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SubAgentServiceServer is the server API for SubAgentService service.
 // All implementations must embed UnimplementedSubAgentServiceServer
 // for forward compatibility.
@@ -531,6 +544,8 @@ type SubAgentServiceServer interface {
 	SubAgentComplete(context.Context, *SubAgentCompleteRequest) (*SubAgentCompleteResponse, error)
 	// SubAgentFailed reports that a sub-agent encountered an error.
 	SubAgentFailed(context.Context, *SubAgentFailedRequest) (*SubAgentFailedResponse, error)
+	// SubAgentPollMessage checks for a pending follow-up message from the main agent.
+	SubAgentPollMessage(context.Context, *SubAgentPollRequest) (*SubAgentPollResponse, error)
 	mustEmbedUnimplementedSubAgentServiceServer()
 }
 
@@ -552,6 +567,9 @@ func (UnimplementedSubAgentServiceServer) SubAgentComplete(context.Context, *Sub
 }
 func (UnimplementedSubAgentServiceServer) SubAgentFailed(context.Context, *SubAgentFailedRequest) (*SubAgentFailedResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SubAgentFailed not implemented")
+}
+func (UnimplementedSubAgentServiceServer) SubAgentPollMessage(context.Context, *SubAgentPollRequest) (*SubAgentPollResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubAgentPollMessage not implemented")
 }
 func (UnimplementedSubAgentServiceServer) mustEmbedUnimplementedSubAgentServiceServer() {}
 func (UnimplementedSubAgentServiceServer) testEmbeddedByValue()                         {}
@@ -646,6 +664,24 @@ func _SubAgentService_SubAgentFailed_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SubAgentService_SubAgentPollMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubAgentPollRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubAgentServiceServer).SubAgentPollMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SubAgentService_SubAgentPollMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubAgentServiceServer).SubAgentPollMessage(ctx, req.(*SubAgentPollRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SubAgentService_ServiceDesc is the grpc.ServiceDesc for SubAgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -668,6 +704,10 @@ var SubAgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SubAgentFailed",
 			Handler:    _SubAgentService_SubAgentFailed_Handler,
+		},
+		{
+			MethodName: "SubAgentPollMessage",
+			Handler:    _SubAgentService_SubAgentPollMessage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

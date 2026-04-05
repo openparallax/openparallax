@@ -14,6 +14,7 @@ type SubAgentManagerInterface interface {
 	Create(req SubAgentRequest) (string, error)
 	Status(name string) (SubAgentInfo, error)
 	Result(name string, timeout time.Duration) (string, error)
+	SendMessage(name, content string) error
 	Delete(name string) error
 	List() []SubAgentInfo
 }
@@ -275,11 +276,19 @@ func (e *SubAgentExecutor) executeResult(action *types.ActionRequest) *types.Act
 	return &types.ActionResult{Success: true, Output: result, Summary: fmt.Sprintf("%s completed", name)}
 }
 
-func (e *SubAgentExecutor) executeMessage(_ *types.ActionRequest) *types.ActionResult {
+func (e *SubAgentExecutor) executeMessage(action *types.ActionRequest) *types.ActionResult {
+	name, _ := action.Payload["name"].(string)
+	message, _ := action.Payload["message"].(string)
+	if name == "" || message == "" {
+		return &types.ActionResult{Success: false, Error: "name and message are required", Summary: "missing parameters"}
+	}
+	if err := e.manager.SendMessage(name, message); err != nil {
+		return &types.ActionResult{Success: false, Error: err.Error(), Summary: "send failed"}
+	}
 	return &types.ActionResult{
-		Success: false,
-		Error:   "agent_message is not yet supported for process-based sub-agents",
-		Summary: "not supported",
+		Success: true,
+		Output:  fmt.Sprintf("Message sent to %s", name),
+		Summary: fmt.Sprintf("sent message to %s", name),
 	}
 }
 

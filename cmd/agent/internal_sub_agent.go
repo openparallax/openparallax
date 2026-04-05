@@ -105,10 +105,6 @@ func runInternalSubAgent(_ *cobra.Command, _ []string) error {
 		maxCalls = 20
 	}
 
-	resultCh := make(chan agent.ToolResult, 1)
-	var finalContent string
-	var loopErr error
-
 	cfg := agent.LoopConfig{
 		Provider:      provider,
 		Agent:         agent.NewAgent(provider, subAgentWorkspace, nil, nil),
@@ -117,13 +113,66 @@ func runInternalSubAgent(_ *cobra.Command, _ []string) error {
 	}
 
 	history := []llm.ChatMessage{}
+	content, loopErr := runSubAgentLoop(ctx, cfg, name, regResp.Task, history, tools, client)
 
-	go agent.RunLoop(ctx, cfg, "", "", regResp.Task, types.SessionNormal,
+	if loopErr != nil {
+		reportFailure(ctx, client, name, loopErr.Error())
+		return loopErr
+	}
+
+	if content == "" {
+		reportFailure(ctx, client, name, "no response produced")
+		return nil
+	}
+
+	// Poll for follow-up messages from the main agent.
+	for {
+		pollResp, pollErr := client.SubAgentPollMessage(ctx, &pb.SubAgentPollRequest{Name: name})
+		if pollErr != nil || !pollResp.HasMessage {
+			break
+		}
+		// Build conversation history for the follow-up.
+		history = append(history, llm.ChatMessage{Role: "assistant", Content: content})
+		history = append(history, llm.ChatMessage{Role: "user", Content: pollResp.Content})
+
+		content, loopErr = runSubAgentLoop(ctx, cfg, name, pollResp.Content, history, tools, client)
+		if loopErr != nil {
+			reportFailure(ctx, client, name, loopErr.Error())
+			return loopErr
+		}
+		if content == "" {
+			reportFailure(ctx, client, name, "no response produced for follow-up message")
+			return nil
+		}
+	}
+
+	_, _ = client.SubAgentComplete(ctx, &pb.SubAgentCompleteRequest{
+		Name:   name,
+		Result: content,
+	})
+
+	return nil
+}
+
+// runSubAgentLoop executes a single reasoning loop iteration and returns the
+// final content and any error. It blocks until the loop completes.
+func runSubAgentLoop(
+	ctx context.Context,
+	cfg agent.LoopConfig,
+	name, task string,
+	history []llm.ChatMessage,
+	tools []llm.ToolDefinition,
+	client pb.SubAgentServiceClient,
+) (string, error) {
+	resultCh := make(chan agent.ToolResult, 1)
+	var finalContent string
+	var loopErr error
+
+	agent.RunLoop(ctx, cfg, "", "", task, types.SessionNormal,
 		history, tools,
 		func(event agent.LoopEvent) {
 			switch event.Type {
 			case agent.EventToolProposal:
-				// Execute tool via unary RPC.
 				resp, toolErr := client.SubAgentExecuteTool(ctx, &pb.SubAgentToolRequest{
 					Name:          name,
 					CallId:        event.Proposal.CallID,
@@ -157,21 +206,7 @@ func runInternalSubAgent(_ *cobra.Command, _ []string) error {
 		resultCh,
 	)
 
-	if loopErr != nil {
-		reportFailure(ctx, client, name, loopErr.Error())
-		return loopErr
-	}
-
-	if finalContent != "" {
-		_, _ = client.SubAgentComplete(ctx, &pb.SubAgentCompleteRequest{
-			Name:   name,
-			Result: finalContent,
-		})
-	} else {
-		reportFailure(ctx, client, name, "no response produced")
-	}
-
-	return nil
+	return finalContent, loopErr
 }
 
 func reportFailure(ctx context.Context, client pb.SubAgentServiceClient, name, errMsg string) {
