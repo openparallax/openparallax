@@ -47,34 +47,34 @@ type providerInfo struct {
 var providers = map[string]providerInfo{
 	"anthropic": {
 		label:       "Anthropic",
-		model:       "claude-sonnet-4-20250514",
-		shieldModel: "claude-haiku-4-5-20251001",
+		model:       DefaultModels["anthropic"].Chat,
+		shieldModel: DefaultModels["anthropic"].Shield,
 		apiKeyEnv:   "ANTHROPIC_API_KEY",
 	},
 	"openai": {
 		label:       "OpenAI",
-		model:       "gpt-4o",
-		shieldModel: "gpt-4o-mini",
+		model:       DefaultModels["openai"].Chat,
+		shieldModel: DefaultModels["openai"].Shield,
 		apiKeyEnv:   "OPENAI_API_KEY",
 	},
 	"google": {
 		label:       "Google",
-		model:       "gemini-2.0-flash",
-		shieldModel: "gemini-2.0-flash",
+		model:       DefaultModels["google"].Chat,
+		shieldModel: DefaultModels["google"].Shield,
 		apiKeyEnv:   "GOOGLE_API_KEY",
 	},
 	"ollama": {
 		label:       "Ollama",
-		model:       "llama3.2",
-		shieldModel: "llama3.2",
+		model:       DefaultModels["ollama"].Chat,
+		shieldModel: DefaultModels["ollama"].Shield,
 		apiKeyEnv:   "",
 	},
 }
 
 var defaultEmbeddingModels = map[string]string{
-	"openai": "text-embedding-3-small",
-	"google": "text-embedding-004",
-	"ollama": "nomic-embed-text",
+	"openai": DefaultModels["openai"].Embedding,
+	"google": DefaultModels["google"].Embedding,
+	"ollama": DefaultModels["ollama"].Embedding,
 }
 
 var defaultEmbeddingKeyEnvs = map[string]string{

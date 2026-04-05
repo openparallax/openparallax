@@ -59,7 +59,7 @@ heuristic:
 
 evaluator:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   api_key_env: ANTHROPIC_API_KEY
 
 fail_closed: true

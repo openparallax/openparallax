@@ -14,7 +14,7 @@ shield:
   # Tier 2 LLM evaluator configuration
   evaluator:
     provider: anthropic
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
     api_key_env: ANTHROPIC_API_KEY
 
   # ONNX classifier threshold (0.0 - 1.0)
@@ -65,7 +65,7 @@ heuristic:
 # ── Tier 2 Evaluator ──
 evaluator:
   provider: anthropic            # LLM provider
-  model: claude-sonnet-4-20250514 # LLM model
+  model: claude-sonnet-4-6 # LLM model
   api_key_env: ANTHROPIC_API_KEY # Env var for API key
   base_url:                      # Custom base URL (Ollama, proxies)
 
@@ -148,14 +148,14 @@ It is recommended to use different LLM providers or models for the chat conversa
 # Chat uses Claude
 llm:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   api_key_env: ANTHROPIC_API_KEY
 
 # Shield evaluator uses GPT-4o (different provider, different model)
 shield:
   evaluator:
     provider: openai
-    model: gpt-4o
+    model: gpt-5.3
     api_key_env: OPENAI_API_KEY
 ```
 
@@ -166,7 +166,7 @@ You can also use the same provider with a different model:
 ```yaml
 llm:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   api_key_env: ANTHROPIC_API_KEY
 
 shield:
@@ -237,7 +237,7 @@ The Tier 2 LLM evaluator uses a separate LLM to reason about whether an action i
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `evaluator.provider` | string | -- | LLM provider: `anthropic`, `openai`, `google`, `ollama`. Omit to disable Tier 2. |
-| `evaluator.model` | string | -- | Model name (e.g., `claude-sonnet-4-20250514`, `gpt-4o`, `gemini-pro`). |
+| `evaluator.model` | string | -- | Model name (e.g., `claude-sonnet-4-6`, `gpt-5.3`, `gemini-3.1-pro`). |
 | `evaluator.api_key_env` | string | -- | Name of the environment variable containing the API key. |
 | `evaluator.base_url` | string | -- | Custom base URL for the provider (e.g., `http://localhost:11434` for Ollama). |
 
@@ -410,7 +410,7 @@ shield:
   daily_budget: 100
   evaluator:
     provider: anthropic
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
     api_key_env: ANTHROPIC_API_KEY
 ```
 
@@ -441,7 +441,7 @@ If the LLM evaluator costs are a concern:
 
 - Increase `onnx_threshold` (fewer escalations from Tier 1 to Tier 2)
 - Lower `daily_budget` to cap daily costs
-- Use a cheaper model for the evaluator (e.g., `claude-haiku-4-20250514` instead of `claude-sonnet-4-20250514`)
+- Use a cheaper model for the evaluator (e.g., `claude-haiku-4-5-20251001` instead of `claude-sonnet-4-6`)
 - Add more `allow` and `deny` rules to Tier 0 so fewer actions reach Tier 2
 - Increase `verdict_ttl` to cache verdicts longer (reduces repeat evaluations)
 

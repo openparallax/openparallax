@@ -47,7 +47,7 @@ Primary LLM provider configuration for conversations and tool use.
 ```yaml
 llm:
   provider: anthropic                # anthropic, openai, google, ollama
-  model: claude-sonnet-4-20250514    # Model identifier
+  model: claude-sonnet-4-6    # Model identifier
   api_key_env: ANTHROPIC_API_KEY     # Environment variable containing the API key
   base_url: ""                       # Custom API endpoint (for OpenAI-compatible APIs)
 ```
@@ -63,9 +63,9 @@ llm:
 
 | Provider | Default Chat Model | Default Shield Model | Key Env Var |
 |----------|-------------------|---------------------|-------------|
-| `anthropic` | `claude-sonnet-4-20250514` | `claude-haiku-4-5-20251001` | `ANTHROPIC_API_KEY` |
-| `openai` | `gpt-4o` | `gpt-4o-mini` | `OPENAI_API_KEY` |
-| `google` | `gemini-2.0-flash` | `gemini-2.0-flash` | `GOOGLE_API_KEY` |
+| `anthropic` | `claude-sonnet-4-6` | `claude-haiku-4-5-20251001` | `ANTHROPIC_API_KEY` |
+| `openai` | `gpt-5.3` | `gpt-5.0` | `OPENAI_API_KEY` |
+| `google` | `gemini-3.1-pro` | `gemini-2.5-flash` | `GOOGLE_API_KEY` |
 | `ollama` | `llama3.2` | `llama3.2` | (none) |
 
 ---
@@ -352,7 +352,7 @@ identity:
 
 llm:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   api_key_env: ANTHROPIC_API_KEY
 
 shield:
@@ -378,13 +378,13 @@ identity:
 
 llm:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   api_key_env: ANTHROPIC_API_KEY
 
 shield:
   evaluator:
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-5.0
     api_key_env: OPENAI_API_KEY
   policy_file: policies/default.yaml
   heuristic_enabled: true

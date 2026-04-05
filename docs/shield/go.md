@@ -57,7 +57,7 @@ type Config struct {
 ```go
 type EvaluatorConfig struct {
     Provider  string  // "anthropic", "openai", "google", "ollama"
-    Model     string  // e.g., "claude-sonnet-4-20250514", "gpt-4o"
+    Model     string  // e.g., "claude-sonnet-4-6", "gpt-5.3"
     APIKeyEnv string  // Environment variable name for the API key
     BaseURL   string  // Custom base URL (for Ollama or proxies)
 }
@@ -150,7 +150,7 @@ s, err := shield.NewPipeline(shield.Config{
     VerdictTTL:       300,
     Evaluator: &shield.EvaluatorConfig{
         Provider:  "anthropic",
-        Model:     "claude-sonnet-4-20250514",
+        Model:     "claude-sonnet-4-6",
         APIKeyEnv: "ANTHROPIC_API_KEY",
     },
     CanaryToken: "SHIELD-CANARY-" + crypto.GenerateID()[:8],
@@ -274,7 +274,7 @@ func main() {
         DailyBudget:      100,
         Evaluator: &shield.EvaluatorConfig{
             Provider:  "anthropic",
-            Model:     "claude-sonnet-4-20250514",
+            Model:     "claude-sonnet-4-6",
             APIKeyEnv: "ANTHROPIC_API_KEY",
         },
         CanaryToken: "SHIELD-" + crypto.GenerateID()[:12],

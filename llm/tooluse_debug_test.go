@@ -47,7 +47,7 @@ func TestToolUseRoundTrip(t *testing.T) {
 		t.Skip("OPENAI_API_KEY is invalid or expired")
 	}
 	if model == "" {
-		model = "gpt-4o-mini"
+		model = "gpt-5.0"
 	}
 
 	opts := []option.RequestOption{

@@ -172,13 +172,13 @@ The evaluator LLM can (and should) be a different provider and model from the ch
 shield:
   evaluator:
     provider: anthropic
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
     api_key_env: ANTHROPIC_API_KEY
 
 # The chat LLM can be a different provider
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5.3
   api_key_env: OPENAI_API_KEY
 ```
 
@@ -186,7 +186,7 @@ llm:
 # In shield.yaml (standalone)
 evaluator:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   api_key_env: ANTHROPIC_API_KEY
 ```
 

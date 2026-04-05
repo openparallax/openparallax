@@ -15,7 +15,7 @@ The wizard walks through six steps:
 1. **Agent name** — give your agent a name (default: "Atlas")
 2. **Avatar** — pick an emoji avatar (hexagon, robot, brain, lightning, shield, or custom)
 3. **LLM provider** — choose Anthropic, OpenAI (also works with any OpenAI-compatible API — Azure, DeepSeek, Mistral, LM Studio — via `base_url`), Google, or Ollama. The wizard auto-detects API keys in your environment.
-4. **Chat model** — confirm or change the default model (e.g., `claude-sonnet-4-20250514` for Anthropic)
+4. **Chat model** — confirm or change the default model (e.g., `claude-sonnet-4-6` for Anthropic)
 5. **Shield provider and model** — choose a provider for security evaluation. A faster/cheaper model works well here (e.g., `claude-haiku-4-5-20251001`). Cross-model evaluation is recommended for stronger security.
 6. **Embedding provider** — choose OpenAI, Google, or Ollama for vector search, or skip for keyword-only search
 7. **Workspace path** — where sessions, memory, and config are stored (default: `~/.openparallax/<agent-name>`)
@@ -41,7 +41,7 @@ If you did not start during init, launch manually:
 You will see output like:
 
 ```
-Engine started on localhost:13101 (LLM: anthropic/claude-sonnet-4-20250514)
+Engine started on localhost:13101 (LLM: anthropic/claude-sonnet-4-6)
 Web UI available at http://127.0.0.1:3100
 ```
 

@@ -67,7 +67,7 @@ func TestAgentConfigYAMLRoundTrip(t *testing.T) {
 	cfg := AgentConfig{
 		Workspace: "/tmp/workspace",
 		Models: []ModelEntry{
-			{Name: "chat", Provider: "anthropic", Model: "claude-sonnet-4-20250514", APIKeyEnv: "ANTHROPIC_API_KEY"},
+			{Name: "chat", Provider: "anthropic", Model: "claude-sonnet-4-6", APIKeyEnv: "ANTHROPIC_API_KEY"},
 		},
 		Roles: RolesConfig{Chat: "chat"},
 		Shield: ShieldConfig{

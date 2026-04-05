@@ -27,9 +27,9 @@
   ];
 
   const providerCards = [
-    { id: 'anthropic', name: 'Anthropic', model: 'claude-sonnet-4-20250514', shieldModel: 'claude-haiku-4-5-20251001' },
-    { id: 'openai', name: 'OpenAI', model: 'gpt-4o', shieldModel: 'gpt-4o-mini' },
-    { id: 'google', name: 'Google', model: 'gemini-2.0-flash', shieldModel: 'gemini-2.0-flash' },
+    { id: 'anthropic', name: 'Anthropic', model: 'claude-sonnet-4-6', shieldModel: 'claude-haiku-4-5-20251001' },
+    { id: 'openai', name: 'OpenAI', model: 'gpt-5.3', shieldModel: 'gpt-5.0' },
+    { id: 'google', name: 'Google', model: 'gemini-3.1-pro', shieldModel: 'gemini-2.5-flash' },
     { id: 'ollama', name: 'Ollama', model: 'llama3.2', shieldModel: 'llama3.2' },
   ];
 

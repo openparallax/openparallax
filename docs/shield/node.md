@@ -71,7 +71,7 @@ interface EvaluatorConfig {
   /** LLM provider: "anthropic", "openai", "google", "ollama" */
   provider: string
 
-  /** Model name, e.g., "claude-sonnet-4-20250514", "gpt-4o" */
+  /** Model name, e.g., "claude-sonnet-4-6", "gpt-5.3" */
   model: string
 
   /** Environment variable name containing the API key */
@@ -175,7 +175,7 @@ const shield = new Shield({
   dailyBudget: 100,
   evaluator: {
     provider: 'anthropic',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
   },
   canaryToken: 'MY-CANARY-TOKEN-12345',

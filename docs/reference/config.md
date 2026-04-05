@@ -10,7 +10,7 @@ Every field is documented below with its type, default value, and behavior.
 # ─── LLM Provider (Chat) ───────────────────────────────────────────
 llm:
   provider: anthropic          # anthropic | openai | google | ollama
-  model: claude-sonnet-4-20250514  # Model identifier (provider-specific)
+  model: claude-sonnet-4-6  # Model identifier (provider-specific)
   api_key_env: ANTHROPIC_API_KEY  # Environment variable holding the API key
   base_url: ""                 # Custom API base URL (optional, for proxies/self-hosted)
   max_tokens: 4096             # Maximum tokens per LLM response
@@ -26,7 +26,7 @@ shield:
   classifier_addr: ""          # HTTP address for external ONNX classifier (legacy)
   evaluator:
     provider: anthropic        # LLM provider for Tier 2 evaluation
-    model: claude-sonnet-4-20250514  # Model for Tier 2
+    model: claude-sonnet-4-6  # Model for Tier 2
     api_key_env: ANTHROPIC_API_KEY
     base_url: ""
     daily_budget: 100          # Maximum Tier 2 evaluations per day
@@ -118,7 +118,7 @@ The primary LLM used for conversation and reasoning.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `provider` | string | `"anthropic"` | LLM provider. One of: `anthropic`, `openai`, `google`, `ollama`. |
-| `model` | string | — | Model identifier. Examples: `claude-sonnet-4-20250514`, `gpt-4o`, `gemini-2.0-flash`, `llama3.1`. No default — must be specified during init. |
+| `model` | string | — | Model identifier. Examples: `claude-sonnet-4-6`, `gpt-5.3`, `gemini-3.1-pro`, `llama3.1`. No default — must be specified during init. |
 | `api_key_env` | string | — | Name of the environment variable containing the API key. The config stores the *variable name*, not the key itself. |
 | `base_url` | string | `""` | Custom API base URL. Leave empty for official endpoints. Use for proxies, Azure OpenAI, or self-hosted Ollama (`http://localhost:11434`). |
 | `max_tokens` | int | `4096` | Maximum tokens the LLM can generate per response. |

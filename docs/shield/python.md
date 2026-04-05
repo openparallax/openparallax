@@ -172,7 +172,7 @@ shield = Shield(
     policy_file="policies/strict.yaml",
     evaluator={
         "provider": "anthropic",
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-6",
         "api_key_env": "ANTHROPIC_API_KEY",
     },
     canary_token="MY-CANARY-TOKEN-12345",

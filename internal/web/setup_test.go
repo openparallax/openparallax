@@ -49,7 +49,7 @@ func TestSetupCompleteCreatesWorkspace(t *testing.T) {
 	s := NewSetupServer(0)
 	reqBody := `{
 		"agent": {"name": "TestBot", "avatar": "🤖"},
-		"llm": {"provider": "anthropic", "api_key": "test", "model": "claude-sonnet-4-20250514"},
+		"llm": {"provider": "anthropic", "api_key": "test", "model": "claude-sonnet-4-6"},
 		"embedding": {"provider": "", "api_key": "", "model": ""},
 		"workspace": "` + workspace + `"
 	}`
@@ -83,7 +83,7 @@ func TestSetupCompleteDefaultsAgentName(t *testing.T) {
 	s := NewSetupServer(0)
 	reqBody := `{
 		"agent": {"name": "", "avatar": ""},
-		"llm": {"provider": "openai", "api_key": "test", "model": "gpt-4o"},
+		"llm": {"provider": "openai", "api_key": "test", "model": "gpt-5.3"},
 		"embedding": {},
 		"workspace": "` + workspace + `"
 	}`

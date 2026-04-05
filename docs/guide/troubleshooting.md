@@ -19,7 +19,7 @@ OpenParallax System Check
   [pass] Config           /home/user/.openparallax/atlas/config.yaml loaded
   [pass] Workspace        /home/user/.openparallax/atlas
   [pass] SQLite           openparallax.db (2.4 MB, WAL mode)
-  [pass] LLM Provider     anthropic / claude-sonnet-4-20250514
+  [pass] LLM Provider     anthropic / claude-sonnet-4-6
   [pass] Shield           policy loaded, Tier 2: 100/day budget
   [pass] Embedding        openai / text-embedding-3-small
   [warn] Browser          no Chromium browser detected
@@ -380,16 +380,16 @@ curl -s -H "x-api-key: $ANTHROPIC_API_KEY" \
      -H "anthropic-version: 2023-06-01" \
      -H "content-type: application/json" \
      https://api.anthropic.com/v1/messages \
-     -d '{"model":"claude-sonnet-4-20250514","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
+     -d '{"model":"claude-sonnet-4-6","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
 
 # OpenAI
 curl -s -H "Authorization: Bearer $OPENAI_API_KEY" \
      -H "content-type: application/json" \
      https://api.openai.com/v1/chat/completions \
-     -d '{"model":"gpt-4o","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
+     -d '{"model":"gpt-5.3","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
 
 # Google
-curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GOOGLE_AI_API_KEY" \
+curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro:generateContent?key=$GOOGLE_AI_API_KEY" \
      -H "content-type: application/json" \
      -d '{"contents":[{"parts":[{"text":"hi"}]}]}'
 ```
@@ -399,8 +399,8 @@ If the direct call fails, the issue is with the API key or the provider, not Ope
 **Step 3: Check the model name**
 
 A typo in the model name causes connection test failures. Common mistakes:
-- `claude-sonnet-4` instead of `claude-sonnet-4-20250514` (Anthropic requires the date suffix)
-- `gpt4o` instead of `gpt-4o`
+- `claude-sonnet-4` instead of `claude-sonnet-4-6`
+- `gpt5.3` instead of `gpt-5.3` (hyphen required)
 - Using a model name from a different provider
 
 **Step 4: Check the base URL**
@@ -762,7 +762,7 @@ time curl -s -H "x-api-key: $ANTHROPIC_API_KEY" \
      -H "anthropic-version: 2023-06-01" \
      -H "content-type: application/json" \
      https://api.anthropic.com/v1/messages \
-     -d '{"model":"claude-sonnet-4-20250514","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
+     -d '{"model":"claude-sonnet-4-6","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
 ```
 
 If the direct call is slow (>2 seconds for a trivial message), the issue is network latency to the provider.

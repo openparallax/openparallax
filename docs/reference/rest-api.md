@@ -211,7 +211,7 @@ Get the current agent status.
   "uptime_seconds": 3600,
   "version": "0.1.0",
   "provider": "anthropic",
-  "model": "claude-sonnet-4-20250514",
+  "model": "claude-sonnet-4-6",
   "sandbox": {
     "verified": true,
     "status": "sandboxed",

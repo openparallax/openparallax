@@ -48,15 +48,15 @@ func TestWriteConfigCreatesFile(t *testing.T) {
 
 	info := providerInfo{
 		label:       "Anthropic",
-		model:       "claude-sonnet-4-20250514",
-		shieldModel: "claude-haiku-4-5-20251001",
+		model:       DefaultModels["anthropic"].Chat,
+		shieldModel: DefaultModels["anthropic"].Shield,
 		apiKeyEnv:   "ANTHROPIC_API_KEY",
 	}
 
 	err := writeConfig(configPath, tmpDir, "Nova", "⚡",
 		"anthropic", info, "",
-		"claude-sonnet-4-20250514",
-		"anthropic", "claude-haiku-4-5-20251001", "",
+		DefaultModels["anthropic"].Chat,
+		"anthropic", DefaultModels["anthropic"].Shield, "",
 		"openai", "text-embedding-3-small", "OPENAI_API_KEY", "",
 		3100)
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestWriteConfigCreatesFile(t *testing.T) {
 	assert.Contains(t, content, "name: Nova")
 	assert.Contains(t, content, "avatar: ⚡")
 	assert.Contains(t, content, "provider: anthropic")
-	assert.Contains(t, content, "model: claude-sonnet-4-20250514")
+	assert.Contains(t, content, "model: "+DefaultModels["anthropic"].Chat)
 	assert.Contains(t, content, "model: claude-haiku-4-5-20251001")
 	assert.Contains(t, content, "provider: openai")
 	assert.Contains(t, content, "model: text-embedding-3-small")
@@ -81,7 +81,7 @@ func TestWriteConfigSeparateShieldProvider(t *testing.T) {
 
 	info := providerInfo{
 		label:     "OpenAI",
-		model:     "gpt-4o",
+		model:     DefaultModels["openai"].Chat,
 		apiKeyEnv: "OPENAI_API_KEY",
 	}
 

@@ -34,7 +34,7 @@ The provider is selected by the `provider` field in `config.yaml`:
 # Anthropic Claude
 llm:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   api_key_env: ANTHROPIC_API_KEY
 ```
 
@@ -42,7 +42,7 @@ llm:
 # OpenAI (or any OpenAI-compatible endpoint)
 llm:
   provider: openai
-  model: gpt-4o
+  model: gpt-5.3
   api_key_env: OPENAI_API_KEY
   base_url: ""   # Leave empty for OpenAI, set for Azure/DeepSeek/etc.
 ```
@@ -51,7 +51,7 @@ llm:
 # Google Gemini
 llm:
   provider: google
-  model: gemini-2.0-flash
+  model: gemini-3.1-pro
   api_key_env: GOOGLE_AI_API_KEY
 ```
 
@@ -415,7 +415,7 @@ Creates the appropriate provider based on the configuration. This is the primary
 ```go
 provider, err := llm.NewProvider(types.LLMConfig{
     Provider:  "anthropic",
-    Model:     "claude-sonnet-4-20250514",
+    Model:     "claude-sonnet-4-6",
     APIKeyEnv: "ANTHROPIC_API_KEY",
 })
 if err != nil {

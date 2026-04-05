@@ -100,7 +100,7 @@ s, err := shield.NewPipeline(shield.Config{
     RateLimit:        60,
     Evaluator: &shield.EvaluatorConfig{
         Provider:  "anthropic",
-        Model:     "claude-sonnet-4-20250514",
+        Model:     "claude-sonnet-4-6",
         APIKeyEnv: "ANTHROPIC_API_KEY",
     },
     CanaryToken: "SHIELD-CANARY-a8f3e9b2",
@@ -144,7 +144,7 @@ shield = Shield(
     rate_limit=60,
     evaluator={
         "provider": "anthropic",
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-6",
         "api_key_env": "ANTHROPIC_API_KEY",
     },
 )
@@ -195,7 +195,7 @@ const shield = new Shield({
   rateLimit: 60,
   evaluator: {
     provider: 'anthropic',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
   },
 })
@@ -241,7 +241,7 @@ classifier:
 
 evaluator:
   provider: anthropic
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   api_key_env: ANTHROPIC_API_KEY
 
 fail_closed: true

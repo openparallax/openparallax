@@ -24,11 +24,11 @@ workspace: ./workspace
 models:
   - name: chat
     provider: anthropic
-    model: claude-sonnet-4-20250514
+    model: claude-sonnet-4-6
     api_key_env: ANTHROPIC_API_KEY
   - name: shield
     provider: openai
-    model: gpt-4o
+    model: gpt-5.3
     api_key_env: OPENAI_API_KEY
 roles:
   chat: chat
@@ -47,7 +47,7 @@ func TestLoadValidConfig(t *testing.T) {
 
 	// Derived LLM config from models+roles.
 	assert.Equal(t, "anthropic", cfg.LLM.Provider)
-	assert.Equal(t, "claude-sonnet-4-20250514", cfg.LLM.Model)
+	assert.Equal(t, "claude-sonnet-4-6", cfg.LLM.Model)
 	assert.Equal(t, "ANTHROPIC_API_KEY", cfg.LLM.APIKeyEnv)
 	assert.Equal(t, "openai", cfg.Shield.Evaluator.Provider)
 	assert.True(t, cfg.General.FailClosed)
@@ -96,7 +96,7 @@ workspace: .
 models:
   - name: chat
     provider: openai
-    model: gpt-4o
+    model: gpt-5.3
 roles:
   chat: chat
 `)
@@ -208,7 +208,7 @@ workspace: .
 models:
   - name: shared
     provider: openai
-    model: gpt-4o
+    model: gpt-5.3
     api_key_env: OPENAI_API_KEY
 roles:
   chat: shared

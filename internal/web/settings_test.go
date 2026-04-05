@@ -39,7 +39,7 @@ func TestWriteConfigToDisk(t *testing.T) {
 
 	assert.Contains(t, content, "name: TestAgent")
 	assert.Contains(t, content, "provider: anthropic")
-	assert.Contains(t, content, "model: claude-sonnet-4-20250514")
+	assert.Contains(t, content, "model: claude-sonnet-4-6")
 	assert.Contains(t, content, "daily_budget: 50")
 	assert.Contains(t, content, "port: 3100")
 	assert.NotContains(t, content, "sk-ant-")
@@ -51,7 +51,7 @@ func TestWriteConfigToDiskPreservesAllSections(t *testing.T) {
 
 	cfg := createTestConfig()
 	cfg.Shield.Evaluator.Provider = "openai"
-	cfg.Shield.Evaluator.Model = "gpt-4o-mini"
+	cfg.Shield.Evaluator.Model = "gpt-5.0"
 	cfg.Memory.Embedding.Provider = "openai"
 	cfg.Memory.Embedding.Model = "text-embedding-3-small"
 
@@ -64,7 +64,7 @@ func TestWriteConfigToDiskPreservesAllSections(t *testing.T) {
 
 	assert.Contains(t, content, "evaluator:")
 	assert.Contains(t, content, "provider: openai")
-	assert.Contains(t, content, "model: gpt-4o-mini")
+	assert.Contains(t, content, "model: gpt-5.0")
 	assert.Contains(t, content, "embedding:")
 	assert.Contains(t, content, "model: text-embedding-3-small")
 }
@@ -99,7 +99,7 @@ func createTestConfig() *types.AgentConfig {
 			Avatar: "⚡",
 		},
 		Models: []types.ModelEntry{
-			{Name: "chat", Provider: "anthropic", Model: "claude-sonnet-4-20250514", APIKeyEnv: "ANTHROPIC_API_KEY"},
+			{Name: "chat", Provider: "anthropic", Model: "claude-sonnet-4-6", APIKeyEnv: "ANTHROPIC_API_KEY"},
 		},
 		Roles: types.RolesConfig{Chat: "chat"},
 		Shield: types.ShieldConfig{
@@ -124,7 +124,7 @@ func createTestConfig() *types.AgentConfig {
 	}
 	// Derive LLM fields for backward compat.
 	cfg.LLM.Provider = "anthropic"
-	cfg.LLM.Model = "claude-sonnet-4-20250514"
+	cfg.LLM.Model = "claude-sonnet-4-6"
 	cfg.LLM.APIKeyEnv = "ANTHROPIC_API_KEY"
 	return cfg
 }
