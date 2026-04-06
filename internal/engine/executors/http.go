@@ -62,6 +62,14 @@ func (h *HTTPExecutor) Execute(ctx context.Context, action *types.ActionRequest)
 		}
 	}
 
+	if err := validateURLNotPrivate(url); err != nil {
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error:   err.Error(),
+			Summary: "blocked: private/internal address",
+		}
+	}
+
 	method, _ := action.Payload["method"].(string)
 	if method == "" {
 		method = "GET"

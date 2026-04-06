@@ -111,6 +111,10 @@ func (b *BrowserExecutor) navigate(ctx context.Context, action *types.ActionRequ
 		return ErrorResult(action.RequestID, "url is required", "missing url")
 	}
 
+	if err := validateURLNotPrivate(url); err != nil {
+		return ErrorResult(action.RequestID, err.Error(), "blocked: private/internal address")
+	}
+
 	var body string
 	taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

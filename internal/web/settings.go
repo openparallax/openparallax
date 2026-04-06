@@ -175,7 +175,7 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	if len(changed) > 0 {
 		if err := writeConfigToDisk(s.engine.ConfigPath(), cfg); err != nil {
 			s.log.Error("api_settings_write_failed", "error", err)
-			writeError(w, http.StatusInternalServerError, "failed to write config: "+err.Error())
+			writeError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
 		s.log.Info("api_settings_updated", "changed", strings.Join(changed, ","))

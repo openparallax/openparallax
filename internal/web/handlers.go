@@ -66,7 +66,7 @@ func (s *Server) handleListSessions(w http.ResponseWriter, _ *http.Request) {
 	sessions, err := s.engine.DB().ListSessions()
 	if err != nil {
 		s.log.Error("api_list_sessions_failed", "error", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	s.log.Debug("api_list_sessions", "count", len(sessions))
@@ -94,7 +94,7 @@ func (s *Server) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if mode != types.SessionOTR {
 		if err := s.engine.DB().InsertSession(sess); err != nil {
 			s.log.Error("api_session_create_failed", "error", err)
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
 		if auditErr := s.engine.Audit().Log(audit.Entry{
@@ -126,7 +126,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.engine.DB().DeleteSession(id); err != nil {
 		s.log.Error("api_session_delete_failed", "session", id, "error", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	s.log.Info("api_session_deleted", "session", id)
@@ -153,7 +153,7 @@ func (s *Server) handleUpdateSession(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.engine.DB().UpdateSessionTitle(id, body.Title); err != nil {
 		s.log.Error("api_session_update_failed", "session", id, "error", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	s.log.Info("api_session_updated", "session", id)
@@ -165,7 +165,7 @@ func (s *Server) handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	messages, err := s.engine.DB().GetMessages(id)
 	if err != nil {
 		s.log.Error("api_get_messages_failed", "session", id, "error", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if messages == nil {
@@ -186,7 +186,7 @@ func (s *Server) handleMemorySearch(w http.ResponseWriter, r *http.Request) {
 	results, err := s.engine.Memory().Search(query, limit)
 	if err != nil {
 		s.log.Error("api_memory_search_failed", "error", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if results == nil {
@@ -220,7 +220,7 @@ func (s *Server) handleSearchSessions(w http.ResponseWriter, r *http.Request) {
 	results, err := s.engine.DB().SearchSessions(query, 20)
 	if err != nil {
 		s.log.Error("api_search_sessions_failed", "error", err)
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if results == nil {
