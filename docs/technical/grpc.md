@@ -316,6 +316,7 @@ Forwards a tool call from a sub-agent to the Engine for evaluation and execution
 ```protobuf
 rpc SubAgentComplete(SubAgentCompleteRequest) returns (SubAgentCompleteResponse);
 rpc SubAgentFailed(SubAgentFailedRequest) returns (SubAgentFailedResponse);
+rpc SubAgentPollMessage(SubAgentPollRequest) returns (SubAgentPollResponse);
 ```
 
 Report task completion or failure. The Engine broadcasts corresponding events to connected clients.
@@ -324,7 +325,7 @@ Report task completion or failure. The Engine broadcasts corresponding events to
 
 Defined in `proto/openparallax/v1/types.proto`:
 
-- `SessionMode`: NORMAL, OTR
+- `SessionMode`: NORMAL = 0, OTR = 1, HEARTBEAT = 3
 - `ActionType`: Enumeration of all action types (50+)
 - `GoalType`: Intent categories
 - `VerdictDecision`: ALLOW, BLOCK, ESCALATE

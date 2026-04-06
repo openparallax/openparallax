@@ -282,6 +282,27 @@ Customize the `[env]` section for the target environment.
 
 When the agent needs the template, it uses `read_file` to load it.
 
+## Global vs Workspace Skills
+
+Skills are discovered from two locations, with workspace skills taking precedence:
+
+- **Global**: `~/.openparallax/skills/` — shared across all agents. Place skills here that apply to every workspace (e.g., company-wide coding standards).
+- **Workspace**: `{workspace}/skills/` — workspace-local. These override global skills with the same name.
+
+When both locations contain a skill with the same `name` in the frontmatter, the workspace version is used and the global version is ignored for that agent.
+
+## Disabling Skills
+
+Individual skills can be disabled via `config.yaml` without removing the files:
+
+```yaml
+skills:
+  disabled:
+    - "skill-name"
+```
+
+Disabled skills are excluded from discovery and will not appear in the system prompt. This is useful for temporarily suppressing a global skill in a specific workspace.
+
 ## Next Steps
 
 - [Tools](/guide/tools) — the actions skills can reference

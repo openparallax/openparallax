@@ -122,6 +122,8 @@ All REST endpoints are registered in `registerAPIRoutes`:
 | POST | `/api/restart` | `handleRestart` | Restart engine (calls `os.Exit(75)`) |
 | GET | `/api/sub-agents` | `handleListSubAgents` | List active sub-agents |
 | POST | `/api/login` | `handleLogin` | Authenticate (when auth is enabled) |
+| GET | `/api/channels` | `handleListChannels` | List active channel adapters and status |
+| POST | `/api/channels/detach` | `handleDetachChannel` | Detach a channel adapter |
 
 ## WebSocket Handler
 
@@ -244,18 +246,29 @@ func withAuth(next http.Handler, cfg *authConfig) http.Handler {
 
 The session token is regenerated on every server start, so all existing sessions are invalidated on restart.
 
+### Login Rate Limiting
+
+The `/api/login` endpoint is rate-limited to 5 attempts per minute per IP address. Requests exceeding this limit receive a `429 Too Many Requests` response. This prevents brute-force password guessing.
+
+### WebSocket Authentication
+
+When authentication is enabled, the WebSocket upgrade request at `/api/ws` is subject to the same cookie-based authentication as REST endpoints. The `op_session` cookie must be present and valid for the upgrade to succeed. Unauthenticated WebSocket connections are rejected with `401 Unauthorized` before the protocol upgrade occurs.
+
+### WebSocket Message Size Limit
+
+WebSocket messages are limited to 10MB. Messages exceeding this size cause the connection to be closed with a protocol error. This prevents memory exhaustion from oversized payloads.
+
 ### Localhost Bypass
 
 When the server binds to `127.0.0.1`, `localhost`, or `::1`, authentication is not applied. This is the default configuration. Auth only activates for remote access scenarios (e.g., binding to `0.0.0.0`).
 
 ## CORS
 
-The `withCORS` middleware adds permissive CORS headers for development:
+The `withCORS` middleware validates request origins against a configured allowlist. When no origins are configured, only localhost origins (`http://localhost:*`, `http://127.0.0.1:*`) are permitted. This prevents cross-origin requests from arbitrary websites.
 
 ```go
-w.Header().Set("Access-Control-Allow-Origin", "*")
-w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+// Validates Origin header against configured allowed origins.
+// Localhost-only when the allowlist is empty.
 ```
 
 OPTIONS preflight requests return 204 immediately.

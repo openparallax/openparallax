@@ -94,8 +94,12 @@ channels:
 | `enabled` | Yes | Enable the Telegram adapter |
 | `token_env` | Yes | Environment variable containing the bot token from @BotFather |
 | `allowed_users` | No | Telegram user IDs allowed to interact. Empty list allows all users. |
+| `allowed_groups` | No | Group chat IDs where the bot responds. Empty list = no group chats allowed. |
+| `private_only` | No | When `true` (default), reject all group chat messages. Set to `false` and configure `allowed_groups` to enable group support. |
 | `polling_interval` | No | Seconds between poll requests in long-polling mode (default: 1) |
 | `webhook_url` | No | Public URL for receiving Telegram updates. Leave empty for long-polling. |
+
+Group chats are rejected by default (`private_only: true`). To allow group chats, set `private_only: false` and list allowed group IDs in `allowed_groups`. An empty `allowed_groups` list with `private_only: false` allows all groups.
 
 ## How It Works
 

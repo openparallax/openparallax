@@ -42,7 +42,7 @@ llm:
 # OpenAI (or any OpenAI-compatible endpoint)
 llm:
   provider: openai
-  model: gpt-5.3
+  model: gpt-5.4
   api_key_env: OPENAI_API_KEY
   base_url: ""   # Leave empty for OpenAI, set for Azure/DeepSeek/etc.
 ```

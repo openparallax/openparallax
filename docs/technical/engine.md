@@ -197,7 +197,7 @@ It:
 4. Blocks on `ctx.Done()` (the WebSocket connection or channel adapter manages the context lifetime).
 5. Unsubscribes the sender on return.
 
-If no Agent is connected (e.g., it crashed), a fallback in-process pipeline (`processMessageCore`) can handle the request directly.
+All message processing routes through the sandboxed Agent via the gRPC bidirectional stream (RunSession).
 
 ## EventBroadcaster
 
@@ -256,7 +256,11 @@ Tools are organized into groups for lazy loading. The `GroupRegistry` manages gr
 
 | File | Purpose |
 |---|---|
-| `internal/engine/engine.go` | Engine struct, New, Start, Stop, RunSession, SendMessage, handleToolProposal, ProcessMessageForWeb |
+| `internal/engine/engine.go` | Engine struct, New, Start, Stop, accessors |
+| `internal/engine/engine_pipeline.go` | RunSession, handleToolProposal, SendMessage |
+| `internal/engine/engine_grpc.go` | GetStatus, Shutdown, memory/session RPCs |
+| `internal/engine/engine_session.go` | Message storage, session management, title generation |
+| `internal/engine/engine_tools.go` | ProcessMessageForWeb, processToolCall |
 | `internal/engine/eventsender.go` | EventSender interface, PipelineEvent struct, event type constants |
 | `internal/engine/grpc_sender.go` | grpcEventSender implementation |
 | `internal/engine/broadcaster.go` | EventBroadcaster fan-out |

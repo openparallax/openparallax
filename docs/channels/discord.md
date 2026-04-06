@@ -62,6 +62,7 @@ channels:
   discord:
     enabled: true
     token_env: DISCORD_BOT_TOKEN
+    allowed_guilds: []
     allowed_channels:
       - "1234567890123456789"
     allowed_users:
@@ -73,7 +74,8 @@ channels:
 |---|---|---|
 | `enabled` | Yes | Enable the Discord adapter |
 | `token_env` | Yes | Environment variable containing the bot token |
-| `allowed_channels` | No | Channel IDs where the bot responds. Empty list means all channels in all guilds. |
+| `allowed_guilds` | No | Guild IDs where the bot operates. Empty list = DMs only (deny-all for guilds). |
+| `allowed_channels` | No | Channel IDs where the bot responds. Only evaluated within allowed guilds. |
 | `allowed_users` | No | User IDs allowed to interact. Empty list means all users. |
 | `respond_to_mentions` | No | In guild channels, only respond when @mentioned (default: false) |
 
@@ -199,7 +201,7 @@ The adapter registers slash commands with Discord on startup. These appear in Di
 | `/new` | Reset the session and start fresh |
 | `/otr` | Switch to Off-The-Record mode |
 
-Slash commands are registered per-guild when `guild_ids` is configured in the channels overview config, or globally when no guild restriction is set. Guild-specific registration is faster (commands appear immediately) while global registration can take up to an hour to propagate.
+Slash commands are registered per-guild when `allowed_guilds` is configured, or globally when no guild restriction is set. Guild-specific registration is faster (commands appear immediately) while global registration can take up to an hour to propagate.
 
 When the bot shuts down cleanly, it deregisters its slash commands to avoid stale entries.
 

@@ -4,7 +4,7 @@ The event system provides transport-neutral streaming of pipeline events from th
 
 ## Event Types
 
-7 core event types are defined in `internal/engine/eventsender.go`:
+13 event types are defined in `internal/engine/eventsender.go`:
 
 | Event Type | Constant | Payload Struct | Description |
 |---|---|---|---|
@@ -15,6 +15,7 @@ The event system provides transport-neutral streaming of pipeline events from th
 | `response_complete` | `EventResponseComplete` | `ResponseCompleteEvent` | Full response with thoughts |
 | `otr_blocked` | `EventOTRBlocked` | `OTRBlockedEvent` | Action blocked by OTR mode |
 | `error` | `EventError` | `PipelineErrorEvent` | Pipeline stage error |
+| `tier3_approval_required` | `EventTier3ApprovalRequired` | `Tier3ApprovalEvent` | Action escalated to user for human approval |
 
 Additionally, 5 sub-agent event types are defined:
 
@@ -122,6 +123,12 @@ type PipelineErrorEvent struct {
     Message     string `json:"message"`
     Recoverable bool   `json:"recoverable"`
 }
+```
+
+### Tier3ApprovalEvent
+
+```json
+{"action_id": "...", "tool_name": "...", "reasoning": "...", "timeout_secs": 300}
 ```
 
 ## EventSender Interface

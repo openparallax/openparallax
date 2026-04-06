@@ -172,6 +172,24 @@ If the action is blocked, no audit entry is written, no Shield evaluation runs, 
 
 If the action is allowed but protected, the `MinTier` on the `ActionRequest` is elevated. The Shield pipeline respects this: even if Tier 0 returns ALLOW, the action continues through higher tiers until the minimum is reached.
 
+## SSRF Protection
+
+The Engine blocks requests to private and reserved IP ranges to prevent server-side request forgery (SSRF) attacks. This applies to both the HTTP executor (`http_request`) and the browser executor (`browser_navigate`, `browser_extract`).
+
+### Blocked Ranges
+
+| Range | Description |
+|---|---|
+| `127.0.0.0/8` | IPv4 loopback |
+| `10.0.0.0/8` | Private (RFC 1918) |
+| `172.16.0.0/12` | Private (RFC 1918) |
+| `192.168.0.0/16` | Private (RFC 1918) |
+| `169.254.0.0/16` | Link-local |
+| `::1` | IPv6 loopback |
+| `fc00::/7` | IPv6 unique local |
+
+Before any outbound HTTP request or browser navigation, the target hostname is resolved to an IP address and checked against these ranges. If the resolved IP falls within a blocked range, the request is rejected before any connection is made. This prevents the agent from being tricked into accessing internal services, cloud metadata endpoints (e.g., `169.254.169.254`), or localhost-bound admin interfaces.
+
 ## Key Source Files
 
 | File | Purpose |

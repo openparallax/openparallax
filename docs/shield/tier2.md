@@ -178,7 +178,7 @@ shield:
 # The chat LLM can be a different provider
 llm:
   provider: openai
-  model: gpt-5.3
+  model: gpt-5.4
   api_key_env: OPENAI_API_KEY
 ```
 

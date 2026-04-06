@@ -64,8 +64,8 @@ llm:
 | Provider | Default Chat Model | Default Shield Model | Key Env Var |
 |----------|-------------------|---------------------|-------------|
 | `anthropic` | `claude-sonnet-4-6` | `claude-haiku-4-5-20251001` | `ANTHROPIC_API_KEY` |
-| `openai` | `gpt-5.3` | `gpt-5.0` | `OPENAI_API_KEY` |
-| `google` | `gemini-3.1-pro` | `gemini-2.5-flash` | `GOOGLE_API_KEY` |
+| `openai` | `gpt-5.4` | `gpt-5.4-mini` | `OPENAI_API_KEY` |
+| `google` | `gemini-3.1-pro` | `gemini-3.1-flash-lite` | `GOOGLE_API_KEY` |
 | `ollama` | `llama3.2` | `llama3.2` | (none) |
 
 ---
@@ -384,7 +384,7 @@ llm:
 shield:
   evaluator:
     provider: openai
-    model: gpt-5.0
+    model: gpt-5.4-mini
     api_key_env: OPENAI_API_KEY
   policy_file: policies/default.yaml
   heuristic_enabled: true

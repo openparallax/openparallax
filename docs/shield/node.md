@@ -71,7 +71,7 @@ interface EvaluatorConfig {
   /** LLM provider: "anthropic", "openai", "google", "ollama" */
   provider: string
 
-  /** Model name, e.g., "claude-sonnet-4-6", "gpt-5.3" */
+  /** Model name, e.g., "claude-sonnet-4-6", "gpt-5.4" */
   model: string
 
   /** Environment variable name containing the API key */

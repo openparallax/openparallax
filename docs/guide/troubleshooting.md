@@ -386,7 +386,7 @@ curl -s -H "x-api-key: $ANTHROPIC_API_KEY" \
 curl -s -H "Authorization: Bearer $OPENAI_API_KEY" \
      -H "content-type: application/json" \
      https://api.openai.com/v1/chat/completions \
-     -d '{"model":"gpt-5.3","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
+     -d '{"model":"gpt-5.4","max_tokens":10,"messages":[{"role":"user","content":"hi"}]}'
 
 # Google
 curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro:generateContent?key=$GOOGLE_AI_API_KEY" \
@@ -400,7 +400,7 @@ If the direct call fails, the issue is with the API key or the provider, not Ope
 
 A typo in the model name causes connection test failures. Common mistakes:
 - `claude-sonnet-4` instead of `claude-sonnet-4-6`
-- `gpt5.3` instead of `gpt-5.3` (hyphen required)
+- `gpt5.3` instead of `gpt-5.4` (hyphen required)
 - Using a model name from a different provider
 
 **Step 4: Check the base URL**

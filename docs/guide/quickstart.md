@@ -83,7 +83,7 @@ This writes structured JSON logs to `<workspace>/.openparallax/engine.log`, cove
 
 Open your browser to the URL printed at startup (default: `http://127.0.0.1:3100`).
 
-The three-panel layout appears:
+The two-panel layout appears:
 
 - **Sidebar** (left) — session list, new session button, settings
 - **Chat Panel** (right) — conversation input and message stream

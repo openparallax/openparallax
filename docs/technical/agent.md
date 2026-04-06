@@ -34,10 +34,12 @@ The core of the Agent is `RunLoop` in `internal/agent/loop.go`. It processes a s
 
 ```go
 type LoopConfig struct {
-    Provider      llm.Provider    // LLM provider (Anthropic, OpenAI, etc.)
-    Agent         *Agent          // For context assembly and compaction
-    MaxRounds     int             // Maximum tool-call rounds (default 25)
-    ContextWindow int             // Context window size in tokens (default 128000)
+    Provider            llm.Provider    // LLM provider (Anthropic, OpenAI, etc.)
+    Agent               *Agent          // For context assembly and compaction
+    MaxRounds           int             // Maximum tool-call rounds (default 25)
+    ContextWindow       int             // Context window size in tokens (default 128000)
+    CompactionThreshold int             // percentage (0-100), default 70
+    MaxResponseTokens   int             // default 4096
 }
 ```
 

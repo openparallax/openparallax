@@ -79,6 +79,20 @@ Shield's escalation model sends each action to the minimum tier required, escala
                                                               │           │
                                                               ▼           ▼
                                                             BLOCK       ALLOW
+                                                              │
+                                                         (uncertain?)
+                                                              │
+                                                              ▼
+                                                    ┌──────────────────┐
+                                                    │  Tier 3: Human   │
+                                                    │  Approval        │
+                                                    │  (user decision) │
+                                                    └────────┬─────────┘
+                                                              │
+                                                        ┌─────┴─────┐
+                                                        │           │
+                                                        ▼           ▼
+                                                      BLOCK       ALLOW
 ```
 
 ### Tier 0 -- YAML Policy
@@ -109,6 +123,10 @@ A **canary token** is embedded in the evaluator prompt and must appear in the re
 Tier 2 is rate-limited with a daily budget to control costs.
 
 Read the full [Tier 2 documentation](/shield/tier2).
+
+### Tier 3 -- Human Approval
+
+Tier 3 escalates uncertain verdicts to the user for human approval. When a lower tier cannot make a confident decision and the action does not clearly warrant a BLOCK, Shield can present the action to the user via an inline approval prompt (CLI, web UI, or channel adapter). The user sees the tool name, arguments, and Shield's reasoning, then approves or denies. If the user does not respond within the timeout (default 300 seconds), the action is denied (fail-closed).
 
 ## Verdict System
 

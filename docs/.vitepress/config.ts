@@ -105,6 +105,15 @@ export default defineConfig({
           ]
         },
         {
+          text: 'Design Philosophy',
+          items: [
+            { text: 'Defense in Depth', link: '/technical/design-security' },
+            { text: 'Process Isolation', link: '/technical/design-isolation' },
+            { text: 'Token Economy', link: '/technical/design-efficiency' },
+            { text: 'Modularity', link: '/technical/design-modularity' },
+          ]
+        },
+        {
           text: 'Core Systems',
           items: [
             { text: 'Engine', link: '/technical/engine' },
@@ -143,6 +152,7 @@ export default defineConfig({
             { text: 'Tier 0 — Policy', link: '/shield/tier0' },
             { text: 'Tier 1 — Classifier', link: '/shield/tier1' },
             { text: 'Tier 2 — LLM Evaluator', link: '/shield/tier2' },
+            { text: 'Tier 3 — Human Approval', link: '/shield/tier3' },
             { text: 'ONNX Classifier', link: '/shield/classifier' },
           ]
         },

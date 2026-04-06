@@ -155,7 +155,7 @@ llm:
 shield:
   evaluator:
     provider: openai
-    model: gpt-5.3
+    model: gpt-5.4
     api_key_env: OPENAI_API_KEY
 ```
 
@@ -237,7 +237,7 @@ The Tier 2 LLM evaluator uses a separate LLM to reason about whether an action i
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `evaluator.provider` | string | -- | LLM provider: `anthropic`, `openai`, `google`, `ollama`. Omit to disable Tier 2. |
-| `evaluator.model` | string | -- | Model name (e.g., `claude-sonnet-4-6`, `gpt-5.3`, `gemini-3.1-pro`). |
+| `evaluator.model` | string | -- | Model name (e.g., `claude-sonnet-4-6`, `gpt-5.4`, `gemini-3.1-pro`). |
 | `evaluator.api_key_env` | string | -- | Name of the environment variable containing the API key. |
 | `evaluator.base_url` | string | -- | Custom base URL for the provider (e.g., `http://localhost:11434` for Ollama). |
 

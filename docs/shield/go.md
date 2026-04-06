@@ -57,7 +57,7 @@ type Config struct {
 ```go
 type EvaluatorConfig struct {
     Provider  string  // "anthropic", "openai", "google", "ollama"
-    Model     string  // e.g., "claude-sonnet-4-6", "gpt-5.3"
+    Model     string  // e.g., "claude-sonnet-4-6", "gpt-5.4"
     APIKeyEnv string  // Environment variable name for the API key
     BaseURL   string  // Custom base URL (for Ollama or proxies)
 }
