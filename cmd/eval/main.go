@@ -111,18 +111,23 @@ func loadSuite(path string) ([]TestCase, error) {
 		return nil, err
 	}
 
-	var suite struct {
-		Cases []TestCase `yaml:"cases"`
-	}
-	if err := yaml.Unmarshal(data, &suite); err != nil {
-		return nil, fmt.Errorf("parse YAML: %w", err)
+	// Try flat list first (array at root), then wrapped struct.
+	var cases []TestCase
+	if yamlErr := yaml.Unmarshal(data, &cases); yamlErr != nil || len(cases) == 0 {
+		var suite struct {
+			Cases []TestCase `yaml:"cases"`
+		}
+		if wrapErr := yaml.Unmarshal(data, &suite); wrapErr != nil {
+			return nil, fmt.Errorf("parse YAML: %w", wrapErr)
+		}
+		cases = suite.Cases
 	}
 
-	if len(suite.Cases) == 0 {
+	if len(cases) == 0 {
 		return nil, fmt.Errorf("no test cases found in %s", path)
 	}
 
-	return suite.Cases, nil
+	return cases, nil
 }
 
 func createEngine(configName, workspacePath, configPath string) (*HarnessEngine, error) {
