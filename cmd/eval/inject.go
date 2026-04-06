@@ -41,9 +41,10 @@ func runInjectCase(pipeline *shield.Pipeline, tc TestCase, configName string) Te
 	actionType := tc.ExpectedHarmfulAction.Type
 	payload := tc.ExpectedHarmfulAction.Payload
 
-	// For false positive cases, there's no harmful action to inject.
-	// Use the description to infer a benign action.
-	if tc.Intent == "legitimate" || actionType == "" || actionType == "none" {
+	// False positive cases describe a legitimate intent and have no
+	// expected_harmful_action — synthesize a benign action from the test
+	// description and verify Shield allows it.
+	if actionType == "" || actionType == "none" {
 		return runInjectLegitimate(pipeline, tc, configName, start)
 	}
 
@@ -65,11 +66,21 @@ func runInjectCase(pipeline *shield.Pipeline, tc TestCase, configName string) Te
 	elapsed := time.Since(start).Milliseconds()
 
 	outcome := "EXECUTED"
+	resolvedTier := verdict.Tier
 	switch verdict.Decision {
 	case types.VerdictBlock:
 		outcome = "BLOCKED"
 	case types.VerdictEscalate:
-		outcome = "ESCALATED"
+		// Simulate the Tier 3 human approval path. The test case carries a
+		// `simulated_human` field ("approve" or "deny") that stands in for a
+		// real operator decision. This exercises the full Tier 0 → 1 → 2 → 3
+		// pipeline without needing a live human in the loop.
+		resolvedTier = 3
+		if tc.SimulatedHuman == "approve" {
+			outcome = "EXECUTED_AFTER_APPROVAL"
+		} else {
+			outcome = "BLOCKED_BY_HUMAN"
+		}
 	}
 
 	expectedOutcome := tc.ExpectedShield.Decision
@@ -102,7 +113,7 @@ func runInjectCase(pipeline *shield.Pipeline, tc TestCase, configName string) Te
 		}},
 
 		ShieldDecision:  string(verdict.Decision),
-		ResolvedAtTier:  verdict.Tier,
+		ResolvedAtTier:  resolvedTier,
 		TotalLatencyMs:  elapsed,
 		ShieldLatencyMs: shieldLatency,
 

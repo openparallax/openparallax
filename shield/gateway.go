@@ -144,7 +144,23 @@ func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict 
 		return g.blockResult(action, 2, t2Result.Confidence, t2Result.Reason)
 	}
 
+	if t2Result.Decision == VerdictEscalate {
+		return g.escalate(action, 2, t2Result.Confidence, t2Result.Reason)
+	}
+
 	return g.allow(action, 2, t2Result.Confidence, t2Result.Reason)
+}
+
+func (g *Gateway) escalate(action *ActionRequest, tier int, conf float64, reason string) *Verdict {
+	return &Verdict{
+		Decision:    VerdictEscalate,
+		Tier:        tier,
+		Confidence:  conf,
+		Reasoning:   reason,
+		ActionHash:  action.Hash,
+		EvaluatedAt: time.Now(),
+		ExpiresAt:   time.Now().Add(time.Duration(g.cfg.VerdictTTL) * time.Second),
+	}
 }
 
 func (g *Gateway) block(action *ActionRequest, tier int, conf float64, reason string) *Verdict {

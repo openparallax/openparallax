@@ -34,8 +34,11 @@ func ParseEvalResponse(response string) (*EvalResult, error) {
 	}
 
 	decision := VerdictAllow
-	if strings.ToUpper(parsed.Decision) == "BLOCK" {
+	switch strings.ToUpper(parsed.Decision) {
+	case "BLOCK":
 		decision = VerdictBlock
+	case "ESCALATE":
+		decision = VerdictEscalate
 	}
 
 	return &EvalResult{

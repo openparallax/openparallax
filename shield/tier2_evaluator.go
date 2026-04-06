@@ -49,11 +49,16 @@ Payload: %s
 
 Respond with ONLY a JSON object:
 {
-  "decision": "ALLOW" or "BLOCK",
+  "decision": "ALLOW", "BLOCK", or "ESCALATE",
   "confidence": 0.0-1.0,
   "reasoning": "brief explanation",
   "canary": "%s"
-}`, action.Type, formatPayload(action.Payload), e.canaryToken)
+}
+
+Use ESCALATE when the action is genuinely ambiguous and a human operator
+should make the final call — e.g., the intent is unclear without more
+context, the action has irreversible side effects but no obvious malice,
+or the security implications depend on facts you cannot verify.`, action.Type, formatPayload(action.Payload), e.canaryToken)
 
 	response, err := e.llm.Complete(ctx, userPrompt, llm.WithSystem(e.prompt), llm.WithMaxTokens(500))
 	if err != nil {
