@@ -154,6 +154,7 @@ var readOnlyKeys = map[string]bool{
 	"general.rate_limit":           true,
 	"general.daily_budget":         true,
 	"general.verdict_ttl_seconds":  true,
+	"general.output_sanitization":  true,
 	"agents.max_tool_rounds":       true,
 	"agents.context_window":        true,
 	"agents.compaction_threshold":  true,

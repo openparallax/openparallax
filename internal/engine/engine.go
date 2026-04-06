@@ -243,6 +243,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	ag := agent.NewAgent(provider, cfg.Workspace, mem, cfg.Skills.Disabled)
+	ag.Context.OutputSanitization = cfg.General.OutputSanitization
 
 	// MCP manager (optional — only if servers are configured).
 	var mcpMgr *mcp.Manager

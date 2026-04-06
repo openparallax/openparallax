@@ -128,6 +128,7 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 
 	// Create agent (context assembly, compaction, skills).
 	ag := agent.NewAgent(provider, agentWorkspace, nil, nil)
+	ag.Context.OutputSanitization = cfg.General.OutputSanitization
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

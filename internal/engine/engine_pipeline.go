@@ -512,6 +512,7 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	if !result.Success {
 		content = result.Error
 	}
+	content = e.sanitizeToolOutput(tp.ToolName, content)
 	return &pb.ToolResultDelivery{CallId: tp.CallId, Content: content, IsError: !result.Success}
 }
 

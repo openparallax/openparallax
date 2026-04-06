@@ -242,6 +242,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	if !result.Success && result.Output == "" {
 		content = "Error: " + result.Error
 	}
+	content = e.sanitizeToolOutput(tc.Name, content)
 
 	return llm.ToolResult{CallID: tc.ID, Content: content, IsError: !result.Success}
 }
