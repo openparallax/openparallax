@@ -148,7 +148,7 @@ This separation means a fully compromised agent — total prompt injection, comp
 6. **Spawn child processes** — blocked by kernel sandbox
 7. **Exfiltrate data over the network** — blocked by kernel sandbox (Linux 6.7+)
 
-The gRPC boundary between Engine and Agent is a security boundary. The Engine trusts nothing from the Agent. Every message is a proposal subject to full evaluation. See [Process Model](/technical/process-model) for the lifecycle details.
+The gRPC boundary is authenticated with ephemeral tokens — each agent process receives a unique 128-bit random token via environment variable, validated on the first stream message. This prevents unauthorized processes from impersonating agents on localhost. See [Process Model](/technical/process-model) for the lifecycle details.
 
 ## Best-Effort Sandboxing
 

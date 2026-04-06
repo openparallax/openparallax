@@ -130,6 +130,20 @@ cmd = exec.Command(executable, "internal-agent",
 
 The Agent is headless -- stdout goes to `/dev/null`. Stderr goes to the Engine's stderr for crash diagnostics.
 
+### Ephemeral Auth Tokens
+
+Each Agent process receives a unique authentication token via environment variable:
+
+```
+OPENPARALLAX_AGENT_TOKEN=<128-bit random hex>
+```
+
+The token is generated fresh for every spawn using `crypto.RandomHex(16)` and never written to disk. When the Agent opens its gRPC stream, it sends the token in the `AgentReady` message. The Engine validates the token before accepting any further events on the stream. If the token is missing or wrong, the stream is rejected.
+
+Sub-agents follow the same pattern with `OPENPARALLAX_SUB_AGENT_TOKEN`. Each sub-agent gets its own token, validated when it calls `RegisterSubAgent`.
+
+This prevents unauthorized processes from connecting to the Engine's gRPC port and impersonating agents — even on localhost.
+
 Before starting the Agent, the Engine applies sandbox wrapping:
 
 ```go

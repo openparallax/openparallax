@@ -461,6 +461,14 @@ Show file changes since a specific snapshot.
 openparallax chronicle diff <snapshot-id>
 ```
 
+### `chronicle rollback`
+
+Restore files from a snapshot to their pre-action state. Shows which files will be restored before executing.
+
+```
+openparallax chronicle rollback <snapshot-id>
+```
+
 ### `chronicle verify`
 
 Verify the integrity of the Chronicle snapshot chain.

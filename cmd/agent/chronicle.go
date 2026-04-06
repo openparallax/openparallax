@@ -34,10 +34,25 @@ var chronicleVerifyCmd = &cobra.Command{
 	RunE:         runChronicleVerify,
 }
 
+var chronicleRollbackCmd = &cobra.Command{
+	Use:   "rollback <snapshot-id>",
+	Short: "Restore files from a snapshot to their pre-action state",
+	Long: `Rollback restores workspace files to the state captured in the given
+snapshot. The snapshot ID can be found via "openparallax chronicle" (list).
+
+This operation overwrites current file contents with the backed-up versions.
+Files that were created after the snapshot are not affected — only files
+that existed in the snapshot are restored.`,
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
+	RunE:         runChronicleRollback,
+}
+
 func init() {
 	chronicleCmd.Flags().StringVarP(&chronicleConfigPath, "config", "c", "", "path to config.yaml")
 	chronicleCmd.AddCommand(chronicleDiffCmd)
 	chronicleCmd.AddCommand(chronicleVerifyCmd)
+	chronicleCmd.AddCommand(chronicleRollbackCmd)
 	rootCmd.AddCommand(chronicleCmd)
 }
 
@@ -99,6 +114,38 @@ func runChronicleDiff(cmd *cobra.Command, args []string) error {
 	for _, c := range diff.Changes {
 		fmt.Printf("  %s  %s\n", c.ChangeType, c.Path)
 	}
+	return nil
+}
+
+func runChronicleRollback(cmd *cobra.Command, args []string) error {
+	chron, err := openChronicle(chronicleConfigPath)
+	if err != nil {
+		return err
+	}
+
+	snapshotID := args[0]
+
+	// Show what will be restored before doing it.
+	diff, diffErr := chron.Diff(snapshotID)
+	if diffErr != nil {
+		return fmt.Errorf("cannot inspect snapshot: %w", diffErr)
+	}
+
+	if len(diff.Changes) == 0 {
+		fmt.Println("No changes to rollback — workspace matches snapshot.")
+		return nil
+	}
+
+	fmt.Printf("Rolling back %d file(s) from snapshot %s:\n", len(diff.Changes), snapshotID[:8])
+	for _, c := range diff.Changes {
+		fmt.Printf("  %s  %s\n", c.ChangeType, c.Path)
+	}
+
+	if rollbackErr := chron.Rollback(snapshotID); rollbackErr != nil {
+		return fmt.Errorf("rollback failed: %w", rollbackErr)
+	}
+
+	fmt.Println("\n  ✓ Rollback complete.")
 	return nil
 }
 
