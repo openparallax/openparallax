@@ -147,6 +147,7 @@
     <div class="sidebar-wrap" style="--sw:{sidebarWidth}px">
       <Sidebar />
     </div>
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
     <div class="resize-handle" on:mousedown={startSidebarResize} role="separator" aria-label="Resize sidebar"></div>
 
     <div class="main-area">

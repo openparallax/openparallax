@@ -277,6 +277,7 @@
     </div>
   {/if}
   <div class="input-container">
+    <!-- svelte-ignore a11y-autofocus -->
     <textarea
       bind:this={textarea}
       bind:value={text}
