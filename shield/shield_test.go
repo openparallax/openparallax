@@ -149,10 +149,10 @@ func (failingLLM) StreamWithHistory(context.Context, []llm.ChatMessage, ...llm.O
 func (failingLLM) StreamWithTools(context.Context, []llm.ChatMessage, []llm.ToolDefinition, ...llm.Option) (llm.ToolStreamReader, error) {
 	return nil, fmt.Errorf("connection refused")
 }
-func (failingLLM) EstimateTokens(string) int      { return 0 }
-func (failingLLM) Name() string                    { return "failing" }
-func (failingLLM) Model() string                   { return "fail" }
-func (failingLLM) CheapestModel() string           { return "fail" }
+func (failingLLM) EstimateTokens(string) int { return 0 }
+func (failingLLM) Name() string              { return "failing" }
+func (failingLLM) Model() string             { return "fail" }
+func (failingLLM) CheapestModel() string     { return "fail" }
 
 // newFailOpenGateway creates a Gateway with FailClosed=false, a working policy
 // and classifier, and a Tier 2 evaluator backed by a failing LLM.

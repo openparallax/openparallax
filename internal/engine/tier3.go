@@ -187,7 +187,7 @@ func (e *Engine) SetApprovalNotifier(n ApprovalNotifier) {
 func (e *Engine) requestTier3Approval(ctx context.Context, sid, mid, toolName string, action *types.ActionRequest, reasoning string) (bool, error) {
 	if e.tier3Manager.RateLimitExceeded() {
 		e.log.Warn("tier3_rate_limit", "tool", toolName)
-		return false, fmt.Errorf("Tier 3 hourly rate limit exceeded")
+		return false, fmt.Errorf("tier 3 hourly rate limit exceeded")
 	}
 
 	pa := &PendingAction{

@@ -6,19 +6,19 @@ import "github.com/openparallax/openparallax/internal/types"
 type EventType string
 
 const (
-	EventLLMToken          EventType = "llm_token"
-	EventActionStarted     EventType = "action_started"
-	EventShieldVerdict     EventType = "shield_verdict"
-	EventActionCompleted   EventType = "action_completed"
-	EventResponseComplete  EventType = "response_complete"
-	EventOTRBlocked        EventType = "otr_blocked"
-	EventError             EventType = "error"
-	EventSubAgentSpawned   EventType = "sub_agent_spawned"
-	EventSubAgentProgress  EventType = "sub_agent_progress"
-	EventSubAgentCompleted EventType = "sub_agent_completed"
-	EventSubAgentFailed    EventType = "sub_agent_failed"
-	EventSubAgentCancelled    EventType = "sub_agent_cancelled"
-	EventTier3ApprovalNeeded  EventType = "tier3_approval_required"
+	EventLLMToken            EventType = "llm_token"
+	EventActionStarted       EventType = "action_started"
+	EventShieldVerdict       EventType = "shield_verdict"
+	EventActionCompleted     EventType = "action_completed"
+	EventResponseComplete    EventType = "response_complete"
+	EventOTRBlocked          EventType = "otr_blocked"
+	EventError               EventType = "error"
+	EventSubAgentSpawned     EventType = "sub_agent_spawned"
+	EventSubAgentProgress    EventType = "sub_agent_progress"
+	EventSubAgentCompleted   EventType = "sub_agent_completed"
+	EventSubAgentFailed      EventType = "sub_agent_failed"
+	EventSubAgentCancelled   EventType = "sub_agent_cancelled"
+	EventTier3ApprovalNeeded EventType = "tier3_approval_required"
 )
 
 // PipelineEvent is a transport-neutral event emitted during message processing.

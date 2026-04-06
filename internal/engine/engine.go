@@ -57,8 +57,8 @@ type Engine struct {
 	approvalNotifier  ApprovalNotifier
 	channelController ChannelController
 	subAgentManager   *SubAgentManager
-	oauthManager    *oauth.Manager
-	broadcaster     *EventBroadcaster
+	oauthManager      *oauth.Manager
+	broadcaster       *EventBroadcaster
 
 	server   *grpc.Server
 	listener net.Listener
