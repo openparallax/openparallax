@@ -50,3 +50,4 @@ tmp/
 *.tmp
 
 channels-bridge
+eval-results/
