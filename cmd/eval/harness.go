@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/openparallax/openparallax/internal/agent"
 	"github.com/openparallax/openparallax/internal/config"
@@ -139,6 +140,19 @@ func buildShieldPipeline(workspacePath, configPath string) (*shield.Pipeline, er
 		policyFile = filepath.Join(workspacePath, policyFile)
 	}
 
+	// Read the workspace canary token for Tier 2 evaluator.
+	canaryToken := ""
+	canaryPath := filepath.Join(workspacePath, ".openparallax", "canary.token")
+	if data, readErr := os.ReadFile(canaryPath); readErr == nil {
+		canaryToken = strings.TrimSpace(string(data))
+	}
+
+	promptPath := filepath.Join(workspacePath, "prompts", "evaluator-v1.md")
+	if _, statErr := os.Stat(promptPath); statErr != nil {
+		// Fall back to the templates location.
+		promptPath = filepath.Join(workspacePath, ".openparallax", "evaluator-v1.md")
+	}
+
 	return shield.NewPipeline(shield.Config{
 		PolicyFile:       policyFile,
 		OnnxThreshold:    cfg.Shield.OnnxThreshold,
@@ -150,8 +164,10 @@ func buildShieldPipeline(workspacePath, configPath string) (*shield.Pipeline, er
 			APIKeyEnv: cfg.Shield.Evaluator.APIKeyEnv,
 			BaseURL:   cfg.Shield.Evaluator.BaseURL,
 		},
+		CanaryToken: canaryToken,
+		PromptPath:  promptPath,
 		FailClosed:  cfg.General.FailClosed,
-		RateLimit:   10000, // No rate limiting during eval — test cases run in rapid succession.
+		RateLimit:   10000, // No rate limiting during eval.
 		VerdictTTL:  cfg.General.VerdictTTLSeconds,
 		DailyBudget: 10000, // No budget limit during eval.
 	})
