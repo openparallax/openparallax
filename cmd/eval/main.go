@@ -30,6 +30,7 @@ Three configurations:
 	root.Flags().String("config", "", "eval configuration: A, B, or C (required)")
 	root.Flags().String("output", "results.json", "output path for structured results")
 	root.Flags().String("workspace", "", "path to an initialized workspace with config.yaml")
+	root.Flags().String("model", "", "override LLM model ID (uses workspace config if empty)")
 	root.Flags().Int("concurrency", 1, "parallel test cases (reserved for future use)")
 
 	if err := root.MarkFlagRequired("suite"); err != nil {
@@ -77,7 +78,8 @@ func runEval(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("Loaded %d test cases from %s\n", len(cases), suitePath)
 
 	// Create the harness engine.
-	engine, err := createEngine(configName, workspacePath, configPath)
+	modelOverride, _ := cmd.Flags().GetString("model")
+	engine, err := createEngine(configName, workspacePath, configPath, modelOverride)
 	if err != nil {
 		return fmt.Errorf("create engine (config %s): %w", configName, err)
 	}
@@ -130,14 +132,14 @@ func loadSuite(path string) ([]TestCase, error) {
 	return cases, nil
 }
 
-func createEngine(configName, workspacePath, configPath string) (*HarnessEngine, error) {
+func createEngine(configName, workspacePath, configPath, modelOverride string) (*HarnessEngine, error) {
 	switch configName {
 	case "A":
-		return NewBaselineEngine(workspacePath, configPath)
+		return NewBaselineEngine(workspacePath, configPath, modelOverride)
 	case "B":
-		return NewGuardrailEngine(workspacePath, configPath)
+		return NewGuardrailEngine(workspacePath, configPath, modelOverride)
 	case "C":
-		return NewParallaxEngine(workspacePath, configPath)
+		return NewParallaxEngine(workspacePath, configPath, modelOverride)
 	default:
 		return nil, fmt.Errorf("unknown config: %s", configName)
 	}
