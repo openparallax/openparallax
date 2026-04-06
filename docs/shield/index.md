@@ -12,6 +12,8 @@ MCP servers are powerful. They give LLMs the ability to read files, execute shel
 
 The standard response is to trust the model. Shield takes the opposite approach: **trust nothing, verify everything**.
 
+Shield serves as a software trust anchor for the system — analogous to a Hardware Security Module (HSM) that the software it protects cannot modify. The agent process has no mechanism to read Shield's policy files, modify its classifier, or observe its decision logic. The Parallax paradigm organizes defenses as prevent (Shield blocks harmful actions), detect (Information Flow Control catches context-dependent threats), and recover (Chronicle enables rollback of destructive actions that pass validation).
+
 ## Design Philosophy
 
 ### Fail-Closed

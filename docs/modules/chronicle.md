@@ -1,6 +1,6 @@
 # Chronicle
 
-Chronicle provides copy-on-write workspace snapshots. Before every destructive action (file write, file delete, file move), Chronicle backs up the affected files to a snapshot directory. Snapshots form an integrity hash chain and support rollback to any previous state.
+Chronicle provides copy-on-write workspace snapshots. Before every destructive action (file write, file delete, file move), Chronicle backs up the affected files to a snapshot directory. Snapshots form an integrity hash chain and support rollback to any previous state. Chronicle implements the *Reversible Execution* principle: no action within the system's domain of control is truly irreversible. Before any destructive action, state is captured for rollback.
 
 ## Why Chronicle Exists
 

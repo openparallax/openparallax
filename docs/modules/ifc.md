@@ -4,6 +4,8 @@ Information Flow Control (IFC) is a security mechanism that tracks how data flow
 
 IFC is the last line of defense against data exfiltration. Even if a prompt injection gets past Shield, IFC prevents the agent from sending sensitive data to external services.
 
+IFC addresses what Willison terms the *Lethal Trifecta*: when an agent simultaneously has access to private data, exposure to untrusted content, and an exfiltration vector through external requests, it is structurally vulnerable regardless of safety training. IFC breaks this trifecta by tracking data sensitivity through the execution pipeline.
+
 ## What IFC Solves
 
 Consider this attack scenario:

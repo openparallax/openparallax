@@ -2,6 +2,8 @@
 
 OpenParallax separates thinking from acting at the OS process level. The Agent proposes; the Engine decides and executes. Kernel sandboxing constrains the Agent, copy-on-write snapshots protect the filesystem, and a tamper-evident audit trail records everything. This page covers each layer and the threat it addresses.
 
+This page covers two Parallax principles: *Cognitive-Executive Separation* (the reasoner cannot act, the executor cannot reason) and *Reversible Execution* (destructive actions are preceded by state capture for rollback). A derived property, *Validator Immutability*, ensures the validation layer's integrity is guaranteed by architectural separation, not policy compliance — analogous to a Trusted Platform Module (TPM) that the software it measures cannot modify.
+
 ## Kernel Sandboxing
 
 The Agent is a process on the user's machine, accessing their files, talking to their LLM provider, running in their terminal. The threat model is: **what if the LLM convinces the agent to do something dangerous?** The agent talks to external LLM APIs. Those APIs can be manipulated through prompt injection. If the agent has unrestricted filesystem and network access, a successful injection can read SSH keys, exfiltrate data, or install malware — and the agent would execute those actions thinking it is being helpful.
@@ -73,7 +75,7 @@ If the sandbox is unavailable (old kernel, unsupported platform), the agent star
 
 Shield prevents dangerous actions. But what if something slips through? A classifier false negative. A novel attack pattern. A legitimate action with unintended consequences. Prevention is necessary but not sufficient.
 
-Chronicle creates a snapshot of affected files BEFORE every write, delete, or move operation:
+Chronicle implements the *Reversible Execution* principle. It creates a snapshot of affected files BEFORE every write, delete, or move operation:
 
 ```
 User: "Refactor the auth module"
@@ -119,11 +121,11 @@ openparallax audit --verify
 
 The audit log lives in `.openparallax/` — a hard-blocked directory that the sandboxed agent process cannot read or write. Even a fully compromised agent cannot tamper with the audit trail because it physically cannot access the file.
 
-This is not logging. It is a cryptographic proof of what happened, in what order, with what security decisions. When something goes wrong, the audit trail provides a verifiable record.
+This is not logging. It is a cryptographic proof of what happened, in what order, with what security decisions. When something goes wrong, the audit trail provides a verifiable record. Shield serves as a software trust anchor — analogous to a hardware TPM — that the agent it evaluates cannot read, modify, or interfere with.
 
 ## The 3-Process Model
 
-The core architectural principle: **the entity that thinks must never be the entity that acts.**
+The core architectural principle — *Cognitive-Executive Separation* (CES) — is that **the entity that thinks must never be the entity that acts.**
 
 ```
 Process Manager (openparallax start)

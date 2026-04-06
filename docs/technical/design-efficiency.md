@@ -4,6 +4,8 @@ Every token in an LLM context window costs money and attention. OpenParallax tre
 
 ## Dynamic Tool Loading
 
+This implements *Dynamic Tool Surface Reduction* — the principle of least privilege applied temporally to the agent's capability surface. Tools that are not loaded cannot be called, regardless of what the agent attempts. This is a security property, not just a performance optimization.
+
 A common approach is to send all tool definitions with every LLM call. With 73 action types across 10 executor groups, that adds thousands of tokens to every request — tokens the LLM must process even when the user asks a simple question that requires no tools at all.
 
 OpenParallax starts each turn with a single meta-tool:

@@ -204,4 +204,8 @@ This design means adding a new channel requires:
 
 The security pipeline, tool execution, memory, audit, and chronicle are completely channel-agnostic. A message from Telegram goes through the same Shield evaluation as a message from the CLI. There is no "trusted channel" concept — every channel is untrusted input.
 
+## Intelligence-Agnostic Principles
+
+The Parallax principles are *Intelligence-Agnostic*: they evaluate actions, not reasoning. Whether the agent uses autoregressive language models, reinforcement learning, or architectures not yet developed, Shield evaluates the same interface — action type, target, payload, and data flow. The security properties hold across AI architectures because the invariant is universal: autonomous systems propose actions with consequences.
+
 See [The Ecosystem](/technical/ecosystem) for the full module map and dependency graph.
