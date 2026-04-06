@@ -96,7 +96,7 @@ func TestVerifyEscalatesShellCommand(t *testing.T) {
 	assert.Equal(t, Escalate, result.Decision)
 }
 
-func TestNoMatchFallsThrough(t *testing.T) {
+func TestBlockTmpWrite(t *testing.T) {
 	pe, err := NewPolicyEngine(namedPolicyPath(t, "default.yaml"))
 	require.NoError(t, err)
 
@@ -104,7 +104,19 @@ func TestNoMatchFallsThrough(t *testing.T) {
 		Type:    ActionWriteFile,
 		Payload: map[string]any{"path": "/tmp/random.txt"},
 	})
-	assert.Equal(t, NoMatch, result.Decision)
+	assert.Equal(t, Deny, result.Decision, "write_file to /tmp should be denied")
+}
+
+func TestWriteFileEscalatesToTier1(t *testing.T) {
+	pe, err := NewPolicyEngine(namedPolicyPath(t, "default.yaml"))
+	require.NoError(t, err)
+
+	result := pe.Evaluate(&ActionRequest{
+		Type:    ActionWriteFile,
+		Payload: map[string]any{"path": "src/main.go", "content": "package main"},
+	})
+	assert.Equal(t, Escalate, result.Decision, "write_file to workspace should escalate")
+	assert.Equal(t, 1, result.EscalateTo, "write_file should escalate to Tier 1")
 }
 
 func TestGlobMatchSSHWildcard(t *testing.T) {

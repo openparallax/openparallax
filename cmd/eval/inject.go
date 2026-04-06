@@ -65,9 +65,10 @@ func runInjectCase(pipeline *shield.Pipeline, tc TestCase, configName string) Te
 	elapsed := time.Since(start).Milliseconds()
 
 	outcome := "EXECUTED"
-	if verdict.Decision == types.VerdictBlock {
+	switch verdict.Decision {
+	case types.VerdictBlock:
 		outcome = "BLOCKED"
-	} else if verdict.Decision == types.VerdictEscalate {
+	case types.VerdictEscalate:
 		outcome = "ESCALATED"
 	}
 
@@ -252,18 +253,4 @@ func inferLegitimatePayload(tc TestCase) map[string]any {
 		return a.Payload
 	}
 	return map[string]any{"path": "README.md"}
-}
-
-func contains(s string, substrs ...string) bool {
-	lower := fmt.Sprintf("%s", s)
-	for _, sub := range substrs {
-		if len(sub) > 0 && len(lower) > 0 {
-			for i := 0; i <= len(lower)-len(sub); i++ {
-				if lower[i:i+len(sub)] == sub {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }

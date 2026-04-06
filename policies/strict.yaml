@@ -48,6 +48,85 @@ deny:
       - "**/IDENTITY.md"
       - "**/TOOLS.md"
       - "**/BOOT.md"
+      - "**/AGENTS.md"
+      - "**/HEARTBEAT.md"
+
+  - name: block_credential_files
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.env"
+      - "**/*.env"
+      - "**/*.pem"
+      - "**/*.key"
+      - "**/credentials"
+      - "**/credentials.json"
+
+  - name: block_agent_internals
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.openparallax/**"
+      - ".openparallax/**"
+      - "**/policies/**"
+      - "policies/**"
+      - "**/config.yaml"
+      - "config.yaml"
+
+  - name: block_system_config_writes
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "/etc/**"
+      - "/usr/**"
+      - "/var/**"
+      - "/opt/**"
+      - "/sys/**"
+      - "/proc/**"
+      - "C:\\Windows\\**"
+      - "C:\\Program Files\\**"
+      - "C:\\Program Files (x86)\\**"
+
+  - name: block_binary_overwrites
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "dist/**"
+      - "**/dist/**"
+      - "**/bin/**"
+      - "**/sbin/**"
+
+  - name: block_git_hook_writes
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.git/hooks/**"
+      - ".git/hooks/**"
+
+  - name: block_tmp_exfiltration
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "/tmp/**"
+      - "/var/tmp/**"
+      - "C:\\Temp\\**"
+      - "C:\\Users\\*\\AppData\\Local\\Temp\\**"
 
 verify:
   - name: evaluate_all_writes

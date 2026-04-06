@@ -82,7 +82,11 @@ func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict 
 		minTier = actionMin
 	}
 
-	// Tier 1: Dual classifier.
+	// Tier 1: Dual classifier. When the policy escalates to Tier 2+, we still
+	// run a heuristic-only pre-check (deterministic high-precision rules) so
+	// obvious attack patterns are blocked without burning a Tier 2 LLM call.
+	// The ONNX classifier is skipped on Tier 2 escalations because it
+	// over-fires on legitimate non-read actions.
 	if minTier <= 1 {
 		t1Result, err := g.cfg.Classifier.Classify(ctx, action)
 		switch {
@@ -102,6 +106,9 @@ func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict 
 			g.cfg.Log.Info("shield_tier1_allow", "action", action.Type, "confidence", t1Result.Confidence)
 			return g.allow(action, 1, t1Result.Confidence, "classifier approved")
 		}
+	} else if hr := g.cfg.Classifier.HeuristicOnly(action); hr != nil && hr.Decision == VerdictBlock {
+		g.cfg.Log.Info("shield_heuristic_precheck_block", "action", action.Type, "reason", hr.Reason)
+		return g.blockResult(action, 1, hr.Confidence, hr.Reason)
 	}
 
 	// Tier 2: LLM evaluator.

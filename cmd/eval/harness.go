@@ -22,9 +22,7 @@ type HarnessEngine struct {
 	shield          *shield.Pipeline
 	recorder        *RecordingExecutor
 	workspace       string
-	configPath      string
 	guardrailPrompt string
-	modelOverride   string
 	tier3AutoDecide func(toolName string, simulatedHuman string) bool
 	schemas         []executors.ToolSchema
 }

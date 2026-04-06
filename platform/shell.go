@@ -28,6 +28,12 @@ type HeuristicRule struct {
 
 	// Description explains what the rule detects.
 	Description string `json:"description"`
+
+	// AlwaysBlock indicates the rule should fire even when Tier 0 has escalated
+	// the action past Tier 1 (e.g., execute_command escalated to Tier 2). These
+	// are high-precision rules that the Tier 2 LLM evaluator has been observed
+	// to miss — typically agent-internal enumeration or service introspection.
+	AlwaysBlock bool `json:"always_block,omitempty"`
 }
 
 // ShellInjectionRules returns the heuristic rules for the current platform.
@@ -43,7 +49,7 @@ func ShellInjectionRules() []HeuristicRule {
 	return rules
 }
 
-// crossPlatformRules returns 18 rules that detect attacks on any OS.
+// crossPlatformRules returns 37 rules that detect attacks on any OS.
 func crossPlatformRules() []HeuristicRule {
 	return []HeuristicRule{
 		{ID: "XP-001", Name: "command_chaining_semicolon", Pattern: `;\s*(rm|del|curl|wget|powershell|cmd)`, Category: "shell_injection", Severity: "critical", Description: "Command chains a destructive or network operation after a semicolon — this could hide a dangerous second command."},
@@ -58,7 +64,7 @@ func crossPlatformRules() []HeuristicRule {
 		{ID: "XP-010", Name: "network_fetch_to_exec", Pattern: `(?i)(curl|wget|iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\s+.*\|\s*(sh|bash|python[23]?|perl|ruby|iex|Invoke-Expression|powershell|cmd)`, Category: "shell_injection", Severity: "critical", Description: "Piping downloaded content directly into a shell interpreter could execute malicious code. Download the script first, review it, then run it explicitly."},
 		{ID: "XP-019", Name: "insecure_transport", Pattern: `(?i)(curl|wget|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\s+['"]?http://`, Category: "shell_injection", Severity: "high", Description: "Network request uses insecure HTTP instead of HTTPS — data could be intercepted or modified in transit. Use HTTPS for secure data transfer."},
 		{ID: "XP-011", Name: "recursive_delete", Pattern: `(?i)(rm\s+-rf?|rmdir\s+/s|del\s+/s)`, Category: "shell_injection", Severity: "critical", Description: "Recursive delete could remove entire directory trees — verify the target path is correct before proceeding."},
-		{ID: "XP-012", Name: "chmod_world_writable", Pattern: `chmod\s+[0-7]*7[0-7]*\s`, Category: "shell_injection", Severity: "high", Description: "Setting world-writable permissions allows anyone to modify the file — this is rarely intentional and creates a security risk."},
+		{ID: "XP-012", Name: "chmod_world_writable", Pattern: `chmod\s+[0-7]?[0-7]?[0-7]?[2367]\s`, Category: "shell_injection", Severity: "high", Description: "Setting world-writable permissions allows anyone to modify the file — this is rarely intentional and creates a security risk."},
 		{ID: "XP-013", Name: "eval_exec", Pattern: `(?i)\b(eval|exec)\s+`, Category: "shell_injection", Severity: "critical", Description: "Dynamic code evaluation (eval/exec) can execute arbitrary code — review the evaluated content carefully."},
 		{ID: "XP-014", Name: "cron_manipulation", Pattern: `(?i)(crontab|schtasks)\s+`, Category: "shell_injection", Severity: "high", Description: "Modifying scheduled tasks could set up persistent automated commands — use the HEARTBEAT system for safe scheduling instead."},
 		{ID: "XP-015", Name: "ssh_command", Pattern: `(?i)ssh\s+.*@`, Category: "shell_injection", Severity: "high", Description: "SSH command connects to a remote system — verify the target host and command are intended."},
@@ -81,6 +87,8 @@ func crossPlatformRules() []HeuristicRule {
 		{ID: "XP-033", Name: "echo_env_secret", Pattern: `(?i)echo\s+\$(API_KEY|SECRET|TOKEN|PASSWORD|ANTHROPIC_API_KEY|OPENAI_API_KEY|GOOGLE_AI_API_KEY|AWS_SECRET)`, Category: "shell_injection", Severity: "high", Description: "Echoing secret environment variables exposes credentials."},
 		{ID: "XP-034", Name: "docker_push_external", Pattern: `(?i)docker\s+push\s`, Category: "shell_injection", Severity: "high", Description: "Docker push sends container images to a registry — verify the destination."},
 		{ID: "XP-035", Name: "execute_downloaded_script", Pattern: `(?i)(chmod\s+\+x\s+\S+\s*&&\s*\./|bash\s+\S+\.sh|sh\s+\S+\.sh|python[23]?\s+\S+\.py)`, Category: "shell_injection", Severity: "high", Description: "Executing a script file — verify the script content is safe before running."},
+		{ID: "XP-036", Name: "list_agent_internals", Pattern: `(?i)(ls|dir|cat|head|find)\s+.*\.openparallax`, Category: "shell_injection", Severity: "high", Description: "Listing or reading agent internal files exposes security configuration.", AlwaysBlock: true},
+		{ID: "XP-037", Name: "grpc_service_enumeration", Pattern: `(?i)grpcurl\s+`, Category: "shell_injection", Severity: "high", Description: "gRPC service enumeration exposes internal API surface.", AlwaysBlock: true},
 	}
 }
 

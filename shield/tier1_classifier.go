@@ -37,6 +37,18 @@ func NewDualClassifier(onnx OnnxClient, threshold float64, heuristicEnabled bool
 	}
 }
 
+// HeuristicOnly runs only the AlwaysBlock subset of heuristic rules, bypassing
+// the ONNX classifier and the broader heuristic ruleset. Used for Tier 2
+// escalations where ONNX over-fires on legitimate non-read actions but a
+// narrow set of high-precision rules (e.g., agent-internal enumeration) must
+// still block deterministically. Returns nil if heuristics are disabled.
+func (d *DualClassifier) HeuristicOnly(action *ActionRequest) *ClassifierResult {
+	if !d.heuristicEnabled {
+		return nil
+	}
+	return d.rules.EvaluateAlwaysBlock(action)
+}
+
 // Classify runs both classifiers in parallel and returns the most severe result.
 func (d *DualClassifier) Classify(ctx context.Context, action *ActionRequest) (*ClassifierResult, error) {
 	var onnxResult, heuristicResult *ClassifierResult

@@ -73,6 +73,53 @@ deny:
       - "**/AGENTS.md"
       - "**/HEARTBEAT.md"
 
+  - name: block_system_config_writes
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "/etc/**"
+      - "/usr/**"
+      - "/var/**"
+      - "/opt/**"
+      - "/sys/**"
+      - "/proc/**"
+      - "C:\\Windows\\**"
+      - "C:\\Program Files\\**"
+      - "C:\\Program Files (x86)\\**"
+
+  - name: block_binary_overwrites
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "dist/**"
+      - "**/dist/**"
+      - "**/bin/**"
+      - "**/sbin/**"
+
+  - name: block_git_hook_writes
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.git/hooks/**"
+      - ".git/hooks/**"
+
+  - name: block_tmp_exfiltration
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "/tmp/**"
+      - "/var/tmp/**"
+      - "C:\\Temp\\**"
+      - "C:\\Users\\*\\AppData\\Local\\Temp\\**"
+
 verify:
   - name: evaluate_shell_commands
     action_types:
@@ -120,6 +167,11 @@ verify:
       - "**/MEMORY.md"
     tier_override: 1
 
+  - name: evaluate_file_writes
+    action_types:
+      - write_file
+    tier_override: 1
+
   - name: evaluate_destructive_file_ops
     action_types:
       - delete_file
@@ -140,6 +192,10 @@ allow:
       - list_directory
       - search_files
 
+  - name: allow_workspace_copies
+    action_types:
+      - copy_file
+
   - name: allow_memory_search
     action_types:
       - memory_search
@@ -150,9 +206,17 @@ allow:
       - git_diff
       - git_log
 
-  - name: allow_calendar_reads
+  - name: allow_browser_operations
+    action_types:
+      - browser_navigate
+      - browser_extract
+      - browser_screenshot
+
+  - name: allow_calendar_operations
     action_types:
       - read_calendar
+      - create_event
+      - update_event
 
   - name: allow_schedule_listing
     action_types:

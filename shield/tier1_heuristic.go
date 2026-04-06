@@ -41,6 +41,40 @@ func (h *HeuristicEngine) RuleCount() int {
 	return len(h.rules)
 }
 
+// EvaluateAlwaysBlock checks the action against only the AlwaysBlock subset of
+// heuristic rules. Used by the gateway as a precheck on Tier 2 escalations so
+// known agent-internal enumeration patterns can be blocked deterministically
+// without burning a Tier 2 LLM call. Returns ALLOW if no AlwaysBlock rule matches.
+func (h *HeuristicEngine) EvaluateAlwaysBlock(action *ActionRequest) *ClassifierResult {
+	texts := []string{string(action.Type)}
+	securityFields := []string{"command", "path", "source", "destination", "url", "pattern"}
+	for _, key := range securityFields {
+		if v, ok := action.Payload[key]; ok {
+			texts = append(texts, fmt.Sprintf("%v", v))
+		}
+	}
+	combined := strings.Join(texts, " ")
+
+	for _, cr := range h.rules {
+		if !cr.rule.AlwaysBlock {
+			continue
+		}
+		if cr.pattern.MatchString(combined) {
+			return &ClassifierResult{
+				Decision:   VerdictBlock,
+				Confidence: severityToConfidence(cr.rule.Severity),
+				Reason:     fmt.Sprintf("heuristic-precheck: %s (%s)", cr.rule.Name, cr.rule.Severity),
+				Source:     "heuristic",
+			}
+		}
+	}
+
+	return &ClassifierResult{
+		Decision: VerdictAllow,
+		Source:   "heuristic",
+	}
+}
+
 // Evaluate checks an action against all heuristic rules.
 // Only scans security-relevant fields (command, path, url, source, destination)
 // to avoid false positives on file content being written.
