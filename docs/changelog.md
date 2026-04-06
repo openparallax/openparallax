@@ -4,152 +4,94 @@ All notable changes to OpenParallax are documented here. This project follows [c
 
 ---
 
-## 2026-04-06
-
-### Security
-
-- Fix 3 Shield gateway bugs (nil pointer panic, fail-open bypass, budget bypass)
-- Wire Tier 3 human-in-the-loop approval to all channels
-- Add WebSocket session authentication and Tier 3 session binding
-- Add SSRF protection (block private IP ranges in HTTP/browser executors)
-- Add configurable output sanitization for prompt injection defense
-- Add login rate limiting (5/min per IP)
-- Add 10MB WebSocket message size limit
-- Require Discord guild allowlist, Telegram private-chat default
-
-### Architecture
-
-- Remove dual pipeline — single agent stream path
-- Split engine.go into 5 focused files
-- Remove artifact system dead code
-- Implement agent_message for sub-agent follow-up instructions
-- Implement detach command with dynamic channel management
-
-### Performance
-
-- Virtual scroll for message list (activates at 50+ messages)
-- llm_usage retention policy (90-day aggregate + prune)
-- Memoize markdown rendering (500-entry cache)
-
-### Quality
-
-- Extract pipeline magic numbers into configurable defaults
-- Add read-only protection for security-sensitive config keys
-- Update model defaults (gpt-5.4, gemini-3.1-pro, claude-sonnet-4-6)
-- Centralize model names in models.go
-- Auto-resolve latest sqlite-vec and ONNX Runtime from GitHub
-- Fix vector-ext 404 download
-- Rewrite system prompt templates for token efficiency
-- Add RunLoop, indexer, and cascade delete tests
-- Split ConsoleViewer into 3 sub-components
-- Normalize command file naming
-
-### Documentation
-
-- Add 4 design philosophy pages
-- Complete Tier 3 Shield documentation
-- Regenerate actions, events, config, REST API, CLI references from code
-- Fix 110+ documentation mismatches
-
----
-
 ## v0.1.0 — Initial Release
 
 The first public release of OpenParallax. A reference implementation of the architecture described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
 
 ### Architecture
 
-- **Agent-Engine separation** — the Agent process owns the LLM and runs inside a kernel sandbox. The Engine is the security gate that evaluates and executes every tool call. The Agent proposes actions but never executes them directly.
+- **Agent-Engine separation** — the Agent process owns the LLM session and runs inside a kernel sandbox. The Engine is the security gate that evaluates and executes every tool call. The Agent proposes actions but never executes them directly.
 - **Three-process model** — Process Manager spawns Engine, Engine spawns sandboxed Agent. Clean restart via exit code 75. Crash recovery with budget.
-- **gRPC services** — AgentService (bidirectional streaming between Agent and Engine), ClientService (server streaming to CLI/web clients), SubAgentService (parallel task execution).
-- **EventBroadcaster** — fan-out pipeline events to all subscribed clients by session. Supports session-scoped and global subscriptions.
-- **Transport-neutral entry point** — any channel adapter calls `ProcessMessageForWeb()` with an `EventSender` implementation. 7 event types: `llm_token`, `action_started`, `shield_verdict`, `action_completed`, `response_complete`, `otr_blocked`, `error`.
+- **Single pipeline** — all message processing routes through the Agent's bidirectional gRPC stream (RunSession). No fallback paths.
+- **gRPC services** — AgentService (bidirectional streaming between Agent and Engine), ClientService (server streaming to CLI/web clients), SubAgentService (parallel task execution with follow-up messaging).
+- **EventBroadcaster** — fan-out of 13 pipeline event types to all subscribed clients by session. Supports session-scoped and global subscriptions.
+- **Transport-neutral entry point** — any channel adapter calls `ProcessMessageForWeb()` with an `EventSender` implementation.
+- **Modular engine** — engine split across 5 focused files (engine.go, engine_pipeline.go, engine_grpc.go, engine_session.go, engine_tools.go).
 
 ### Security
 
-- **3-tier Shield pipeline** — Tier 0 (YAML policy matching), Tier 1 (ONNX DeBERTa classifier + heuristic patterns), Tier 2 (LLM evaluator with canary verification). Fail-closed at every tier.
-- **In-process ONNX classifier** — DeBERTa v3 base model runs in pure Go via `onnxruntime-purego`. No sidecar processes, no CGo. Install via `openparallax get-classifier`.
-- **Kernel sandboxing** — Landlock (Linux 5.13+), sandbox-exec (macOS), Job Objects (Windows). Platform-specific canary probes verify enforcement at startup. Fail-closed — agent refuses to start if sandbox verification fails.
-- **File protection levels** — ReadOnly (SOUL/IDENTITY/TOOLS/BOOT), EscalateTier2 (AGENTS/HEARTBEAT), WriteTier1Min (MEMORY/USER), FullBlock (config.yaml, canary.token, audit.jsonl, openparallax.db, evaluator-v1.md).
-- **Information Flow Control** — 5 sensitivity levels (Public, Internal, Confidential, Restricted, Critical) with taint tracking. Prevents data exfiltration across sensitivity boundaries.
-- **Tamper-evident audit** — append-only JSONL with SHA-256 hash chain. Every tool proposal, execution result, and Shield verdict is logged. Chain verification via `openparallax audit --verify`.
-- **Canary tokens** — random tokens generated during workspace init, embedded in the evaluator prompt, verified in Tier 2 LLM responses to prove evaluation integrity.
-- **Cookie-based web authentication** — bcrypt password, HttpOnly Secure SameSite=Strict cookie for remote web access.
+- **4-tier Shield pipeline** — Tier 0 (YAML policy matching), Tier 1 (ONNX DeBERTa classifier + 30 heuristic rules), Tier 2 (LLM evaluator with canary verification), Tier 3 (human-in-the-loop approval via all connected channels). Fail-closed at every tier.
+- **In-process ONNX classifier** — DeBERTa v3 model runs in pure Go via `onnxruntime-purego`. No sidecar processes, no CGo. Auto-resolves latest ONNX Runtime from GitHub releases.
+- **Kernel sandboxing** — Landlock + seccomp-bpf (Linux 5.13+), sandbox-exec (macOS), Job Objects (Windows). Platform-specific canary probes verify enforcement at startup.
+- **File protection levels** — ReadOnly (SOUL/IDENTITY/TOOLS/BOOT), EscalateTier2 (AGENTS/HEARTBEAT), WriteTier1Min (MEMORY/USER), FullBlock (.openparallax/, policies/).
+- **SSRF protection** — HTTP and browser executors block private IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, ::1, fc00::/7). Hostnames resolved before checking.
+- **Information Flow Control** — 5 sensitivity levels with taint tracking. Prevents data exfiltration across sensitivity boundaries.
+- **Tamper-evident audit** — append-only JSONL with SHA-256 hash chain. Every tool proposal, execution, and Shield verdict logged. Chain verification via `openparallax audit --verify`.
+- **Canary tokens** — random tokens generated during workspace init, embedded in evaluator prompt, verified in Tier 2 responses with constant-time comparison.
+- **Configurable output sanitization** — opt-in wrapping of tool results and memory content in explicit data boundaries to mitigate prompt injection via untrusted content.
+- **Web security** — bcrypt password auth, HttpOnly Secure SameSite=Strict cookies, WebSocket session authentication, login rate limiting (5/min per IP), 10MB message size limit, CORS restricted to configured origins (localhost-only default).
+- **Channel access control** — Discord requires guild allowlist (DMs only when empty), Telegram defaults to private-chat-only with optional group allowlist.
+- **Read-only config keys** — security-sensitive settings (fail_closed, rate_limit, daily_budget, output_sanitization, pipeline parameters) cannot be changed via `/config set` or the settings API.
 
 ### Features
 
-- **50+ tool actions** — file operations, git, shell commands, browser automation, email, calendar, canvas, memory, HTTP requests, scheduling. Organized into groups with lazy loading via `load_tools` meta-tool.
-- **Custom skills** — domain-specific guidance in `skills/<name>/SKILL.md` with YAML frontmatter. Discovery summary in system prompt, on-demand loading via `load_skills` meta-tool.
-- **Multi-channel messaging** — WhatsApp (Cloud API), Telegram (Bot API), Discord (bot), Slack (Socket Mode), Signal (signal-cli), Teams (Graph API), iMessage (AppleScript bridge, macOS).
-- **Web UI** — glassmorphism two-panel layout (sidebar, chat panel). Drag-to-resize, responsive breakpoints (full/compact/mobile), real-time streaming via WebSocket.
-- **CLI** — Cobra + Bubbletea TUI. Commands: `start`, `init`, `status`, `doctor`, `attach`, `detach`, `session`, `memory`, `logs`, `audit`, `get-classifier`. Slash commands: `/help`, `/new`, `/otr`, `/quit`, `/clear`, `/status`, `/restart`, `/export`, `/delete`, `/sessions`.
+- **73 tool actions** — file operations, git, shell commands, browser automation, email (SMTP + IMAP), calendar (Google + Microsoft + CalDAV), canvas, memory, HTTP requests, scheduling, clipboard, system utilities, image/video generation, sub-agents. Organized into groups with lazy loading via `load_tools` meta-tool.
+- **Sub-agent orchestration** — parallel task execution with isolated sandboxed processes. Follow-up messaging via `agent_message`. Sub-agents poll for additional instructions after each reasoning loop.
+- **Custom skills** — domain-specific guidance in `skills/<name>/SKILL.md` with YAML frontmatter. Global skills at `~/.openparallax/skills/`, workspace skills override. Configurable disable list.
+- **Multi-channel messaging** — WhatsApp (Cloud API), Telegram (Bot API), Discord (bot), Slack (Socket Mode), Signal (signal-cli), Teams (Graph API), iMessage (AppleScript, macOS). Dynamic attach/detach at runtime.
+- **Web UI** — glassmorphism two-panel layout (sidebar + chat). Drag-to-resize, responsive breakpoints (full/compact/mobile), real-time streaming via WebSocket. Console split into Metrics, Live Logs, and Audit views. Virtual scrolling for large conversations.
+- **CLI** — Cobra + Bubbletea TUI. Commands: `start`, `init`, `stop`, `restart`, `status`, `doctor`, `attach`, `detach`, `delete`, `list`, `config`, `session`, `memory`, `logs`, `audit`, `skill`, `mcp`, `get-classifier`, `get-vector-ext`, `chronicle`, `auth`. Slash commands: `/help`, `/new`, `/otr`, `/quit`, `/clear`, `/status`, `/restart`, `/export`, `/delete`, `/sessions`.
 - **OTR mode** — off-the-record sessions with read-only tools, no memory persistence, amber UI accents, data in `sync.Map` instead of SQLite.
-- **Semantic memory** — FTS5 full-text search + vector embeddings with pluggable backend architecture. Daily conversation logs. Memory files: SOUL.md, IDENTITY.md, USER.md, MEMORY.md, TOOLS.md, BOOT.md, HEARTBEAT.md, AGENTS.md.
-- **Chronicle** — copy-on-write workspace snapshots before every write operation. Rollback to any previous state. Configurable snapshot retention budget.
-- **MCP integration** — connect to external MCP tool servers via stdio or streamable-http transport. MCP tool calls pass through the full Shield pipeline.
-- **Context compaction** — automatic history summarization when token usage approaches 70% of context window budget.
-- **Session title generation** — LLM-generated session titles after 3+ exchanges for meaningful headlines.
+- **Semantic memory** — FTS5 full-text search + vector embeddings. sqlite-vec for native in-database vector queries (auto-downloads latest). Embedding cache with content hashing for skip-unchanged indexing. File watcher for automatic reindexing.
+- **Chronicle** — copy-on-write workspace snapshots before every write/delete/move. Hash-chained integrity. Configurable retention. Rollback to any previous state.
+- **MCP integration** — connect to external MCP tool servers via stdio transport. MCP tools registered as loadable groups. All MCP tool calls pass through Shield. Idle shutdown with automatic reconnect.
+- **Context efficiency** — dynamic tool loading, markdown stripping from system prompts, stale tool result summarization, configurable compaction threshold (default 70%), memoized markdown rendering in frontend.
+- **Configurable pipeline** — `max_tool_rounds` (25), `context_window` (128000), `compaction_threshold` (70%), `max_response_tokens` (4096) all adjustable via config.yaml.
+- **Session management** — auto-generated titles after 3+ exchanges. Heartbeat sessions for scheduled tasks. Session search across message content.
+- **Token usage tracking** — per-session and per-message LLM usage with daily aggregation. 90-day retention policy with automatic archival.
+- **System prompt templates** — token-efficient identity, guardrails, and behavioral rules. ~250 tokens for the full static context.
 - **13-point health check** — `openparallax doctor` verifies config, connectivity, sandbox, Shield, database, disk, and more.
 
 ### Composable Modules
 
-Every module ships as an independently importable Go package with no dependencies on the rest of OpenParallax:
+Every module ships as an independently importable Go package with no dependencies on the rest of OpenParallax. Cross-language support via JSON-RPC bridge binaries for Python and Node.js:
 
-- **Shield** — 3-tier AI security pipeline. Available as Go library, Python/Node wrappers, standalone MCP proxy binary.
+- **Shield** — 3-tier AI security pipeline. Available as Go library, Python/Node wrappers, standalone MCP proxy.
 - **Memory** — semantic memory with pluggable backends: SQLite (default), PostgreSQL + pgvector, Qdrant, Pinecone, Weaviate, ChromaDB, Redis.
 - **Audit** — tamper-evident hash chain logging for any system.
 - **Sandbox** — kernel-level process isolation for any child process.
-- **Channels** — multi-platform messaging adapters (WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage).
+- **Channels** — multi-platform messaging adapters.
 - **Chronicle** — copy-on-write file versioning with rollback.
-- **LLM** — unified provider abstraction (Anthropic, OpenAI, Google, Ollama).
+- **LLM** — unified provider abstraction (Anthropic, OpenAI + compatible APIs, Google, Ollama).
 - **IFC** — information flow control with sensitivity labels and taint tracking.
-- **Crypto** — ID generation, action hashing, hash chains, canary tokens.
+- **Crypto** — ID generation, action hashing, hash chains, canary tokens, AES-256-GCM encryption.
 - **MCP** — Model Context Protocol client integration.
 
 ### Infrastructure
 
 - **Zero CGo** — single static binary with `CGO_ENABLED=0`. Pure Go SQLite (modernc.org/sqlite), pure Go ONNX Runtime (onnxruntime-purego). No C compiler needed.
-- **Cross-platform** — Linux, macOS, and Windows. Platform-specific code uses build tags, not runtime switches.
-- **Embedded web UI** — Svelte 4 + Vite 5 frontend bundled into the Go binary via `go:embed`. No external file serving.
-- **Startup validation** — engine refuses to start if security-critical files (policy file, evaluator prompt) are missing.
-- **Template embedding** — policies, evaluator prompt, and skills are embedded in the binary and copied during `openparallax init`.
-- **Dynamic port allocation** — each agent gets a unique port from the registry with gap scanning for deleted agents.
+- **Cross-platform** — Linux, macOS, and Windows. Platform-specific code uses build tags.
+- **Embedded web UI** — Svelte 4 + Vite 5 frontend bundled into the Go binary via `go:embed`.
+- **Centralized model defaults** — all LLM model names in a single file (models.go). Auto-resolves latest sqlite-vec and ONNX Runtime versions from GitHub releases.
+- **CI/CD** — cross-platform binary builds for 6 OS/arch combinations. 7 binaries per release (agent, shield, 5 bridge binaries).
+- **Dynamic port allocation** — each agent gets a unique port from the registry with gap scanning.
 
 ### Documentation
 
-- **VitePress documentation site** — 91+ pages with glassmorphism dark theme and per-module accent colors.
+- **VitePress documentation site** — dark theme with module accent colors.
+- **4 design philosophy pages** — Defense in Depth, Process Isolation, Token Economy, Modularity.
 - **User guide** — installation, quickstart, configuration, CLI, web UI, sessions, memory, skills, tools, channels, security, heartbeat, troubleshooting.
-- **Technical docs** — architecture, process model, message pipeline, ecosystem, engine, agent, gRPC, events, protection, crypto, web server, extending.
-- **Module docs** — Shield (13 pages), Memory (14 pages with 7 backend guides), Audit, Sandbox, Channels (8 platforms), Chronicle, LLM, IFC, Crypto, MCP.
-- **API reference** — config schema, environment variables, event types, action types, gRPC API, REST API, WebSocket protocol, policy syntax.
-
----
-
-## Development Timeline
-
-| Date | Milestone |
-|------|-----------|
-| Q1 2026 | Core pipeline architecture and Engine orchestrator |
-| Q1 2026 | Shield 3-tier security pipeline with YAML policy engine |
-| Q1 2026 | Kernel sandboxing with Landlock, sandbox-exec, and Job Objects |
-| Q1 2026 | Web UI with glassmorphism design system |
-| Q1 2026 | Multi-channel messaging adapters (6 platforms) |
-| Q2 2026 | Agent-Engine process separation with gRPC streaming |
-| Q2 2026 | In-process ONNX classifier replacing HTTP sidecar |
-| Q2 2026 | Custom skills system with on-demand loading |
-| Q2 2026 | Composable module architecture with standalone APIs |
-| Q2 2026 | Documentation site with 91+ pages |
-| Q2 2026 | iMessage adapter for macOS |
+- **Technical docs** — architecture, process model, message pipeline, ecosystem, engine, agent, gRPC, events, protection, web server, extending.
+- **Module docs** — Shield (14 pages including Tier 3), Memory, Audit, Sandbox, Channels (7 platforms), Chronicle, LLM, IFC, Crypto, MCP.
+- **API reference** — config schema, environment variables, 14 event types, 73 action types, gRPC API, 24 REST endpoints, WebSocket protocol, policy syntax.
 
 ---
 
 ## Roadmap
 
-Items under active consideration for future releases. No commitments on timelines — items move to the changelog once shipped.
+Items under active consideration for future releases:
 
-- **Pure-Go HNSW** — approximate nearest neighbor search for the SQLite memory backend, scaling vector search beyond 100K records while maintaining zero CGo
-- **Shield standalone proxy** — production-ready standalone binary for MCP security gateway deployments
-- **Python and Node.js wrappers** — cross-language module wrappers via JSON-RPC stdin/stdout bridges
+- **Windows AppContainers** — full filesystem and network isolation on Windows without admin elevation
+- **Pure-Go HNSW** — approximate nearest neighbor search for scaling vector search beyond 100K records
 - **Additional memory backends** — MongoDB, DynamoDB, Milvus
-- **Sub-agent orchestration** — parallel task execution with isolated sub-agent processes
 - **Workspace sharing** — multi-user access to a single agent workspace

@@ -91,7 +91,7 @@ See the [Quick Start guide](/guide/quickstart) for `git clone && make build-all`
 | [Memory](/memory/) | Semantic memory with pluggable backends | &#10003; | &#10003; | &#10003; | |
 | [Audit](/audit/) | Tamper-evident hash chain logging | &#10003; | &#10003; | &#10003; | |
 | [Channels](/channels/) | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage | &#10003; | &#10003; | &#10003; | |
-| [Sandbox](/sandbox/) | Kernel-level process isolation | &#10003; | | | |
+| [Sandbox](/sandbox/) | Kernel-level process isolation | &#10003; | &#10003; | &#10003; | |
 | [Chronicle](/modules/chronicle) | Copy-on-write snapshots with rollback | &#10003; | | | |
 | [LLM](/modules/llm) | Anthropic, OpenAI + compatible APIs, Google, Ollama | &#10003; | | | |
 
