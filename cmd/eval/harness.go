@@ -35,7 +35,7 @@ func NewBaselineEngine(workspacePath, configPath string) (*HarnessEngine, error)
 	}
 	return &HarnessEngine{
 		provider:        provider,
-		recorder:        &RecordingExecutor{},
+		recorder:        NewRecordingExecutor(nil),
 		workspace:       workspacePath,
 		tier3AutoDecide: defaultTier3,
 		schemas:         schemas,
@@ -62,7 +62,7 @@ func NewGuardrailEngine(workspacePath, configPath string) (*HarnessEngine, error
 
 	return &HarnessEngine{
 		provider:        provider,
-		recorder:        &RecordingExecutor{},
+		recorder:        NewRecordingExecutor(nil),
 		workspace:       workspacePath,
 		guardrailPrompt: string(prompt),
 		tier3AutoDecide: defaultTier3,
@@ -114,7 +114,7 @@ func NewParallaxEngine(workspacePath, configPath string) (*HarnessEngine, error)
 	return &HarnessEngine{
 		provider:        provider,
 		shield:          pipeline,
-		recorder:        &RecordingExecutor{},
+		recorder:        NewRecordingExecutor(nil),
 		workspace:       workspacePath,
 		tier3AutoDecide: defaultTier3,
 		schemas:         schemas,
