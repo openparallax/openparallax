@@ -28,6 +28,7 @@ Three configurations:
 
 	root.Flags().String("suite", "", "path to YAML test suite (required)")
 	root.Flags().String("config", "", "eval configuration: A, B, or C (required)")
+	root.Flags().String("mode", "llm", "eval mode: 'llm' (default) or 'inject' (programmatic tool-call injection)")
 	root.Flags().String("output", "results.json", "output path for structured results")
 	root.Flags().String("workspace", "", "path to an initialized workspace with config.yaml")
 	root.Flags().String("model", "", "override LLM model ID (uses workspace config if empty)")
@@ -52,11 +53,15 @@ Three configurations:
 func runEval(cmd *cobra.Command, _ []string) error {
 	suitePath, _ := cmd.Flags().GetString("suite")
 	configName, _ := cmd.Flags().GetString("config")
+	mode, _ := cmd.Flags().GetString("mode")
 	outputPath, _ := cmd.Flags().GetString("output")
 	workspacePath, _ := cmd.Flags().GetString("workspace")
 
 	if configName != "A" && configName != "B" && configName != "C" {
 		return fmt.Errorf("--config must be A, B, or C (got %q)", configName)
+	}
+	if mode != "llm" && mode != "inject" {
+		return fmt.Errorf("--mode must be 'llm' or 'inject' (got %q)", mode)
 	}
 
 	// Resolve workspace and config.yaml.
@@ -79,18 +84,32 @@ func runEval(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Printf("Loaded %d test cases from %s\n", len(cases), suitePath)
 
-	// Create the harness engine.
-	modelOverride, _ := cmd.Flags().GetString("model")
-	baseURLOverride, _ := cmd.Flags().GetString("base-url")
-	apiKeyEnvOverride, _ := cmd.Flags().GetString("api-key-env")
-	engine, err := createEngine(configName, workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
-	if err != nil {
-		return fmt.Errorf("create engine (config %s): %w", configName, err)
-	}
-	fmt.Printf("Engine ready (config %s)\n\n", configName)
+	var results []TestResult
 
-	// Run the suite.
-	results := RunSuite(engine, cases, configName)
+	if mode == "inject" {
+		// Inject mode: programmatic tool-call injection into Shield.
+		// No LLM needed. Simulates a fully compromised agent.
+		if configName != "C" {
+			return fmt.Errorf("inject mode requires --config C (Shield must be active)")
+		}
+		pipeline, pipeErr := buildShieldPipeline(workspacePath, configPath)
+		if pipeErr != nil {
+			return fmt.Errorf("create shield pipeline: %w", pipeErr)
+		}
+		fmt.Printf("Shield pipeline ready (inject mode)\n\n")
+		results = RunInjectSuite(pipeline, cases, configName)
+	} else {
+		// LLM mode: full end-to-end with LLM reasoning.
+		modelOverride, _ := cmd.Flags().GetString("model")
+		baseURLOverride, _ := cmd.Flags().GetString("base-url")
+		apiKeyEnvOverride, _ := cmd.Flags().GetString("api-key-env")
+		engine, engineErr := createEngine(configName, workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
+		if engineErr != nil {
+			return fmt.Errorf("create engine (config %s): %w", configName, engineErr)
+		}
+		fmt.Printf("Engine ready (config %s)\n\n", configName)
+		results = RunSuite(engine, cases, configName)
+	}
 
 	// Compute summary and write output.
 	summary := ComputeSummary(results)
@@ -120,10 +139,15 @@ func loadSuite(path string) ([]TestCase, error) {
 	// Try flat list first (array at root), then wrapped struct.
 	var cases []TestCase
 	if yamlErr := yaml.Unmarshal(data, &cases); yamlErr != nil || len(cases) == 0 {
+		// Flat list failed — try wrapped struct, but report the flat list error
+		// if that also fails (more informative).
 		var suite struct {
 			Cases []TestCase `yaml:"cases"`
 		}
 		if wrapErr := yaml.Unmarshal(data, &suite); wrapErr != nil {
+			if yamlErr != nil {
+				return nil, fmt.Errorf("parse YAML: %w", yamlErr)
+			}
 			return nil, fmt.Errorf("parse YAML: %w", wrapErr)
 		}
 		cases = suite.Cases

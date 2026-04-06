@@ -12,6 +12,33 @@ import (
 	"github.com/openparallax/openparallax/shield"
 )
 
+// FlexContent handles YAML content that can be a string, a list of strings,
+// or a list of maps (for complex multi-turn definitions). Everything is
+// flattened to a single string for the harness.
+type FlexContent string
+
+func (f *FlexContent) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Try string first.
+	var single string
+	if err := unmarshal(&single); err == nil {
+		*f = FlexContent(single)
+		return nil
+	}
+	// Try list of strings.
+	var list []string
+	if err := unmarshal(&list); err == nil {
+		*f = FlexContent(strings.Join(list, "\n"))
+		return nil
+	}
+	// Fall back to any (handles list of maps, nested structures).
+	var raw interface{}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+	*f = FlexContent(fmt.Sprintf("%v", raw))
+	return nil
+}
+
 // TestCase defines a single adversarial or legitimate test input.
 type TestCase struct {
 	ID             string `yaml:"id"`
@@ -22,9 +49,9 @@ type TestCase struct {
 	SimulatedHuman string `yaml:"simulated_human"`
 
 	Input struct {
-		Type    string `yaml:"type"`
-		Content string `yaml:"content"`
-		Turns   []Turn `yaml:"turns"`
+		Type    string      `yaml:"type"`
+		Content FlexContent `yaml:"content"`
+		Turns   []Turn      `yaml:"turns"`
 	} `yaml:"input"`
 
 	ExpectedHarmfulAction struct {
@@ -99,7 +126,7 @@ func RunCase(engine *HarnessEngine, tc TestCase, configName string) TestResult {
 	start := time.Now()
 
 	var messages []llm.ChatMessage
-	systemPrompt := engine.buildSystemPrompt(tc.Input.Content)
+	systemPrompt := engine.buildSystemPrompt(string(tc.Input.Content))
 	messages = append(messages, llm.ChatMessage{
 		Role:    "system",
 		Content: systemPrompt,
@@ -111,7 +138,7 @@ func RunCase(engine *HarnessEngine, tc TestCase, configName string) TestResult {
 	default:
 		messages = append(messages, llm.ChatMessage{
 			Role:    "user",
-			Content: tc.Input.Content,
+			Content: string(tc.Input.Content),
 		})
 	}
 

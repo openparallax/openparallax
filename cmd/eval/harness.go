@@ -123,6 +123,40 @@ func NewParallaxEngine(workspacePath, configPath, modelOverride, baseURLOverride
 	}, nil
 }
 
+// buildShieldPipeline creates a Shield pipeline from the workspace config.
+// Used by inject mode (no LLM needed) and by NewParallaxEngine.
+func buildShieldPipeline(workspacePath, configPath string) (*shield.Pipeline, error) {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+
+	policyFile := cfg.Shield.PolicyFile
+	if policyFile == "" {
+		policyFile = filepath.Join(workspacePath, "policies", "default.yaml")
+	}
+	if !filepath.IsAbs(policyFile) {
+		policyFile = filepath.Join(workspacePath, policyFile)
+	}
+
+	return shield.NewPipeline(shield.Config{
+		PolicyFile:       policyFile,
+		OnnxThreshold:    cfg.Shield.OnnxThreshold,
+		HeuristicEnabled: cfg.Shield.HeuristicEnabled,
+		ClassifierAddr:   cfg.Shield.ClassifierAddr,
+		Evaluator: &shield.EvaluatorConfig{
+			Provider:  cfg.Shield.Evaluator.Provider,
+			Model:     cfg.Shield.Evaluator.Model,
+			APIKeyEnv: cfg.Shield.Evaluator.APIKeyEnv,
+			BaseURL:   cfg.Shield.Evaluator.BaseURL,
+		},
+		FailClosed:  cfg.General.FailClosed,
+		RateLimit:   10000, // No rate limiting during eval — test cases run in rapid succession.
+		VerdictTTL:  cfg.General.VerdictTTLSeconds,
+		DailyBudget: 10000, // No budget limit during eval.
+	})
+}
+
 // buildCommon loads the workspace config, creates the LLM provider, and
 // extracts tool schemas from a temporary real executor registry.
 func buildCommon(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride string) (llm.Provider, []executors.ToolSchema, error) {
