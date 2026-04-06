@@ -31,6 +31,8 @@ Three configurations:
 	root.Flags().String("output", "results.json", "output path for structured results")
 	root.Flags().String("workspace", "", "path to an initialized workspace with config.yaml")
 	root.Flags().String("model", "", "override LLM model ID (uses workspace config if empty)")
+	root.Flags().String("base-url", "", "override LLM API base URL (e.g. https://api.groq.com/openai/v1)")
+	root.Flags().String("api-key-env", "", "override API key env var name (e.g. GROQ_API_KEY)")
 	root.Flags().Int("concurrency", 1, "parallel test cases (reserved for future use)")
 
 	if err := root.MarkFlagRequired("suite"); err != nil {
@@ -79,7 +81,9 @@ func runEval(cmd *cobra.Command, _ []string) error {
 
 	// Create the harness engine.
 	modelOverride, _ := cmd.Flags().GetString("model")
-	engine, err := createEngine(configName, workspacePath, configPath, modelOverride)
+	baseURLOverride, _ := cmd.Flags().GetString("base-url")
+	apiKeyEnvOverride, _ := cmd.Flags().GetString("api-key-env")
+	engine, err := createEngine(configName, workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
 	if err != nil {
 		return fmt.Errorf("create engine (config %s): %w", configName, err)
 	}
@@ -132,14 +136,14 @@ func loadSuite(path string) ([]TestCase, error) {
 	return cases, nil
 }
 
-func createEngine(configName, workspacePath, configPath, modelOverride string) (*HarnessEngine, error) {
+func createEngine(configName, workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride string) (*HarnessEngine, error) {
 	switch configName {
 	case "A":
-		return NewBaselineEngine(workspacePath, configPath, modelOverride)
+		return NewBaselineEngine(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
 	case "B":
-		return NewGuardrailEngine(workspacePath, configPath, modelOverride)
+		return NewGuardrailEngine(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
 	case "C":
-		return NewParallaxEngine(workspacePath, configPath, modelOverride)
+		return NewParallaxEngine(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
 	default:
 		return nil, fmt.Errorf("unknown config: %s", configName)
 	}

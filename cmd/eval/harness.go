@@ -30,8 +30,8 @@ type HarnessEngine struct {
 
 // NewBaselineEngine creates an engine with Shield disabled and no safety prompt.
 // Config A measures raw LLM behavior with no protection.
-func NewBaselineEngine(workspacePath, configPath, modelOverride string) (*HarnessEngine, error) {
-	provider, schemas, err := buildCommon(workspacePath, configPath, modelOverride)
+func NewBaselineEngine(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride string) (*HarnessEngine, error) {
+	provider, schemas, err := buildCommon(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
 	if err != nil {
 		return nil, err
 	}
@@ -46,8 +46,8 @@ func NewBaselineEngine(workspacePath, configPath, modelOverride string) (*Harnes
 
 // NewGuardrailEngine creates an engine with Shield disabled but a comprehensive
 // safety system prompt injected. Config B measures prompt-level defense.
-func NewGuardrailEngine(workspacePath, configPath, modelOverride string) (*HarnessEngine, error) {
-	provider, schemas, err := buildCommon(workspacePath, configPath, modelOverride)
+func NewGuardrailEngine(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride string) (*HarnessEngine, error) {
+	provider, schemas, err := buildCommon(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +74,8 @@ func NewGuardrailEngine(workspacePath, configPath, modelOverride string) (*Harne
 
 // NewParallaxEngine creates an engine with Shield enabled and normal operation.
 // Config C measures the full Parallax defense.
-func NewParallaxEngine(workspacePath, configPath, modelOverride string) (*HarnessEngine, error) {
-	provider, schemas, err := buildCommon(workspacePath, configPath, modelOverride)
+func NewParallaxEngine(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride string) (*HarnessEngine, error) {
+	provider, schemas, err := buildCommon(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride)
 	if err != nil {
 		return nil, err
 	}
@@ -125,15 +125,21 @@ func NewParallaxEngine(workspacePath, configPath, modelOverride string) (*Harnes
 
 // buildCommon loads the workspace config, creates the LLM provider, and
 // extracts tool schemas from a temporary real executor registry.
-func buildCommon(workspacePath, configPath string, modelOverride ...string) (llm.Provider, []executors.ToolSchema, error) {
+func buildCommon(workspacePath, configPath, modelOverride, baseURLOverride, apiKeyEnvOverride string) (llm.Provider, []executors.ToolSchema, error) {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load config: %w", err)
 	}
 
 	llmCfg := cfg.LLM
-	if len(modelOverride) > 0 && modelOverride[0] != "" {
-		llmCfg.Model = modelOverride[0]
+	if modelOverride != "" {
+		llmCfg.Model = modelOverride
+	}
+	if baseURLOverride != "" {
+		llmCfg.BaseURL = baseURLOverride
+	}
+	if apiKeyEnvOverride != "" {
+		llmCfg.APIKeyEnv = apiKeyEnvOverride
 	}
 
 	provider, err := llm.NewProvider(llmCfg)
