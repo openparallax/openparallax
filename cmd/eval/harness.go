@@ -1,0 +1,176 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/openparallax/openparallax/internal/agent"
+	"github.com/openparallax/openparallax/internal/config"
+	"github.com/openparallax/openparallax/internal/engine/executors"
+	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/llm"
+	"github.com/openparallax/openparallax/shield"
+)
+
+// HarnessEngine is a headless engine that processes messages for eval.
+// It wires together an LLM provider, optional Shield pipeline, and a
+// recording executor. It does NOT use internal/engine.Engine.
+type HarnessEngine struct {
+	provider        llm.Provider
+	shield          *shield.Pipeline
+	recorder        *RecordingExecutor
+	workspace       string
+	guardrailPrompt string
+	tier3AutoDecide func(toolName string, simulatedHuman string) bool
+	schemas         []executors.ToolSchema
+}
+
+// NewBaselineEngine creates an engine with Shield disabled and no safety prompt.
+// Config A measures raw LLM behavior with no protection.
+func NewBaselineEngine(workspacePath, configPath string) (*HarnessEngine, error) {
+	provider, schemas, err := buildCommon(workspacePath, configPath)
+	if err != nil {
+		return nil, err
+	}
+	return &HarnessEngine{
+		provider:        provider,
+		recorder:        &RecordingExecutor{},
+		workspace:       workspacePath,
+		tier3AutoDecide: defaultTier3,
+		schemas:         schemas,
+	}, nil
+}
+
+// NewGuardrailEngine creates an engine with Shield disabled but a comprehensive
+// safety system prompt injected. Config B measures prompt-level defense.
+func NewGuardrailEngine(workspacePath, configPath string) (*HarnessEngine, error) {
+	provider, schemas, err := buildCommon(workspacePath, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	guardrailPath := filepath.Join(executableDir(), "prompts", "guardrails.md")
+	prompt, readErr := os.ReadFile(guardrailPath)
+	if readErr != nil {
+		// Fall back to looking relative to the working directory.
+		prompt, readErr = os.ReadFile("cmd/eval/prompts/guardrails.md")
+		if readErr != nil {
+			return nil, fmt.Errorf("guardrail prompt not found: %w", readErr)
+		}
+	}
+
+	return &HarnessEngine{
+		provider:        provider,
+		recorder:        &RecordingExecutor{},
+		workspace:       workspacePath,
+		guardrailPrompt: string(prompt),
+		tier3AutoDecide: defaultTier3,
+		schemas:         schemas,
+	}, nil
+}
+
+// NewParallaxEngine creates an engine with Shield enabled and normal operation.
+// Config C measures the full Parallax defense.
+func NewParallaxEngine(workspacePath, configPath string) (*HarnessEngine, error) {
+	provider, schemas, err := buildCommon(workspacePath, configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, loadErr := config.Load(configPath)
+	if loadErr != nil {
+		return nil, fmt.Errorf("load config for shield: %w", loadErr)
+	}
+
+	policyFile := cfg.Shield.PolicyFile
+	if policyFile == "" {
+		policyFile = filepath.Join(workspacePath, "policies", "default.yaml")
+	}
+	if !filepath.IsAbs(policyFile) {
+		policyFile = filepath.Join(workspacePath, policyFile)
+	}
+
+	pipeline, pipeErr := shield.NewPipeline(shield.Config{
+		PolicyFile:       policyFile,
+		OnnxThreshold:    cfg.Shield.OnnxThreshold,
+		HeuristicEnabled: cfg.Shield.HeuristicEnabled,
+		ClassifierAddr:   cfg.Shield.ClassifierAddr,
+		Evaluator: &shield.EvaluatorConfig{
+			Provider:  cfg.Shield.Evaluator.Provider,
+			Model:     cfg.Shield.Evaluator.Model,
+			APIKeyEnv: cfg.Shield.Evaluator.APIKeyEnv,
+			BaseURL:   cfg.Shield.Evaluator.BaseURL,
+		},
+		FailClosed:  cfg.General.FailClosed,
+		RateLimit:   cfg.General.RateLimit,
+		VerdictTTL:  cfg.General.VerdictTTLSeconds,
+		DailyBudget: cfg.General.DailyBudget,
+	})
+	if pipeErr != nil {
+		return nil, fmt.Errorf("shield pipeline init: %w", pipeErr)
+	}
+
+	return &HarnessEngine{
+		provider:        provider,
+		shield:          pipeline,
+		recorder:        &RecordingExecutor{},
+		workspace:       workspacePath,
+		tier3AutoDecide: defaultTier3,
+		schemas:         schemas,
+	}, nil
+}
+
+// buildCommon loads the workspace config, creates the LLM provider, and
+// extracts tool schemas from a temporary real executor registry.
+func buildCommon(workspacePath, configPath string) (llm.Provider, []executors.ToolSchema, error) {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load config: %w", err)
+	}
+
+	provider, err := llm.NewProvider(cfg.LLM)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create llm provider: %w", err)
+	}
+
+	// Build a real registry to extract tool schemas, then discard it.
+	registry := executors.NewRegistry(workspacePath, cfg, nil, nil)
+	schemas := registry.AllToolSchemas()
+
+	return provider, schemas, nil
+}
+
+// buildSystemPrompt constructs the system prompt for a test case.
+func (h *HarnessEngine) buildSystemPrompt(userMessage string) string {
+	assembler := agent.NewContextAssembler(h.workspace, nil)
+	prompt, err := assembler.Assemble(types.SessionNormal, userMessage)
+	if err != nil {
+		prompt = "You are a helpful assistant."
+	}
+
+	if h.guardrailPrompt != "" {
+		prompt = h.guardrailPrompt + "\n\n---\n\n" + prompt
+	}
+
+	return prompt
+}
+
+// toolDefinitions converts the stored schemas to LLM tool definitions.
+func (h *HarnessEngine) toolDefinitions() []llm.ToolDefinition {
+	return agent.GenerateToolDefinitions(h.schemas)
+}
+
+// defaultTier3 simulates human approval based on the test case's simulated_human field.
+func defaultTier3(_ string, simulatedHuman string) bool {
+	return simulatedHuman == "approve"
+}
+
+// executableDir returns the directory of the running executable.
+func executableDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "."
+	}
+	return filepath.Dir(exe)
+}
