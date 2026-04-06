@@ -15,12 +15,51 @@ deny:
       - delete_directory
     paths:
       - "~/.ssh/**"
+      - "~/.ssh"
       - "~/.aws/**"
+      - "~/.aws"
       - "~/.gnupg/**"
+      - "~/.gnupg"
       - "~/.kube/**"
+      - "~/.kube"
+      - "~/.docker/**"
+      - "~/.docker"
       - "/etc/shadow"
+      - "/etc/passwd"
       - "/etc/sudoers"
+      - "/etc/ssl/private/**"
+      - "/etc/ssl/private"
       - "C:\\Windows\\System32\\config\\**"
+
+  - name: block_credential_files
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.env"
+      - "**/*.env"
+      - "**/*.pem"
+      - "**/*.key"
+      - "**/credentials"
+      - "**/credentials.json"
+
+  - name: block_agent_internals
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.openparallax/**"
+      - ".openparallax/**"
+      - "**/policies/**"
+      - "policies/**"
+      - "**/config.yaml"
+      - "config.yaml"
 
   - name: block_identity_deletion
     action_types:
