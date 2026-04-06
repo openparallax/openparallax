@@ -4,26 +4,26 @@
 
 **AI agents that think must never act.**
 
-Open-source security framework for autonomous AI systems. 3-tier defense pipeline, kernel sandboxing, tamper-evident audit, and composable modules — because an agent that can execute anything will eventually execute the wrong thing.
+Open-source personal AI agent with a 4-tier security pipeline, kernel sandboxing, tamper-evident audit, and composable modules that other agent developers can import independently.
 
 [![Go 1.25+](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 [![Zero CGo](https://img.shields.io/badge/CGo-disabled-success?style=flat-square)](https://pkg.go.dev)
 [![Platform](https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-grey?style=flat-square&logo=linux&logoColor=white)](https://docs.openparallax.dev/guide/installation)
-[![Security](https://img.shields.io/badge/Shield-3--tier%20pipeline-ff3366?style=flat-square)](https://docs.openparallax.dev/shield/)
+[![Security](https://img.shields.io/badge/Shield-4--tier%20pipeline-ff3366?style=flat-square)](https://docs.openparallax.dev/shield/)
 [![Single Binary](https://img.shields.io/badge/Deploy-single%20binary-orange?style=flat-square)](https://docs.openparallax.dev/guide/installation)
 
-[Documentation](https://docs.openparallax.dev) &bull; [Quick Start](#quick-start) &bull; [Architecture](#architecture) &bull; [Modules](#modules) &bull; [Contributing](CONTRIBUTING.md)
+[Documentation](https://docs.openparallax.dev) &bull; [Quick Start](#quick-start) &bull; [Architecture](#architecture) &bull; [Modules](#composable-modules) &bull; [Contributing](CONTRIBUTING.md)
 
 </div>
 
 ---
 
-> **Research paper:** OpenParallax is a reference implementation of the ideas presented in *Parallax: Why AI Agents That Think Must Never Act* (forthcoming on [arXiv](https://github.com/openparallax/openparallax)). The paper argues that giving an LLM direct execution capability is an architectural failure — the thinking process and the acting process must be physically separated, with a security pipeline between them.
+> **Research paper:** OpenParallax is a reference implementation of the *Parallax* paradigm, presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv). The paper argues that prompt-level guardrails are architecturally insufficient for agents with execution capability. Safety requires structural enforcement: the system that reasons must be unable to act, the system that acts must be unable to reason, with an independent validator between them.
 
 ## One Binary. Zero Dependencies. Any Platform.
 
-A single static binary. No Python. No Node.js. No Docker. No runtime dependencies. Download it and run it.
+A single static binary. No Python. No Node.js. No Docker. No runtime dependencies.
 
 **Linux / macOS:**
 
@@ -41,40 +41,7 @@ openparallax init
 openparallax start
 ```
 
-**Package managers:**
-
-```bash
-brew install openparallax/tap/openparallax    # macOS (Homebrew)
-scoop install openparallax                     # Windows (Scoop)
-```
-
-> The install script detects your platform and architecture (`linux/darwin`, `amd64/arm64`), downloads the correct binary from GitHub releases, and places it in your PATH. No compilation needed.
-
-## What It Does
-
-OpenParallax is a personal AI agent that runs on your machine — any machine. It connects to LLM providers (Anthropic, OpenAI and any OpenAI-compatible API, Google, Ollama), executes 50+ tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
-
-- **Talk through CLI, web, or messaging apps** — terminal TUI, glassmorphism web UI, WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage
-- **50+ actions** — files, git, shell, browser, email, calendar, canvas, HTTP, scheduling
-- **Semantic memory** — FTS5 full-text search + vector embeddings that persist across sessions
-- **3-tier security** — every tool call evaluated by policy rules, ML classifier, and LLM judge before execution
-- **Kernel sandboxing** — agent process isolated at the OS level (Landlock, sandbox-exec, Job Objects)
-- **Tamper-evident audit** — SHA-256 hash chain on every action
-- **OTR mode** — off-the-record sessions with read-only access and zero persistence
-- **Custom skills** — domain-specific guidance in markdown, loaded on demand
-
-## Quick Start
-
-### From Binary (recommended)
-
-```bash
-openparallax init       # Interactive setup wizard
-openparallax start      # Launch agent + web UI
-```
-
-### From Source
-
-**Prerequisites:** Go 1.25+, Node.js 20+ (for web frontend)
+**From source:**
 
 ```bash
 git clone https://github.com/openparallax/openparallax.git
@@ -84,118 +51,141 @@ make build-all
 ./dist/openparallax start
 ```
 
-The `init` wizard configures your LLM provider, Shield security provider, and embedding provider with connection testing. After init, `start` launches the engine, spawns the sandboxed agent, opens the CLI, and starts the web UI on port 3100.
+Prerequisites for building: Go 1.25+, Node.js 20+ (for the web frontend).
+
+## What It Does
+
+OpenParallax is a personal AI agent that runs on your machine. It connects to LLM providers (Anthropic, OpenAI + compatible APIs, Google, Ollama), executes 73 tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
+
+- **Talk through CLI, web, or messaging** — terminal TUI, glassmorphism web UI, WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage
+- **73 actions** — files, git, shell, browser, email (SMTP + IMAP), calendar, canvas, HTTP, scheduling, clipboard, system utilities, sub-agents
+- **Semantic memory** — FTS5 full-text search + vector embeddings, persistent across sessions
+- **4-tier security** — policy rules, ML classifier, LLM evaluator, human-in-the-loop approval
+- **Kernel sandboxing** — agent process isolated at the OS level (Landlock + seccomp, sandbox-exec, Job Objects)
+- **Tamper-evident audit** — SHA-256 hash chain on every action, every verdict, every session
+- **OTR mode** — off-the-record sessions with read-only access and zero persistence
+- **Custom skills** — domain-specific guidance in markdown, global and workspace-local, loaded on demand
+- **Sub-agents** — parallel task delegation to isolated sandboxed processes with follow-up messaging
+- **Dynamic tool loading** — LLM loads only the tool groups it needs, reducing attack surface and token cost
+
+## Quick Start
 
 ```bash
-# Other useful commands
+openparallax init       # Interactive setup wizard
+openparallax start      # Launch agent + web UI
+```
+
+The `init` wizard configures your LLM provider, Shield security model, and embedding provider with connection testing. Optional steps offer to download the ONNX classifier, vector search extension, skill packs, and MCP servers. After init, `start` launches the engine, spawns the sandboxed agent, opens the CLI, and starts the web UI on port 3100.
+
+```bash
 openparallax doctor          # 13-point health check
 openparallax status          # Workspace stats
 openparallax attach tui      # Attach CLI to running agent
+openparallax detach telegram # Detach a channel at runtime
 openparallax logs -f         # Tail engine log
 openparallax audit --verify  # Verify audit chain integrity
+openparallax chronicle       # List Chronicle snapshots
+openparallax chronicle rollback <id>  # Restore files from snapshot
+openparallax skill install developer  # Install a skill pack
+openparallax mcp install rss          # Install an MCP server
 ```
 
 ## Architecture
 
-Three OS processes at runtime:
+Three OS processes at runtime, enforcing **Cognitive-Executive Separation** — the agent proposes, the engine decides:
 
 ```
 openparallax start              (Process Manager)
-  └── internal-engine           (Engine: privileged, security gate)
-        ├── gRPC server         (AgentService, ClientService)
+  └── internal-engine           (Engine: privileged, unsandboxed)
+        ├── Shield pipeline     (4-tier security evaluation)
+        ├── gRPC server         (AgentService, ClientService, SubAgentService)
         ├── HTTP/WS server      (Web UI on :3100)
-        ├── Shield pipeline     (3-tier security evaluation)
-        ├── Audit, Chronicle    (logging, snapshots)
+        ├── Audit + Chronicle   (hash-chain logging, COW snapshots)
+        ├── IFC                 (information flow control)
         └── internal-agent      (Agent: kernel-sandboxed)
               ├── LLM reasoning (context assembly, tool proposals)
               └── Skills        (on-demand domain guidance)
 ```
 
-**The Agent** owns the LLM — it assembles context, runs the reasoning loop, and proposes tool calls. It runs inside a kernel sandbox (Landlock on Linux, sandbox-exec on macOS, Job Objects on Windows) and cannot access files, network, or processes outside its allowed scope.
+**The Agent** owns the LLM session. It assembles context, runs the reasoning loop, and proposes tool calls over gRPC. It runs inside a kernel sandbox and cannot access files, network, or processes outside its allowed scope. It authenticates with an ephemeral token generated per spawn.
 
-**The Engine** is the security gate — it evaluates every tool proposal through Shield, checks IFC labels, takes Chronicle snapshots, logs to audit, and executes approved actions. The Agent never executes anything directly.
+**The Engine** is the security gate. It evaluates every proposal through Shield, checks IFC sensitivity labels, takes Chronicle snapshots before destructive actions, logs to the audit trail, and executes approved actions. The Agent never executes anything directly.
 
-This separation is the core thesis of the [research paper](https://github.com/openparallax/openparallax) — an agent that thinks and the system that acts must never be the same process.
+**A fully compromised Agent — total prompt injection, complete jailbreak — cannot cause harm**, because it has no execution capability. Shield runs in the Engine process, unreachable from the Agent.
+
+### Shield Pipeline
+
+```
+Tier 0: Policy (YAML rules)        → instant, deterministic
+Tier 1: Classifier (ONNX + 30 heuristic rules) → in-process ML, no API call
+Tier 2: LLM Evaluator (separate model, canary-verified) → budget-limited
+Tier 3: Human Approval (all channels, timeout-to-deny) → rate-limited
+```
+
+Each tier has a different failure mode. An attacker must simultaneously evade pattern matching, fool a neural network, jailbreak a separate LLM that treats everything as data, AND convince the user — for a single action. All tiers fail closed.
 
 ### Message Pipeline
 
 ```
 User input → Store → Forward to Agent → LLM stream with tools
   → For each tool call:
-      Shield.Evaluate → IFC.Check → Chronicle.Snapshot
-      → Audit.Log → Execute → Audit.Log → Return to Agent
+      Protection.Check → Shield.Evaluate → IFC.Check
+      → Chronicle.Snapshot → Audit.Log → Execute → Return to Agent
   → Response complete → Memory index → Title generation
 ```
 
-## Modules
+## Composable Modules
 
-OpenParallax is composed of standalone modules. Use the whole system, or import individual modules into your own project:
+Every module is a standalone Go package with zero dependencies on the rest of OpenParallax. Cross-language support via JSON-RPC bridge binaries for Python and Node.js.
 
 | Module | Description | Go | Python | Node.js |
 |--------|-------------|:---:|:------:|:-------:|
-| **[Shield](https://docs.openparallax.dev/shield/)** | 3-tier AI security pipeline (policy + classifier + LLM evaluator) | &#10003; | &#10003; | &#10003; |
+| **[Shield](https://docs.openparallax.dev/shield/)** | 4-tier AI security pipeline (policy + classifier + LLM + human) | &#10003; | &#10003; | &#10003; |
 | **[Memory](https://docs.openparallax.dev/memory/)** | Semantic memory with pluggable backends (SQLite, pgvector, Qdrant, Pinecone, ...) | &#10003; | &#10003; | &#10003; |
 | **[Audit](https://docs.openparallax.dev/audit/)** | Tamper-evident append-only logging with SHA-256 hash chains | &#10003; | &#10003; | &#10003; |
-| **[Sandbox](https://docs.openparallax.dev/sandbox/)** | Kernel-level process isolation (Landlock, sandbox-exec, Job Objects) | &#10003; | | |
+| **[Sandbox](https://docs.openparallax.dev/sandbox/)** | Kernel-level process isolation (Landlock, sandbox-exec, Job Objects) | &#10003; | &#10003; | &#10003; |
 | **[Channels](https://docs.openparallax.dev/channels/)** | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage | &#10003; | &#10003; | &#10003; |
 | **[Chronicle](https://docs.openparallax.dev/modules/chronicle)** | Copy-on-write workspace snapshots with rollback | &#10003; | | |
 | **[LLM](https://docs.openparallax.dev/modules/llm)** | Anthropic, OpenAI + compatible APIs, Google, Ollama | &#10003; | | |
 | **[IFC](https://docs.openparallax.dev/modules/ifc)** | Information flow control with sensitivity labels | &#10003; | | |
-| **[Crypto](https://docs.openparallax.dev/modules/crypto)** | ID generation, hash chains, canary tokens | &#10003; | | |
+| **[Crypto](https://docs.openparallax.dev/modules/crypto)** | ID generation, hash chains, canary tokens, AES-256-GCM | &#10003; | | |
 | **[MCP](https://docs.openparallax.dev/modules/mcp)** | Model Context Protocol client integration | &#10003; | | |
 
-### Shield as a Standalone Product
+Import Shield into your own project:
 
-Shield can run as a standalone MCP security proxy — no OpenParallax required:
+```go
+import "github.com/openparallax/openparallax/shield"
 
-```bash
-# Install Shield standalone
-curl -sSL https://get.openparallax.dev/shield | sh
+pipeline, _ := shield.NewPipeline(shield.Config{
+    PolicyFile:       "policy.yaml",
+    HeuristicEnabled: true,
+    FailClosed:       true,
+})
 
-# Point it at your MCP servers
-cat > shield.yaml <<EOF
-listen: localhost:9090
-upstream:
-  - name: filesystem
-    transport: stdio
-    command: npx @modelcontextprotocol/server-filesystem /home
-policy:
-  file: policy.yaml
-EOF
-
-# Every MCP tool call now passes through 3-tier security
-openparallax-shield serve
+verdict := pipeline.Evaluate(ctx, &shield.ActionRequest{
+    Type:    "execute_command",
+    Payload: map[string]any{"command": userInput},
+})
 ```
 
-## Project Structure
+## Security
 
-```
-cmd/agent/              CLI (Cobra): start, init, doctor, attach, get-classifier
-cmd/shield/             Standalone Shield service
+The architecture is designed around one assumption: **the AI agent is fully untrusted**. It may be compromised at any time through prompt injection, memory poisoning, or context manipulation. Safety holds even under total compromise.
 
-internal/
-  agent/                LLM reasoning loop, context assembly, skills
-  audit/                Append-only JSONL with SHA-256 hash chain
-  channels/cli/         Terminal TUI (Bubbletea)
-  chronicle/            Copy-on-write workspace snapshots
-  config/               YAML config loader
-  crypto/               ID generation, hashing, canary tokens
-  engine/               Pipeline orchestrator, gRPC server, protection
-    executors/          10 executor types (file, shell, git, browser, email, ...)
-  llm/                  Provider abstraction (Anthropic, OpenAI, Google, Ollama)
-  memory/               FTS5 + vector search, daily logs, embeddings
-  sandbox/              Kernel isolation (Landlock, sandbox-exec, Job Objects)
-  shield/               3-tier security pipeline
-    tier0/              YAML policy matching
-    tier1/              ONNX DeBERTa classifier + heuristics
-    tier2/              LLM evaluator with canary verification
-  storage/              SQLite (pure Go, zero CGo, WAL mode)
-  web/                  HTTP + WebSocket server
+- **4-tier Shield** — YAML policy, in-process DeBERTa classifier, isolated LLM evaluator with canary verification, human-in-the-loop approval broadcast to all channels
+- **Kernel sandboxing** — Landlock + seccomp (Linux), sandbox-exec (macOS), Job Objects (Windows). Canary probes verify enforcement on every startup
+- **Fail-closed** — every Shield error path returns BLOCK. Sandbox failure prevents agent startup
+- **Ephemeral auth tokens** — 128-bit random tokens per agent/sub-agent spawn, validated on first gRPC message
+- **File protection levels** — critical files fully blocked, identity files read-only, memory files require minimum Tier 1
+- **SSRF protection** — HTTP and browser executors block private IP ranges and cloud metadata endpoints
+- **IFC** — information flow control prevents data exfiltration across sensitivity boundaries
+- **Output sanitization** — opt-in wrapping of tool results in data boundaries to mitigate prompt injection via untrusted content
+- **Web security** — session-authenticated WebSocket, login rate limiting, CORS restricted to configured origins, 10MB message size limit
+- **Channel access control** — Discord requires guild allowlist, Telegram defaults to private-chat-only
+- **Tamper-evident audit** — SHA-256 hash chain, any modification breaks the chain
+- **Read-only config** — security-sensitive settings cannot be changed via API or slash commands
 
-proto/openparallax/v1/  Protobuf service definitions
-web/                    Svelte 4 + TypeScript + Vite frontend
-docs/                   VitePress documentation site
-```
+For vulnerability reports, see [SECURITY.md](SECURITY.md).
 
 ## Development
 
@@ -204,14 +194,16 @@ docs/                   VitePress documentation site
 make build-all && make test && make lint && cd web && npm test && cd ..
 
 # Individual targets
-make proto              # Generate gRPC code
-make build-web          # Build Svelte frontend
+make proto              # Generate gRPC code from proto definitions
+make build-web          # Build Svelte frontend (embedded via go:embed)
 make build              # Go binary → dist/openparallax
+make build-shield       # Shield binary → dist/openparallax-shield
+make build-bridges      # 5 cross-language bridge binaries
 make test               # go test -race -count=1 ./...
 make lint               # golangci-lint
 
 # Docs
-cd docs && npm run dev  # VitePress dev server at localhost:5173
+cd docs && npm run dev  # VitePress dev server
 ```
 
 ### Tech Stack
@@ -221,15 +213,13 @@ cd docs && npm run dev  # VitePress dev server at localhost:5173
 | Language | Go 1.25 (`CGO_ENABLED=0`), TypeScript 5.5 |
 | Frontend | Svelte 4, Vite 5 |
 | CLI | Cobra + Bubbletea |
-| Transport | gRPC, WebSocket, REST |
-| Database | SQLite (modernc.org, pure Go, WAL) |
-| Search | FTS5 + cosine similarity vectors |
-| ML Inference | onnxruntime-purego (pure Go FFI) |
+| Transport | gRPC (agent ↔ engine), WebSocket + REST (web ↔ engine) |
+| Database | SQLite (modernc.org, pure Go, WAL mode) |
+| Search | FTS5 full-text + vector embeddings (sqlite-vec or built-in cosine) |
+| ML | ONNX DeBERTa via onnxruntime-purego (pure Go, no CGo) |
 | Protobuf | protoc + go/go-grpc plugins |
 
 ### Environment Variables
-
-Third-party API keys use standard names:
 
 | Variable | Purpose |
 |----------|---------|
@@ -237,30 +227,17 @@ Third-party API keys use standard names:
 | `OPENAI_API_KEY` | OpenAI (chat + embeddings) |
 | `GOOGLE_AI_API_KEY` | Google Gemini |
 
-OpenParallax-specific variables use the `OP_` prefix: `OP_LOG_LEVEL`, `OP_DATA_DIR`, `OP_WEB_PORT`, `OP_SHIELD_POLICY`, etc. See the [full reference](https://docs.openparallax.dev/reference/env-vars).
+See the [full reference](https://docs.openparallax.dev/reference/env-vars) for all configuration options.
 
 ## Documentation
 
-Full documentation at **[docs.openparallax.dev](https://docs.openparallax.dev)** — 91+ pages covering:
+Full documentation at **[docs.openparallax.dev](https://docs.openparallax.dev)**:
 
 - **[User Guide](https://docs.openparallax.dev/guide/)** — installation, quickstart, configuration, every feature
-- **[Technical Docs](https://docs.openparallax.dev/technical/)** — architecture, pipeline, gRPC services, extending
+- **[Design Philosophy](https://docs.openparallax.dev/technical/design-security)** — why 4 tiers, why kernel sandboxing, why dynamic tool loading
+- **[Technical Docs](https://docs.openparallax.dev/technical/)** — architecture, pipeline, gRPC services, process model
 - **[Module Docs](https://docs.openparallax.dev/shield/)** — standalone usage for Shield, Memory, Audit, Sandbox, Channels
-- **[API Reference](https://docs.openparallax.dev/reference/config)** — config schema, events, actions, gRPC, REST, WebSocket
-
-## Security
-
-OpenParallax takes security seriously. The entire architecture is designed around the principle that the AI agent should never be trusted with direct execution capability.
-
-- **3-tier Shield** — policy rules, DeBERTa ML classifier, LLM evaluator with canary verification
-- **Kernel sandboxing** — Landlock (Linux 5.13+), sandbox-exec (macOS), Job Objects (Windows)
-- **Fail-closed** — every Shield error path returns BLOCK, sandbox failure prevents agent startup
-- **Canary probes** — platform-specific verification that sandbox is actually enforcing restrictions
-- **File protection levels** — critical files (config, audit, canary tokens) are fully blocked from agent access
-- **IFC** — information flow control prevents data exfiltration across sensitivity boundaries
-- **Tamper-evident audit** — SHA-256 hash chain, any modification breaks the chain
-
-For vulnerability reports, see [SECURITY.md](SECURITY.md).
+- **[API Reference](https://docs.openparallax.dev/reference/config)** — config schema, 14 event types, 73 action types, 24 REST endpoints, WebSocket protocol
 
 ## License
 
@@ -268,4 +245,4 @@ For vulnerability reports, see [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. We welcome contributions across all modules.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
