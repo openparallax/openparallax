@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -212,19 +213,22 @@ func (s *SetupServer) handleSetupComplete(w http.ResponseWriter, r *http.Request
 
 	// Create workspace.
 	if err := os.MkdirAll(body.Workspace, 0o755); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create workspace: "+err.Error())
+		slog.Error("setup_create_workspace_failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	dotDir := filepath.Join(body.Workspace, ".openparallax")
 	if err := os.MkdirAll(dotDir, 0o755); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create internal dir: "+err.Error())
+		slog.Error("setup_create_internal_dir_failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
 	// Write config.
 	configPath := filepath.Join(body.Workspace, "config.yaml")
 	if err := writeSetupConfig(configPath, body); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to write config: "+err.Error())
+		slog.Error("setup_write_config_failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 

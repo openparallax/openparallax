@@ -18,6 +18,7 @@ type Tier3Decision struct {
 // PendingAction is an action awaiting human approval.
 type PendingAction struct {
 	ID        string
+	SessionID string
 	Action    *types.ActionRequest
 	Reasoning string
 	CreatedAt time.Time
@@ -101,6 +102,26 @@ func (m *Tier3Manager) Decide(actionID string, approved bool) error {
 	return nil
 }
 
+// DecideForSession resolves a pending action after validating that the caller's
+// session matches the session that created it. Returns an error if the action
+// does not exist or the session does not match.
+func (m *Tier3Manager) DecideForSession(actionID, sessionID string, approved bool) error {
+	m.mu.Lock()
+	pa, ok := m.pending[actionID]
+	m.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("no pending action: %s", actionID)
+	}
+
+	if pa.SessionID != "" && pa.SessionID != sessionID {
+		return fmt.Errorf("session mismatch for action %s", actionID)
+	}
+
+	pa.ResultCh <- Tier3Decision{Approved: approved}
+	return nil
+}
+
 // Pending returns all pending actions for UI display.
 func (m *Tier3Manager) Pending() []*PendingAction {
 	m.mu.Lock()
@@ -171,6 +192,7 @@ func (e *Engine) requestTier3Approval(ctx context.Context, sid, mid, toolName st
 
 	pa := &PendingAction{
 		ID:        crypto.NewID(),
+		SessionID: sid,
 		Action:    action,
 		Reasoning: reasoning,
 	}

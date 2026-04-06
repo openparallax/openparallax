@@ -26,6 +26,15 @@ type wsClientMessage struct {
 // handleWebSocket upgrades an HTTP connection to WebSocket and handles
 // bidirectional communication for the chat interface.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Authenticate WebSocket upgrades when auth is enabled.
+	if s.auth != nil && s.auth.isRemote {
+		cookie, cookieErr := r.Cookie("op_session")
+		if cookieErr != nil || cookie.Value != s.auth.sessionToken {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		OriginPatterns: s.wsOriginPatterns(),
 	})
@@ -34,6 +43,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	conn.SetReadLimit(10 * 1024 * 1024) // 10MB max message size
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -168,9 +179,10 @@ func (s *Server) handleCancel(sessionID string) {
 }
 
 // handleTier3Decision resolves a pending human-in-the-loop approval.
+// The caller's session ID must match the session that created the pending action.
 func (s *Server) handleTier3Decision(msg wsClientMessage) {
 	approved := msg.Decision == "approve"
-	if err := s.engine.Tier3().Decide(msg.ActionID, approved); err != nil {
+	if err := s.engine.Tier3().DecideForSession(msg.ActionID, msg.SessionID, approved); err != nil {
 		s.log.Warn("tier3_decision_failed", "action_id", msg.ActionID, "error", err)
 		return
 	}

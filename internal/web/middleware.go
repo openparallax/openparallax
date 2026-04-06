@@ -169,9 +169,16 @@ func withAuth(next http.Handler, cfg *authConfig) http.Handler {
 		return next
 	}
 
+	loginRL := newRateLimiter()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Login endpoint is always accessible.
+		// Login endpoint is always accessible but rate-limited strictly.
 		if r.URL.Path == "/api/login" {
+			ip := extractIP(r)
+			if !loginRL.allow(ip, 5) { // 5 attempts per minute per IP
+				http.Error(w, "too many login attempts", http.StatusTooManyRequests)
+				return
+			}
 			handleLogin(w, r, cfg)
 			return
 		}
