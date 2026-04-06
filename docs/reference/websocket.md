@@ -8,9 +8,17 @@ The web UI communicates with the Engine through a persistent WebSocket connectio
 ws://localhost:3100/ws
 ```
 
-When authentication is required (non-localhost `web.host`), the WebSocket handshake must include the `op_session` cookie set by `POST /api/login`.
-
 The connection is long-lived. The Engine sends events as they occur. The client sends messages as JSON frames.
+
+### Authentication
+
+When `web.host` is set to a non-localhost address, the WebSocket upgrade request must include a valid `op_session` cookie obtained from `POST /api/login`. Unauthenticated upgrade attempts receive a `401 Unauthorized` response and the connection is not established.
+
+On localhost, authentication is not required for WebSocket connections (matching the REST API behavior).
+
+### Message Size Limit
+
+The server enforces a 10MB maximum message size (`conn.SetReadLimit`). Any WebSocket frame exceeding this limit is rejected and the connection is closed.
 
 ## Client → Engine Messages
 
@@ -57,6 +65,24 @@ Stop receiving events for a session.
   "session_id": "01HWXYZ..."
 }
 ```
+
+### `tier3_decision`
+
+Respond to a Tier 3 human-in-the-loop approval request. Sent after the client receives a `tier3_approval_required` event.
+
+```json
+{
+  "type": "tier3_decision",
+  "action_id": "01HWDEF...",
+  "decision": "approve"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | yes | Always `"tier3_decision"` |
+| `action_id` | string | yes | The action ID from the `tier3_approval_required` event. |
+| `decision` | string | yes | `"approve"` or `"deny"`. |
 
 ### `ping`
 
@@ -219,6 +245,25 @@ Signals the response is complete. Stop streaming indicators, finalize the messag
   }
 }
 ```
+
+### Event: `tier3_approval_required`
+
+```json
+{
+  "type": "tier3_approval_required",
+  "session_id": "01HWXYZ...",
+  "timestamp": 1711929604000,
+  "data": {
+    "action_id": "01HWDEF...",
+    "tool_name": "shell_execute",
+    "target": "rm -rf /tmp/cache",
+    "reasoning": "Destructive shell command targeting filesystem",
+    "timeout_secs": 300
+  }
+}
+```
+
+Requests human-in-the-loop approval for an action that Shield escalated to Tier 3. The client should display an approval prompt and respond with a `tier3_decision` message before `timeout_secs` expires. If no decision is received before the timeout, the action is denied automatically.
 
 ### Event: `log_entry`
 

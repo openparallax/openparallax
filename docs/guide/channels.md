@@ -66,6 +66,8 @@ channels:
     bot_token_env: TELEGRAM_BOT_TOKEN
     webhook_url: "https://your-domain.com/webhooks/telegram"
     allowed_users: ["123456789"]
+    allowed_groups: []
+    private_only: true
 ```
 
 | Field | Description |
@@ -73,6 +75,8 @@ channels:
 | `bot_token_env` | Environment variable containing the bot token from @BotFather |
 | `webhook_url` | Public URL for receiving Telegram updates. Leave empty for long polling. |
 | `allowed_users` | List of Telegram user IDs that can interact with the bot. Empty list allows all users. |
+| `allowed_groups` | List of Telegram group chat IDs where the bot is permitted to respond. Empty list allows all groups. |
+| `private_only` | When true, the bot only responds to private (direct) messages and ignores group chats. Defaults to true for security. |
 
 **Setup steps:**
 
@@ -99,14 +103,14 @@ channels:
     enabled: true
     bot_token_env: DISCORD_BOT_TOKEN
     application_id: "1234567890"
-    guild_ids: ["9876543210"]
+    allowed_guilds: ["9876543210"]
 ```
 
 | Field | Description |
 |-------|-------------|
 | `bot_token_env` | Environment variable containing the Discord bot token |
 | `application_id` | Discord application ID from the Developer Portal |
-| `guild_ids` | List of Discord server (guild) IDs where the bot operates. Empty list registers commands globally. |
+| `allowed_guilds` | List of Discord server (guild) IDs where the bot is permitted to operate. Required — the bot refuses to respond in unlisted guilds. Empty list registers commands globally but restricts responses to DMs only. |
 
 **Setup steps:**
 
@@ -268,6 +272,26 @@ Regardless of the source channel, messages are normalized into a common format b
 
 Platform-specific features (reactions, threads, attachments) are handled by each channel adapter as appropriate. Text content is always extracted and passed through.
 
+## Dynamic Channel Management
+
+Channels can be connected and disconnected at runtime without restarting the engine.
+
+**`attach`** connects a channel to a running agent:
+
+```bash
+openparallax attach telegram
+openparallax attach discord myagent
+```
+
+**`detach`** disconnects a channel from a running agent:
+
+```bash
+openparallax detach telegram
+openparallax detach discord myagent
+```
+
+The channel must be configured in `config.yaml` with valid credentials. `attach` starts the adapter and begins processing messages; `detach` gracefully shuts it down and stops accepting new messages.
+
 ## Security Across Channels
 
 All channels go through the identical Shield pipeline. There is no bypass for any channel:
@@ -278,6 +302,11 @@ All channels go through the identical Shield pipeline. There is no bypass for an
 - OTR mode works in all channels (the agent checks session mode, not channel type)
 
 The `allowed_users` / `allowed_numbers` fields on Telegram, Signal, and other channels provide an additional access control layer that restricts who can interact with the bot.
+
+**Security defaults by channel:**
+
+- **Discord** — requires a guild allowlist (`allowed_guilds`). The bot refuses to respond in unlisted guilds.
+- **Telegram** — defaults to private-chat-only (`private_only: true`). Group chat responses require explicitly setting `private_only: false` and configuring `allowed_groups`.
 
 ## Multiple Channels Simultaneously
 

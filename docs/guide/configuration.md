@@ -120,6 +120,7 @@ web:
   auth: true            # Enable authentication
   password_hash: ""     # bcrypt hash of the web UI password
   host: ""              # Bind address (default: all interfaces)
+  allowed_origins: []   # CORS/WebSocket origins (empty = localhost only)
 ```
 
 | Field | Description | Default |
@@ -130,6 +131,7 @@ web:
 | `auth` | Require authentication for web access | `true` |
 | `password_hash` | bcrypt hash of the password. Generate with `openparallax auth set-password`. When auth is enabled and no hash is set, the agent generates a one-time password on first start. | `""` |
 | `host` | Bind address. Empty string binds to all interfaces. Set to `127.0.0.1` to restrict to localhost only. | `""` |
+| `allowed_origins` | List of origins permitted for CORS and WebSocket connections. When empty, only localhost origins are accepted. | `[]` |
 
 ---
 
@@ -151,12 +153,14 @@ channels:
     bot_token_env: TELEGRAM_BOT_TOKEN
     webhook_url: ""
     allowed_users: []
+    allowed_groups: []
+    private_only: true
 
   discord:
     enabled: false
     bot_token_env: DISCORD_BOT_TOKEN
     application_id: ""
-    guild_ids: []
+    allowed_guilds: []
 
   slack:
     enabled: false
@@ -307,6 +311,7 @@ general:
   rate_limit: 30               # Max tool calls per minute
   verdict_ttl_seconds: 60      # Cache Shield verdicts for this duration
   daily_budget: 100            # Maximum Tier 2 evaluations per day
+  output_sanitization: false   # Wrap tool results in data boundaries
 ```
 
 | Field | Description | Default |
@@ -315,6 +320,65 @@ general:
 | `rate_limit` | Maximum tool call executions per minute across all sessions | `30` |
 | `verdict_ttl_seconds` | How long to cache Shield verdicts for identical actions | `60` |
 | `daily_budget` | Maximum number of Tier 2 (LLM evaluator) calls per day. Prevents runaway evaluation costs. | `100` |
+| `output_sanitization` | Wrap tool results and memory content in explicit data boundaries to defend against prompt injection from untrusted content. | `false` |
+
+---
+
+### agents
+
+Sub-agent orchestration defaults. These control how the primary agent and sub-agents interact with the LLM.
+
+```yaml
+agents:
+  sub_agent_model: ""          # Override model for sub-agents (empty = auto-detect)
+  max_rounds: 20               # Max LLM calls per sub-agent
+  max_tool_rounds: 25          # Max tool-call round-trips per message
+  context_window: 128000       # Assumed model context window in tokens
+  compaction_threshold: 70     # Compact history at this % of context budget
+  max_response_tokens: 4096    # Max tokens per LLM response
+```
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `sub_agent_model` | Model override for sub-agents. Empty means auto-detect the cheapest model from the configured provider. | `""` |
+| `max_rounds` | Maximum number of LLM calls each sub-agent can make before stopping. | `20` |
+| `max_tool_rounds` | Maximum tool-call round-trips per message in the main agent loop. | `25` |
+| `context_window` | Assumed model context window size in tokens. Used for compaction calculations. | `128000` |
+| `compaction_threshold` | Percentage (0-100) of context budget usage that triggers automatic history compaction. | `70` |
+| `max_response_tokens` | Maximum tokens the LLM may produce per response. | `4096` |
+
+---
+
+### tools
+
+Tool group availability configuration.
+
+```yaml
+tools:
+  disabled_groups:
+    - browser
+    - email
+```
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `disabled_groups` | List of tool group names to hide from the LLM. Disabled groups are not registered as available tools. Valid group names: `file`, `shell`, `git`, `browser`, `email`, `calendar`, `canvas`, `memory`, `http`, `schedule`. | `[]` |
+
+---
+
+### skills
+
+Skill availability configuration.
+
+```yaml
+skills:
+  disabled:
+    - example-skill
+```
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `disabled` | List of skill names to exclude. Disabled skills are not discoverable by the LLM and cannot be loaded. | `[]` |
 
 ---
 
@@ -409,11 +473,13 @@ channels:
     enabled: true
     bot_token_env: TELEGRAM_BOT_TOKEN
     allowed_users: ["123456789"]
+    private_only: true
 
   discord:
     enabled: true
     bot_token_env: DISCORD_BOT_TOKEN
     application_id: "1234567890"
+    allowed_guilds: ["9876543210"]
 
 mcp:
   servers:

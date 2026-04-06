@@ -4,6 +4,55 @@ All notable changes to OpenParallax are documented here. This project follows [c
 
 ---
 
+## 2026-04-06
+
+### Security
+
+- Fix 3 Shield gateway bugs (nil pointer panic, fail-open bypass, budget bypass)
+- Wire Tier 3 human-in-the-loop approval to all channels
+- Add WebSocket session authentication and Tier 3 session binding
+- Add SSRF protection (block private IP ranges in HTTP/browser executors)
+- Add configurable output sanitization for prompt injection defense
+- Add login rate limiting (5/min per IP)
+- Add 10MB WebSocket message size limit
+- Require Discord guild allowlist, Telegram private-chat default
+
+### Architecture
+
+- Remove dual pipeline — single agent stream path
+- Split engine.go into 5 focused files
+- Remove artifact system dead code
+- Implement agent_message for sub-agent follow-up instructions
+- Implement detach command with dynamic channel management
+
+### Performance
+
+- Virtual scroll for message list (activates at 50+ messages)
+- llm_usage retention policy (90-day aggregate + prune)
+- Memoize markdown rendering (500-entry cache)
+
+### Quality
+
+- Extract pipeline magic numbers into configurable defaults
+- Add read-only protection for security-sensitive config keys
+- Update model defaults (gpt-5.4, gemini-3.1-pro, claude-sonnet-4-6)
+- Centralize model names in models.go
+- Auto-resolve latest sqlite-vec and ONNX Runtime from GitHub
+- Fix vector-ext 404 download
+- Rewrite system prompt templates for token efficiency
+- Add RunLoop, indexer, and cascade delete tests
+- Split ConsoleViewer into 3 sub-components
+- Normalize command file naming
+
+### Documentation
+
+- Add 4 design philosophy pages
+- Complete Tier 3 Shield documentation
+- Regenerate actions, events, config, REST API, CLI references from code
+- Fix 110+ documentation mismatches
+
+---
+
 ## v0.1.0 — Initial Release
 
 The first public release of OpenParallax. A reference implementation of the architecture described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
