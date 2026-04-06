@@ -10,7 +10,7 @@ Each tier has a fundamentally different failure mode. Three tiers with orthogona
 
 **Tier 1: Dual Classifier (ONNX DeBERTa + heuristic rules).** A neural network trained on prompt injection datasets plus a parallel heuristic engine for known attack signatures. Catches adversarial patterns that don't match static rules — encoded payloads, social engineering structures, indirect injection via tool results. Failure mode: black-box confidence scores. The classifier flags suspicious actions but cannot explain *why* or reason about novel attacks it hasn't seen in training data.
 
-**Tier 2: LLM Evaluator.** A separate LLM instance that reads the proposed action in context and reasons about whether it's dangerous. Catches novel attacks, ambiguous actions, and multi-step exploitation chains. Failure mode: expensive, slow, and itself vulnerable to jailbreaking — the action payload could contain prompt injection targeting the evaluator.
+**Tier 2: LLM Evaluator.** An isolated LLM instance with no agent context — no identity, no history, no tools. It receives only the action type and payload as raw data and evaluates whether it is safe to execute. Catches novel attacks, ambiguous actions, and multi-step exploitation chains. A canary token in the evaluator's prompt detects if the payload manages to override the evaluation instructions (see below).
 
 The layered design means:
 
