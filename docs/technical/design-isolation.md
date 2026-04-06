@@ -1,12 +1,10 @@
 # Process Isolation: Sandbox & Chronicle
 
-OpenParallax separates thinking from acting at the OS process level. The Agent proposes; the Engine decides and executes. Kernel sandboxing constrains the Agent, copy-on-write snapshots protect the filesystem, and a tamper-evident audit trail records everything. This page explains why each layer exists and what threat it addresses.
+OpenParallax separates thinking from acting at the OS process level. The Agent proposes; the Engine decides and executes. Kernel sandboxing constrains the Agent, copy-on-write snapshots protect the filesystem, and a tamper-evident audit trail records everything. This page covers each layer and the threat it addresses.
 
-## Why Kernel Sandboxing, Not Docker?
+## Kernel Sandboxing
 
-The Agent is not a microservice running in a cluster. It is a process on the user's machine, accessing their files, talking to their LLM provider, running in their terminal. Docker isolates containers from each other — that is not the threat model.
-
-The threat model is: **what if the LLM convinces the agent to do something dangerous?** The agent talks to external LLM APIs. Those APIs can be manipulated through prompt injection. If the agent has unrestricted filesystem and network access, a successful injection can read SSH keys, exfiltrate data, or install malware — and the agent would execute those actions thinking it is being helpful.
+The Agent is a process on the user's machine, accessing their files, talking to their LLM provider, running in their terminal. The threat model is: **what if the LLM convinces the agent to do something dangerous?** The agent talks to external LLM APIs. Those APIs can be manipulated through prompt injection. If the agent has unrestricted filesystem and network access, a successful injection can read SSH keys, exfiltrate data, or install malware — and the agent would execute those actions thinking it is being helpful.
 
 Kernel sandboxing restricts what the agent process can do at the OS level:
 
@@ -29,9 +27,9 @@ sbErr := sb.ApplySelf(sandbox.Config{
 
 This is critical: the sandbox is applied from *within* the process itself. Even if the agent binary is compromised, the kernel enforces the restrictions. There is no daemon to kill, no container to escape, no configuration file to edit. The restrictions are baked into the process's security context by the kernel.
 
-No root required. No container runtime. No daemon. The sandbox is a syscall, not an infrastructure dependency.
+No root required. No container runtime. No daemon. The sandbox is a syscall.
 
-## Why Canary Probes?
+## Canary Probes
 
 Requesting a sandbox is not the same as having one. On Linux, Landlock requires kernel 5.13+. Network restriction requires 6.7+. On macOS, `sandbox-exec` is deprecated and may be removed. On Windows, Job Objects restrict process creation but not filesystem or network access.
 
@@ -71,7 +69,7 @@ This is verification, not assumption. The agent reports its sandbox status to th
 
 If the sandbox is unavailable (old kernel, unsupported platform), the agent starts normally. Sandboxing is defense in depth — its absence does not disable other security layers. Shield still evaluates every action. The audit trail still records everything. Chronicle still takes snapshots.
 
-## Why Copy-on-Write Chronicle?
+## Copy-on-Write Chronicle
 
 Shield prevents dangerous actions. But what if something slips through? A classifier false negative. A novel attack pattern. A legitimate action with unintended consequences. Prevention is necessary but not sufficient.
 
@@ -99,7 +97,7 @@ Together, Shield and Chronicle form a **prevent-and-revert** loop. Shield stops 
 
 The `chronicle.max_snapshots` configuration controls rollback budget. When the limit is reached, the oldest snapshots are pruned. This prevents unbounded disk usage while maintaining recent rollback capability.
 
-## Why Append-Only Audit with Hash Chains?
+## Append-Only Audit with Hash Chains
 
 Every action proposal, Shield evaluation, execution result, and failure is recorded in a JSONL file. Each entry's SHA-256 hash includes the previous entry's hash:
 
@@ -121,9 +119,9 @@ openparallax audit --verify
 
 The audit log lives in `.openparallax/` — a hard-blocked directory that the sandboxed agent process cannot read or write. Even a fully compromised agent cannot tamper with the audit trail because it physically cannot access the file.
 
-This is not logging. It is a cryptographic proof of what happened, in what order, with what security decisions. When something goes wrong — and in a system that executes actions on behalf of an LLM, things will occasionally go wrong — the audit trail provides an unimpeachable record.
+This is not logging. It is a cryptographic proof of what happened, in what order, with what security decisions. When something goes wrong, the audit trail provides a verifiable record.
 
-## Why the 3-Process Model?
+## The 3-Process Model
 
 The core architectural principle: **the entity that thinks must never be the entity that acts.**
 
@@ -152,11 +150,11 @@ This separation means a fully compromised agent — total prompt injection, comp
 
 The gRPC boundary between Engine and Agent is a security boundary. The Engine trusts nothing from the Agent. Every message is a proposal subject to full evaluation. See [Process Model](/technical/process-model) for the lifecycle details.
 
-## Why Best-Effort Sandboxing?
+## Best-Effort Sandboxing
 
 The sandbox is best-effort: if the kernel does not support it (Linux < 5.13, old macOS, Windows filesystem), the agent starts normally. This is a deliberate choice.
 
-The alternative — refusing to start without a sandbox — would make OpenParallax unusable on older systems, in CI environments, in development containers, and on Windows. That pushes users toward running without the agent entirely, or toward less secure alternatives.
+The alternative — refusing to start without a sandbox — would make OpenParallax unusable on older systems, in CI environments, in development containers, and on Windows.
 
 Best-effort means: apply every restriction the platform supports, verify what was actually applied via canary probes, report the result, and continue. The sandbox is one layer of defense in depth. Its absence weakens the system but does not break it. Shield, Chronicle, audit, and the process boundary all function independently of the sandbox.
 

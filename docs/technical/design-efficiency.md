@@ -1,10 +1,10 @@
 # Token Economy: Doing More with Less
 
-Every token in an LLM context window costs money and attention. OpenParallax treats tokens as a scarce resource — every system prompt, tool definition, and historical message is scrutinized for waste. This page explains the techniques that reduce token consumption without reducing capability.
+Every token in an LLM context window costs money and attention. OpenParallax treats tokens as a scarce resource — every system prompt, tool definition, and historical message is evaluated for efficiency. This page covers the techniques that reduce token consumption without reducing capability.
 
-## Why Dynamic Tool Loading?
+## Dynamic Tool Loading
 
-Most AI agent frameworks send all tool definitions with every LLM call. OpenParallax has 73 action types across 10 executor groups. Sending all of them adds thousands of tokens to every request — tokens the LLM must process even when the user asks a simple question that requires no tools at all.
+A common approach is to send all tool definitions with every LLM call. With 73 action types across 10 executor groups, that adds thousands of tokens to every request — tokens the LLM must process even when the user asks a simple question that requires no tools at all.
 
 OpenParallax starts each turn with a single meta-tool:
 
@@ -45,7 +45,7 @@ type GroupRegistry struct {
 
 OTR mode uses `DisableGroups` to remove write-capable groups entirely — the tools are not filtered from responses, they are never loaded in the first place. See [Shield Pipeline](/technical/design-security) for how OTR interacts with security evaluation.
 
-## Why Strip Markdown from System Prompts?
+## Stripping Markdown from System Prompts
 
 The workspace files that compose the system prompt — IDENTITY.md, TOOLS.md, and others — are written in markdown for human readability. But markdown formatting characters are tokens the LLM does not need:
 
@@ -82,7 +82,7 @@ Heading markers, bold/italic markers, bullet prefixes, and horizontal rules are 
 
 Files stay as markdown on disk. The stripping is a view transformation at context assembly time, not a destructive edit.
 
-## Why Stale Tool Result Summarization?
+## Stale Tool Result Summarization
 
 In a 20-turn conversation, the LLM is paying attention tokens to process tool results from turn 3 that are no longer relevant. A `file_read` that returned 45KB of source code is still sitting in the context, consuming thousands of tokens and diluting the LLM's attention on the current task.
 
@@ -117,7 +117,7 @@ func inferContentType(content string) string {
 
 This gives the LLM enough context to know what happened without paying for the full payload.
 
-## Why 70% Compaction Threshold?
+## The 70% Compaction Threshold
 
 When conversation history exceeds 70% of the context budget, the compactor summarizes older messages into a compact paragraph. This is a more aggressive optimization than tool result summarization — it replaces entire conversation turns, not just tool outputs.
 
@@ -140,7 +140,7 @@ Going higher (e.g., 90%) risks truncation when the current turn generates large 
 
 The threshold is configurable via `agents.compaction_threshold` in `config.yaml`. Users with predictable workloads can tune it. The default of 70 works well across a range of conversation patterns.
 
-## Why Embedding Cache and Content Hashing?
+## Embedding Cache and Content Hashing
 
 The memory indexer generates vector embeddings for workspace files to enable semantic search. Embedding API calls are the bottleneck — each one requires an HTTP round-trip to OpenAI or another provider.
 
@@ -152,7 +152,7 @@ Two optimizations eliminate redundant calls:
 
 Together, these make re-indexing near-instant for unchanged workspaces. A full re-index of 500 files might take 30 seconds on first run (limited by API rate limits). A subsequent re-index with 3 changed files takes under a second.
 
-## Why Memoize Markdown Rendering in the Frontend?
+## Memoized Markdown Rendering in the Frontend
 
 Every message in the web UI chat panel runs through `marked` (Markdown parsing) and `DOMPurify` (HTML sanitization) on every Svelte render cycle. For conversations with 100+ messages, this becomes a measurable performance bottleneck.
 

@@ -1,10 +1,10 @@
 # Defense in Depth: The Shield Pipeline
 
-Shield is a 3-tier security pipeline that evaluates every action an AI agent proposes before execution. This page explains the design decisions behind it — why three tiers, why canary tokens, why fail-closed, and why the human is the final tier.
+Shield is a 3-tier security pipeline that evaluates every action an AI agent proposes before execution. This page covers the architecture of each tier, the canary token mechanism, fail-closed semantics, and the role of human-in-the-loop as the final tier.
 
-## Why 3 Tiers, Not 1?
+## The Three-Tier Architecture
 
-Each tier has a fundamentally different failure mode. A single-tier system inherits the blind spots of whatever technique it uses. Three tiers with orthogonal failure modes force an attacker to simultaneously exploit three unrelated systems.
+Each tier has a fundamentally different failure mode. Three tiers with orthogonal failure modes force an attacker to simultaneously exploit three unrelated systems.
 
 **Tier 0: Policy Engine (YAML rules).** Fast pattern matching against action types, arguments, and paths. Catches known-bad actions instantly — `rm -rf /`, writes to `/etc/passwd`, network calls to internal metadata endpoints. Failure mode: cannot reason about intent. A policy rule that blocks `shell_exec` with argument containing `rm -rf` is trivially bypassed by splitting the command across two calls or using `find -delete`.
 
@@ -49,7 +49,7 @@ case NoMatch:
 
 The `MinTier` field forces minimum evaluation depth. A `shell_exec` action always reaches at least Tier 1, regardless of policy rules. Destructive file operations always reach Tier 2. This prevents an overly permissive policy from bypassing ML and LLM evaluation for high-risk actions.
 
-## Why Canary Tokens in the Evaluator?
+## Canary Tokens in the Evaluator
 
 Tier 2 is an LLM evaluating another LLM's output. The action payload — the thing being evaluated — is untrusted content entering the evaluator's context. If the payload contains prompt injection targeting the evaluator, the entire pipeline collapses.
 
@@ -76,7 +76,7 @@ If the canary is missing or wrong, the evaluator was compromised — its system 
 
 This is a cryptographic tripwire inside a prompt. It does not prevent jailbreaking; it *detects* it. An attacker who successfully manipulates the evaluator into returning `ALLOW` must also extract and reproduce a random token they have never seen — one that changes on every request.
 
-## Why Fail-Closed by Default?
+## Fail-Closed by Default
 
 Every error path in the Gateway returns BLOCK when `FailClosed` is true:
 
@@ -100,7 +100,7 @@ The system assumes danger until proven safe. `FailClosed` defaults to `true` in 
 
 The rationale is straightforward: a security system that fails open is not a security system. If the classifier crashes, the correct response is "I cannot verify this action is safe" — not "proceed anyway."
 
-## Why Tier 3: Human-in-the-Loop?
+## Tier 3: Human-in-the-Loop
 
 Some actions are genuinely ambiguous. Deleting a file the user explicitly asked to delete is safe. Deleting a file the LLM decided to delete on its own is suspicious. The evaluator might return 60% confidence either way. Forcing a binary ALLOW/BLOCK decision produces false positives (blocking legitimate work) or false negatives (allowing risky actions).
 
@@ -118,7 +118,7 @@ Reason: Force push to main branch — potentially destructive but
 
 This turns the user into the final tier of the security pipeline. The system handles the obvious cases (Tiers 0-2) and asks for help only on the ambiguous ones. The approval/denial decision is recorded in the audit trail with the same cryptographic hash chain as every other event.
 
-## Why Output Sanitization Is Opt-In?
+## Output Sanitization as Opt-In
 
 Shield evaluates every action BEFORE execution. That covers the action side. Output sanitization covers the result side — it wraps tool results before they re-enter the LLM context, preventing prompt injection via web pages, emails, file contents, and API responses.
 
@@ -128,7 +128,7 @@ Output sanitization adds token overhead to every tool result. For users running 
 
 Making it configurable respects both use cases. The default is off for local-only deployments, on for any configuration with remote access channels enabled. See [Shield Pipeline](/shield/) for configuration details.
 
-## Why Rate Limiting and Daily Budgets?
+## Rate Limiting and Daily Budgets
 
 Tier 2 evaluations cost money — each one is an LLM API call. An attacker (or a runaway agent loop) could exhaust the evaluation budget by triggering thousands of Tier 2 evaluations, then execute dangerous actions when the budget is gone and the system falls back to Tier 1 only.
 

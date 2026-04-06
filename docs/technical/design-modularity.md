@@ -1,12 +1,10 @@
-# Modularity: A Platform, Not Just an Agent
+# Modularity: Standalone Infrastructure Modules
 
-OpenParallax is a personal AI agent built from standalone infrastructure modules. Shield, Memory, Audit, Sandbox, Chronicle, and IFC are independently importable Go packages with no dependency on the engine or agent. This page explains why the system is structured this way and how the pieces compose.
+OpenParallax is a personal AI agent built from standalone infrastructure modules. Shield, Memory, Audit, Sandbox, Chronicle, and IFC are independently importable Go packages with no dependency on the engine or agent. This page covers the module structure and how the pieces compose.
 
-## Why Independently Importable Modules?
+## Independently Importable Modules
 
-Every AI agent framework reinvents the same infrastructure: security evaluation, semantic memory, audit logging, process sandboxing, multi-channel messaging. Each implementation is tightly coupled to its specific orchestrator, making it useless to anyone who does not use that exact framework.
-
-OpenParallax inverts this. The modules came first; the agent was built on top of them. Each module is a self-contained Go package at the repository root:
+Agent frameworks typically implement security, memory, and audit as internal components tied to their orchestrator. OpenParallax's modules are designed as standalone packages. Each module is a self-contained Go package at the repository root:
 
 ```
 shield/       3-tier AI security pipeline
@@ -43,7 +41,7 @@ verdict := gw.Evaluate(ctx, &shield.ActionRequest{
 
 No engine. No agent. No gRPC. Just the security pipeline, running in your process, evaluating your actions. The same applies to every other module.
 
-## Why Bridge Binaries for Cross-Language Support?
+## Bridge Binaries for Cross-Language Support
 
 Go packages cannot be imported from Python or Node.js. But a subprocess that speaks JSON-RPC over stdin/stdout can be called from any language.
 
@@ -85,7 +83,7 @@ const verdict = await shield.evaluate({ type: 'shell_exec', command: cmd });
 
 This architecture means the Python and Node.js wrappers are thin — they manage the bridge subprocess lifecycle and serialize/deserialize JSON. All logic runs in Go. Updates to the Shield pipeline automatically propagate to all language wrappers when the bridge binary is rebuilt.
 
-## Why Zero CGo?
+## Zero CGo
 
 The entire project compiles to a single static binary with `CGO_ENABLED=0`. This constraint shapes every dependency choice:
 
@@ -93,7 +91,7 @@ The entire project compiles to a single static binary with `CGO_ENABLED=0`. This
 - **ONNX inference**: `onnxruntime-purego` — a Go-to-C bridge using `purego` (runtime dlopen) instead of CGo. The ONNX runtime shared library is loaded at runtime, not linked at build time.
 - **Protobuf**: Pure Go generated code. No C++ runtime.
 
-The payoff:
+The result:
 
 ```bash
 # Cross-compile from any platform to any target
@@ -107,9 +105,9 @@ scp openparallax-linux-arm64 server:/usr/local/bin/openparallax
 
 No shared library dependencies. No platform-specific compilation. No build matrix. One `go build` produces a self-contained binary that runs on the target platform.
 
-This matters enormously for the bridge binaries. They need to run on any machine where the Python or Node.js wrapper is installed. Requiring a C toolchain on the user's machine — or shipping platform-specific shared libraries — would make the wrappers impractical. A single static binary per platform is the only distribution model that works at scale.
+This is particularly important for the bridge binaries, which need to run on any machine where the Python or Node.js wrapper is installed. Requiring a C toolchain on the user's machine — or shipping platform-specific shared libraries — would make the wrappers impractical. A single static binary per platform is a straightforward distribution model.
 
-## Why the Type Hierarchy Flows from ifc/ to shield/ to internal/types/?
+## Type Hierarchy: ifc/ to shield/ to internal/types/
 
 The module packages form a dependency tree where each layer adds types without duplicating them:
 
@@ -138,7 +136,7 @@ This layering serves the modularity goal:
 
 Each layer re-exports via type aliases, not wrapper types. `shield.ActionType` is literally `ifc.ActionType` — no conversion, no mapping, no impedance mismatch. Code that works with `ifc.ActionType` works with `shield.ActionType` because they are the same type.
 
-## Why Proto Is Wire-Only, Not the Source of Truth?
+## Proto as Wire Format, Not Source of Truth
 
 The protobuf definitions in `proto/openparallax/v1/` define the gRPC wire protocol — how the Engine, Agent, and clients communicate over the network. The Go types used in application logic come from the module packages.
 
@@ -152,7 +150,7 @@ This separation exists because:
 
 The Engine translates between proto types and Go types at the gRPC boundary. This is a small amount of mapping code, but it keeps the module packages clean — they never import `google.golang.org/protobuf` or any generated code.
 
-## Why OTR Mode?
+## OTR Mode
 
 Not every conversation should be remembered. Medical questions, financial details, personal matters — users need a way to interact with the agent without creating a permanent record.
 
@@ -180,7 +178,7 @@ OTR (Off-The-Record) mode is privacy as a first-class feature:
 
 OTR is activated via the `/otr` slash command in both the web UI and CLI. The session is marked as OTR at creation time — there is no way to convert a normal session to OTR or vice versa. This prevents accidental data persistence after the user thought they were in private mode.
 
-## Why Channel Adapters Share One Entry Point?
+## Unified Channel Entry Point
 
 Every channel — CLI, web UI, Telegram, Discord, Slack, WhatsApp, Signal, Teams — enters the engine through the same function:
 
