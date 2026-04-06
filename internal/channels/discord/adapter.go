@@ -19,6 +19,7 @@ const maxMsgLen = 2000
 // Adapter implements channels.ChannelAdapter for Discord.
 type Adapter struct {
 	token             string
+	allowedGuilds     map[string]bool
 	allowedChannels   map[string]bool
 	allowedUsers      map[string]bool
 	respondToMentions bool
@@ -40,6 +41,10 @@ func New(cfg *types.DiscordConfig, manager *channels.Manager, log *logging.Logge
 		return nil
 	}
 
+	allowedGuilds := make(map[string]bool)
+	for _, g := range cfg.AllowedGuilds {
+		allowedGuilds[g] = true
+	}
 	allowedChannels := make(map[string]bool)
 	for _, ch := range cfg.AllowedChannels {
 		allowedChannels[ch] = true
@@ -49,8 +54,13 @@ func New(cfg *types.DiscordConfig, manager *channels.Manager, log *logging.Logge
 		allowedUsers[u] = true
 	}
 
+	if len(allowedGuilds) == 0 && len(allowedChannels) == 0 {
+		log.Warn("channel_security_warning", "msg", "Discord adapter has no guild or channel restrictions — responding only to DMs")
+	}
+
 	return &Adapter{
 		token:             token,
+		allowedGuilds:     allowedGuilds,
 		allowedChannels:   allowedChannels,
 		allowedUsers:      allowedUsers,
 		respondToMentions: cfg.RespondToMentions,
@@ -137,6 +147,19 @@ func (a *Adapter) SendMessage(chatID string, msg *channels.ChannelMessage) error
 func (a *Adapter) handleMessage(_ *discordgo.Session, m *discordgo.MessageCreate) {
 	// Ignore own messages.
 	if m.Author.ID == a.botID {
+		return
+	}
+
+	// Guild access control: if no guild or channel allowlist is configured,
+	// only respond to DMs (GuildID is empty for direct messages).
+	if len(a.allowedGuilds) == 0 && len(a.allowedChannels) == 0 {
+		if m.GuildID != "" {
+			return
+		}
+	}
+
+	// Guild filtering.
+	if len(a.allowedGuilds) > 0 && m.GuildID != "" && !a.allowedGuilds[m.GuildID] {
 		return
 	}
 

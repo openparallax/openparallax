@@ -277,6 +277,8 @@ type TelegramConfig struct {
 	Enabled         bool    `yaml:"enabled" json:"enabled"`
 	TokenEnv        string  `yaml:"token_env" json:"token_env"`
 	AllowedUsers    []int64 `yaml:"allowed_users,omitempty" json:"allowed_users,omitempty"`
+	AllowedGroups   []int64 `yaml:"allowed_groups,omitempty" json:"allowed_groups,omitempty"`
+	PrivateOnly     *bool   `yaml:"private_only,omitempty" json:"private_only,omitempty"`
 	PollingInterval int     `yaml:"polling_interval,omitempty" json:"polling_interval,omitempty"`
 }
 
@@ -284,6 +286,7 @@ type TelegramConfig struct {
 type DiscordConfig struct {
 	Enabled           bool     `yaml:"enabled" json:"enabled"`
 	TokenEnv          string   `yaml:"token_env" json:"token_env"`
+	AllowedGuilds     []string `yaml:"allowed_guilds,omitempty" json:"allowed_guilds,omitempty"`
 	AllowedChannels   []string `yaml:"allowed_channels,omitempty" json:"allowed_channels,omitempty"`
 	AllowedUsers      []string `yaml:"allowed_users,omitempty" json:"allowed_users,omitempty"`
 	RespondToMentions bool     `yaml:"respond_to_mentions" json:"respond_to_mentions"`
@@ -389,4 +392,10 @@ type GeneralConfig struct {
 
 	// DailyBudget is the maximum number of Tier 2 LLM evaluator calls per day.
 	DailyBudget int `yaml:"daily_budget" json:"daily_budget"`
+
+	// OutputSanitization wraps tool results and memory content in explicit
+	// data boundaries before they enter the LLM context. This mitigates
+	// prompt injection via web pages, emails, or file contents at the cost
+	// of slightly increased token usage per tool result. Disabled by default.
+	OutputSanitization bool `yaml:"output_sanitization" json:"output_sanitization"`
 }

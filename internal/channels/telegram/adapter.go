@@ -26,15 +26,17 @@ const (
 
 // Adapter implements channels.ChannelAdapter for Telegram.
 type Adapter struct {
-	token        string
-	allowedUsers map[int64]bool
-	pollInterval time.Duration
-	manager      *channels.Manager
-	log          *logging.Logger
-	client       *http.Client
-	offset       int64
-	rateLimits   sync.Map // userID → []time.Time
-	stopCh       chan struct{}
+	token         string
+	allowedUsers  map[int64]bool
+	allowedGroups map[int64]bool
+	privateOnly   bool
+	pollInterval  time.Duration
+	manager       *channels.Manager
+	log           *logging.Logger
+	client        *http.Client
+	offset        int64
+	rateLimits    sync.Map // userID → []time.Time
+	stopCh        chan struct{}
 }
 
 // New creates a Telegram adapter from config.
@@ -52,19 +54,36 @@ func New(cfg *types.TelegramConfig, manager *channels.Manager, log *logging.Logg
 		allowed[uid] = true
 	}
 
+	allowedGroups := make(map[int64]bool)
+	for _, gid := range cfg.AllowedGroups {
+		allowedGroups[gid] = true
+	}
+
+	// Default to private-only when PrivateOnly is unset (nil).
+	privateOnly := true
+	if cfg.PrivateOnly != nil {
+		privateOnly = *cfg.PrivateOnly
+	}
+
+	if !privateOnly && len(allowedGroups) == 0 {
+		log.Warn("channel_security_warning", "msg", "Telegram adapter has private_only disabled with no group restrictions — responding to all groups")
+	}
+
 	interval := time.Duration(cfg.PollingInterval) * time.Second
 	if interval <= 0 {
 		interval = time.Second
 	}
 
 	return &Adapter{
-		token:        token,
-		allowedUsers: allowed,
-		pollInterval: interval,
-		manager:      manager,
-		log:          log,
-		client:       &http.Client{Timeout: 60 * time.Second},
-		stopCh:       make(chan struct{}),
+		token:         token,
+		allowedUsers:  allowed,
+		allowedGroups: allowedGroups,
+		privateOnly:   privateOnly,
+		pollInterval:  interval,
+		manager:       manager,
+		log:           log,
+		client:        &http.Client{Timeout: 60 * time.Second},
+		stopCh:        make(chan struct{}),
 	}
 }
 
@@ -156,6 +175,18 @@ func (a *Adapter) handleUpdate(ctx context.Context, update telegramUpdate) {
 	msg := update.Message
 	userID := msg.From.ID
 	chatID := fmt.Sprintf("%d", msg.Chat.ID)
+
+	// Chat type access control: restrict non-private chats.
+	if msg.Chat.Type != "private" {
+		if a.privateOnly {
+			a.log.Info("telegram_group_rejected", "chat_id", chatID, "chat_type", msg.Chat.Type)
+			return
+		}
+		if len(a.allowedGroups) > 0 && !a.allowedGroups[msg.Chat.ID] {
+			a.log.Info("telegram_group_rejected", "chat_id", chatID, "chat_type", msg.Chat.Type)
+			return
+		}
+	}
 
 	// Access control.
 	if len(a.allowedUsers) > 0 && !a.allowedUsers[userID] {
