@@ -59,7 +59,9 @@ To get an interactive terminal interface immediately:
 openparallax start --tui
 ```
 
-This attaches the Bubbletea TUI directly. Press `Ctrl+C` (or close the terminal) to detach from the TUI — the engine keeps running in the background. To fully shut down the engine, run `openparallax stop` in another terminal.
+This attaches the Bubbletea TUI directly. Press `Ctrl+C` (or close the terminal) to exit. **Because the TUI was started by `start --tui`, exiting the TUI also stops the engine** — the process manager catches the signal and shuts everything down cleanly.
+
+If you want the engine to keep running after closing the TUI, use the background mode below instead.
 
 ### Start in the background
 
@@ -183,17 +185,20 @@ This runs 13 checks covering config, workspace, SQLite, LLM provider, Shield, em
 
 ## 9. Stop the Agent
 
-To detach the CLI TUI without stopping the agent, press `Ctrl+C` (or close the terminal). The engine keeps running in the background and you can re-attach later with `openparallax start --tui` or by opening the web UI.
+How you stop the agent depends on how you started it:
 
-To **fully shut down** the engine:
+| You started with... | To stop |
+|---|---|
+| `openparallax start` (foreground) | Press `Ctrl+C` in the terminal where it's running |
+| `openparallax start --tui` | Press `Ctrl+C` in the TUI (or close the terminal) — both shut the engine down |
+| `openparallax start -d` (daemon) | Run `openparallax stop` in any terminal |
+| `openparallax attach tui` (against a daemon) | Ctrl+C only detaches you. Run `openparallax stop` to actually stop the engine. |
 
-```bash
-openparallax stop
-```
+`openparallax stop` always works regardless of how you started: it sends SIGTERM to the engine PID recorded in your workspace and waits up to 5 seconds for clean shutdown.
 
-The process manager sends SIGTERM to the engine and waits up to 5 seconds for a clean shutdown.
+The web UI is a passive client. Closing the browser tab disconnects the WebSocket but **does not** stop the engine.
 
-(`/quit` inside the TUI closes the current session and starts a new one — it does NOT exit the agent. See the [Slash Commands reference](/guide/slash-commands#exiting-the-agent) for details.)
+`/quit` inside the TUI closes the **current session** and starts a new one — it does NOT exit the agent. See the [Slash Commands reference](/guide/slash-commands#exiting-the-agent) for the full table.
 
 ## 10. Test Your Own Security
 

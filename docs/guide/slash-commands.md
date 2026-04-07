@@ -70,15 +70,34 @@ The fast version, for the back of your hand:
 
 ## Exiting the agent
 
-There is no slash command to exit the agent — that's intentional, because exiting the agent is a process-level action that should not be triggered from a chat message (which could come from a compromised channel).
+There is no slash command to exit the agent — that's intentional. Exiting is a process-level action that should not be triggered from a chat message, since the message could come from a compromised channel.
 
-To exit:
+What `Ctrl+C` and closing windows actually do depends on **how you started the agent**:
 
-- **CLI TUI**: press `Ctrl+C` (or close the terminal)
-- **Web UI**: close the browser tab
-- **Background engine**: from another terminal, run `openparallax stop`
+| You ran... | What's running in your terminal | `Ctrl+C` in TUI | Close terminal | Close browser tab |
+|---|---|---|---|---|
+| `openparallax start` (default, foreground) | Engine + process manager | **Stops the engine** (process manager catches the signal) | **Stops the engine** (SIGHUP propagates) | n/a — engine still runs without the web UI client |
+| `openparallax start --tui` | Engine + process manager + TUI | TUI exits → process manager shuts the engine down | Same | n/a |
+| `openparallax start -d` (daemon) | Nothing — engine is detached | n/a — no TUI in this terminal | Engine continues (detached) | Engine continues |
+| `openparallax start -d` then `openparallax attach tui` | Only the attach process | Only the attach process exits; **engine keeps running** | Same | n/a |
 
-The engine continues running even after you close the CLI or web UI — your sessions stay alive and you can re-attach with `openparallax start --tui` or by opening the web UI again. Use `openparallax stop` from the shell to fully shut down the engine.
+The web UI is always a passive client. **Closing the browser tab never stops the engine** — the WebSocket disconnects, your session stays alive, and you can reconnect by opening the web UI again.
+
+### To fully stop the engine
+
+Whatever mode you're in, this always works:
+
+```bash
+openparallax stop
+```
+
+It sends SIGTERM to the engine process (whose PID is recorded in your workspace) and waits up to 5 seconds for clean shutdown.
+
+### Quick rules of thumb
+
+- **Want to keep the agent running for messaging channels** while you walk away? Use `openparallax start -d` to launch it as a background daemon, then attach a TUI later if you want.
+- **Want a quick interactive session that auto-cleans-up** when you're done? Use `openparallax start --tui`. Closing the TUI shuts everything down.
+- **Already have an agent running** and just want to talk to it from a fresh terminal? Use `openparallax attach tui`. Ctrl+C only detaches you; the engine survives.
 
 ## See also
 
