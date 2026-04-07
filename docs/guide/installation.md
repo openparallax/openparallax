@@ -157,19 +157,33 @@ To download the classifier model:
 ./dist/openparallax get-classifier --force
 ```
 
-This downloads:
-- `model.onnx` — the DeBERTa-v3 ONNX model
-- `tokenizer.json` — the tokenizer configuration
+This downloads three files into `~/.openparallax/models/prompt-injection/`:
 
-The classifier runs in-process using pure Go ONNX inference. No Python, no Node.js sidecar, no external runtime.
+- `model.onnx` — the DeBERTa-v3 weights, fetched from [huggingface.co/openparallax/shield-classifier-v1](https://huggingface.co/openparallax/shield-classifier-v1)
+- `tokenizer.json` — matching tokenizer config
+- `libonnxruntime.{so,dylib,dll}` — Microsoft ONNX Runtime shared library, fetched from the [microsoft/onnxruntime](https://github.com/microsoft/onnxruntime/releases) releases for your platform
 
-After downloading, restart the agent. Shield will automatically detect and use the classifier. Verify with:
+The classifier runs in-process using a pure-Go wrapper around the dynamically loaded shared library. The main `openparallax` binary itself stays zero-CGo — the runtime extension is opt-in and isolated.
+
+After downloading, restart the agent. Shield's classifier auto-detects the files and switches from heuristic-only to dual-classifier mode. Verify with:
 
 ```bash
 ./dist/openparallax doctor
 ```
 
-The Shield check will report whether the classifier is loaded.
+You should see `Tier 1: classifier enabled (local mode, 7 action type(s) bypassed)`. The 7 bypassed action types are `write_file`, `delete_file`, `move_file`, `copy_file`, `send_email`, `send_message`, `http_request` — see [Shield Tier 1 → Per-Action-Type ONNX Skip List](/shield/tier1#per-action-type-onnx-skip-list) for the rationale.
+
+## Optional: sqlite-vec Extension
+
+For semantic memory search at scale, the optional `sqlite-vec` extension provides native in-database vector queries:
+
+```bash
+./dist/openparallax get-vector-ext
+```
+
+This downloads the latest sqlite-vec release for your platform from [github.com/asg017/sqlite-vec](https://github.com/asg017/sqlite-vec/releases) into `~/.openparallax/extensions/sqlite-vec.{so,dylib,dll}`. Without it, Memory falls back to a built-in pure-Go cosine searcher (slower on large workspaces but functionally identical).
+
+For the full optional download story including skill packs and the future CGo classifier sidecar, see [Optional Downloads](/guide/optional-downloads).
 
 ## Directory Layout After Installation
 

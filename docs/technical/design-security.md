@@ -4,25 +4,28 @@ Shield is a 4-tier security pipeline that evaluates every action an AI agent pro
 
 Shield implements two of the four Parallax principles: *Adversarial Validation with Graduated Determinism* (independent multi-tiered validation between reasoning and execution) and, through output sanitization, feedback-loop protection for the reasoning system. Together with Cognitive-Executive Separation and Reversible Execution (covered in [Process Isolation](/technical/design-isolation)), these form a prevent-detect-recover defense posture.
 
-## The Three-Tier Architecture
+## The Four-Tier Architecture
 
-Each tier has a fundamentally different failure mode. Three tiers with orthogonal failure modes force an attacker to simultaneously exploit three unrelated systems.
+Each tier has a fundamentally different failure mode. Four tiers with orthogonal failure modes force an attacker to simultaneously exploit four unrelated systems.
 
 **Tier 0: Policy Engine (YAML rules).** Fast pattern matching against action types, arguments, and paths. Catches known-bad actions instantly — `rm -rf /`, writes to `/etc/passwd`, network calls to internal metadata endpoints. Failure mode: cannot reason about intent. A policy rule that blocks `shell_exec` with argument containing `rm -rf` is trivially bypassed by splitting the command across two calls or using `find -delete`.
 
-**Tier 1: Dual Classifier (ONNX DeBERTa + heuristic rules).** A neural network trained on prompt injection datasets plus a parallel heuristic engine for known attack signatures. Catches adversarial patterns that don't match static rules — encoded payloads, social engineering structures, indirect injection via tool results. Failure mode: black-box confidence scores. The classifier flags suspicious actions but cannot explain *why* or reason about novel attacks it hasn't seen in training data.
+**Tier 1: Dual Classifier (ONNX DeBERTa + 79 heuristic rules).** A fine-tuned [DeBERTa-v3 model](https://huggingface.co/openparallax/shield-classifier-v1) trained on prompt injection data plus a parallel heuristic engine (37 cross-platform + 8 Unix + 13 Windows shell rules + 21 detection rules across prompt injection, path traversal, data exfiltration, etc.). Catches adversarial patterns that don't match static rules — encoded payloads, social engineering structures, indirect injection via tool results. Failure mode: black-box confidence scores. The classifier flags suspicious actions but cannot explain *why* or reason about novel attacks it hasn't seen in training data. The default config also bypasses ONNX for action types where the trained model over-fires on benign payloads (`write_file`, `delete_file`, `move_file`, `copy_file`, `send_email`, `send_message`, `http_request`); these are escalated to Tier 2 instead. See [Shield Tier 1](/shield/tier1#per-action-type-onnx-skip-list) for the rationale.
 
-**Tier 2: LLM Evaluator.** An isolated LLM instance with no agent context — no identity, no history, no tools. It receives only the action type and payload as raw data and evaluates whether it is safe to execute. Catches novel attacks, ambiguous actions, and multi-step exploitation chains. A canary token in the evaluator's prompt detects if the payload manages to override the evaluation instructions (see below).
+**Tier 2: LLM Evaluator.** An isolated LLM instance with no agent context — no identity, no history, no tools. It receives only the action type and payload as raw data and evaluates whether it is safe to execute. Returns one of `ALLOW`, `BLOCK`, or `ESCALATE`. Catches novel attacks, ambiguous actions, and multi-step exploitation chains. A canary token in the evaluator's prompt detects if the payload manages to override the evaluation instructions (see below). When the evaluator returns `ESCALATE`, Shield routes to Tier 3.
+
+**Tier 3: Human-in-the-Loop.** When Tier 2 escalates, Shield broadcasts an approval request to all connected channel adapters simultaneously — web UI, CLI, Telegram, Discord, Signal, etc. First response wins. If no response arrives within the timeout window, the default is BLOCK. Used for genuinely ambiguous actions: irreversible side effects without obvious malice, intent that depends on business context the evaluator cannot know, or operations that should never run autonomously regardless of confidence.
 
 The layered design means:
 
 ```
 Attacker must:
   1. Craft an action that doesn't match any YAML policy rule
-  2. Evade a neural network trained on adversarial inputs
+  2. Evade both a neural network and a heuristic engine
   3. Jailbreak a separate LLM with canary verification
+  4. Convince a human operator to approve the action
 
-All three, simultaneously, for a single action.
+All four, simultaneously, for a single action.
 ```
 
 This is defense in depth applied to AI safety. Each tier narrows the attack surface for the next.

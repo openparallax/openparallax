@@ -131,12 +131,16 @@ Each batch of tool results sent back to the LLM counts as one round. The loop in
 
 ### Workspace Files
 
-| File | Section heading | Purpose |
-|---|---|---|
-| `IDENTITY.md` | `# Your Identity` | Agent name, role, communication style |
-| `SOUL.md` | `# Core Guardrails` | Non-negotiable constraints |
-| `USER.md` | `# User Profile` | User preferences and information |
-| `MEMORY.md` | `# Your Memory` | Facts from previous conversations |
+| File | Section heading | How it is loaded | Purpose |
+|---|---|---|---|
+| `IDENTITY.md` | `# Your Identity` | Whole file, every turn | Agent name, role, communication style |
+| `SOUL.md` | `# Core Guardrails` | Whole file, every turn | Non-negotiable constraints |
+| `USER.md` | `# User Profile` | Whole file, every turn | User preferences and information |
+| `MEMORY.md` | `# Your Memory` | **Top-k chunks per turn** via semantic retrieval | Facts from previous conversations |
+
+`IDENTITY.md`, `SOUL.md`, and `USER.md` are read whole every turn — they are short, define the agent's invariants, and pass through `stripMarkdown()` at load time so the LLM sees compact text without the markdown noise.
+
+`MEMORY.md` is **not** loaded whole. The memory subsystem indexes it (and `AGENTS.md`, `HEARTBEAT.md`, and daily logs) into a chunked vector store at startup and on file change. Per turn, `Memory.SearchRelevant(userMessage, kChunks=5)` returns the top-k most similar chunks for the current user message. Only those chunks enter the system prompt, wrapped in `[MEMORY]` boundary tags so the LLM treats them as reference data — not directives. This is what makes memory scale: a workspace with 18 months of daily logs pays the same per-turn cost as one with 10 entries. See [Token Economy → Semantic Memory Retrieval](/technical/design-efficiency#semantic-memory-retrieval) for the full pipeline.
 
 Each section includes framing text that tells the LLM how to interpret the content. For example, SOUL.md is framed as:
 

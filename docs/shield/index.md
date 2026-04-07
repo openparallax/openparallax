@@ -24,21 +24,22 @@ There is no mode where a failure silently allows an action through. An operator 
 
 ### Defense in Depth
 
-No single security mechanism is sufficient. Shield layers three independent evaluation strategies:
+No single security mechanism is sufficient. Shield layers four independent evaluation strategies:
 
 - **Tier 0** uses deterministic rules that execute in microseconds. No ML, no LLM, no network calls. Fast and predictable, but only catches what you explicitly write rules for.
-- **Tier 1** uses machine learning (DeBERTa prompt injection classifier) and pattern matching (heuristic rules). Catches novel attacks the policy author did not anticipate, but can produce false positives.
-- **Tier 2** uses a separate LLM to reason about whether an action is safe in context. The most capable tier, but the slowest and most expensive.
+- **Tier 1** uses machine learning (DeBERTa prompt injection classifier) and pattern matching (heuristic rules). Catches novel attacks the policy author did not anticipate. The default config bypasses ONNX for action types where the trained model over-fires on benign payloads (`write_file`, `delete_file`, `move_file`, `copy_file`, `send_email`, `send_message`, `http_request`); these are escalated to Tier 2 instead.
+- **Tier 2** uses a separate LLM to reason about whether an action is safe in context. Returns ALLOW, BLOCK, or ESCALATE. The most capable tier, but the slowest and most expensive.
+- **Tier 3** is a human-in-the-loop approval. When Tier 2 returns ESCALATE — for genuinely ambiguous actions where intent depends on business context the evaluator cannot know — Shield broadcasts an approval request to all connected channels. First response wins; timeout defaults to BLOCK.
 
 Each tier catches attacks the others miss. Together, they provide comprehensive coverage.
 
 ### Progressive Escalation
 
-Not every action needs the same level of scrutiny. Reading a file in the workspace is low-risk — Tier 0 can approve it in microseconds. Executing a shell command is higher-risk — it should pass through the classifier. Modifying the agent's identity files is critical — it needs full LLM evaluation.
+Not every action needs the same level of scrutiny. Reading a file in the workspace is low-risk — Tier 0 can approve it in microseconds. Executing a shell command is higher-risk — it should pass through the classifier or the LLM evaluator. Modifying the agent's identity files is critical — it needs full LLM evaluation. A force-push to main is irreversible without context — it should reach a human.
 
 Shield's escalation model sends each action to the minimum tier required, escalating only when a lower tier cannot make a confident decision. This keeps latency low for common operations while providing deep evaluation for dangerous ones.
 
-## The 3-Tier Pipeline
+## The 4-Tier Pipeline
 
 ```
                     ┌─────────────────────────┐

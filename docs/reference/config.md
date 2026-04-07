@@ -44,7 +44,10 @@ Configures the 4-tier Shield security pipeline. See [Security](/guide/security) 
 | `shield.policy_file` | `string` | `"policies/default.yaml"` | Path to the YAML policy file (Tier 0). **Read-only via API** |
 | `shield.onnx_threshold` | `float64` | `0.85` | Confidence threshold for the ONNX classifier (0.0-1.0) |
 | `shield.heuristic_enabled` | `bool` | `true` | Enable the heuristic regex classifier (Tier 1) |
-| `shield.classifier_addr` | `string` | — | Address of the ONNX classifier sidecar (e.g. `"localhost:8090"`) |
+| `shield.classifier_enabled` | `bool` | `true` | Enable the ONNX injection classifier. Set to `false` to run Tier 1 in heuristic-only mode (lower attack detection on encoding/obfuscation/multi-agent categories). |
+| `shield.classifier_mode` | `string` | `"local"` | How the ONNX classifier runs when enabled. `"local"` loads the model in-process via the optional `get-classifier` download. `"sidecar"` connects to a CGo classifier subprocess via `classifier_addr` (planned, not yet implemented). |
+| `shield.classifier_addr` | `string` | — | Address of the ONNX classifier sidecar when `classifier_mode: sidecar` (e.g. `"localhost:8090"`) |
+| `shield.classifier_skip_types` | `[]string` | see below | Action types where ONNX classification is bypassed because the trained model over-fires on benign payloads. Heuristics and policy rules still run. Default: `[write_file, delete_file, move_file, copy_file, send_email, send_message, http_request]`. See [Shield Tier 1 → Per-Action-Type ONNX Skip List](/shield/tier1#per-action-type-onnx-skip-list). |
 
 ### Shield Evaluator (`shield.evaluator`)
 
