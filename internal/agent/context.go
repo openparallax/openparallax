@@ -134,7 +134,7 @@ Load only the tool groups you need; each group is described in the load_tools me
 Tool calls are evaluated by Shield before execution. If a call is blocked, explain the block to the user instead of retrying blindly.
 Report tool results accurately. Explain failures.
 Search memory and workspace before saying you don't know.
-For independent subtasks, delegate to parallel sub-agents.
+For 2+ independent subtasks, spawn parallel sub-agents (agents group, create_agent) instead of doing the work inline — faster, cheaper, keeps your context clean.
 Don't: repeat the request back, narrate plans, add filler phrases, add AI disclaimers.`
 }
 

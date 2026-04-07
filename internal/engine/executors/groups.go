@@ -228,7 +228,7 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		"canvas":           {Name: "canvas", Description: "Create files, multi-file projects, and live-preview websites"},
 		"image_generation": {Name: "image_generation", Description: "Generate images using AI if supported by model"},
 		"video_generation": {Name: "video_generation", Description: "Generate videos using AI if supported by model"},
-		"agents":           {Name: "agents", Description: "Spawn and manage sub-agents for parallel task execution"},
+		"agents":           {Name: "agents", Description: "Sub-agents — default for 2+ independent subtasks. Run them in parallel for speed, cost, and clean context. Each gets its own window."},
 		"system":           {Name: "system", Description: "Clipboard access, launch files/URLs, OS notifications, system info, screenshots"},
 		"utilities":        {Name: "utilities", Description: "Math calculations, archive zip/extract, PDF text extraction, spreadsheet read/write"},
 	}

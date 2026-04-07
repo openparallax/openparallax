@@ -68,7 +68,7 @@ func (e *SubAgentExecutor) ToolSchemas() []ToolSchema {
 		{
 			ActionType:  types.ActionCreateAgent,
 			Name:        "create_agent",
-			Description: "Spawn a sub-agent to work on a task in parallel. Returns the agent's name. Use agent_result to collect the output when ready.",
+			Description: "Spawn a sub-agent to handle a task in its own context window. Prefer over inline work when subtasks are independent (research, multi-file scans, parallel processing) — keeps your context lean and runs them concurrently. Returns the agent's name; collect with agent_result.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
