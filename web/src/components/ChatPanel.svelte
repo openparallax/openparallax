@@ -28,29 +28,14 @@
   let messagesEl: HTMLDivElement;
   let prevMessageCount = 0;
   let showScrollBtn = false;
+  /** True when the user is within PIN_TOLERANCE_PX of the bottom. While
+   * true, new content auto-scrolls to keep them pinned. When the user
+   * scrolls up, this flips false and afterUpdate stops fighting them. */
+  let pinToBottom = true;
 
-  /** Estimated height per message for virtual scrolling. */
-  const ITEM_HEIGHT = 80;
-  /** Number of extra messages to render above and below the viewport. */
-  const BUFFER = 10;
-  /** Threshold below which virtual scrolling is skipped entirely. */
-  const VIRTUAL_THRESHOLD = 50;
-
-  let scrollTop = 0;
-  let containerHeight = 0;
-
-  $: msgCount = $messages.length;
-  $: useVirtual = msgCount >= VIRTUAL_THRESHOLD;
-  $: totalHeight = msgCount * ITEM_HEIGHT;
-  $: startIndex = useVirtual
-    ? Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER)
-    : 0;
-  $: endIndex = useVirtual
-    ? Math.min(msgCount, Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + BUFFER)
-    : msgCount;
-  $: visibleMessages = $messages.slice(startIndex, endIndex);
-  $: topPad = useVirtual ? startIndex * ITEM_HEIGHT : 0;
-  $: bottomPad = useVirtual ? Math.max(0, (msgCount - endIndex) * ITEM_HEIGHT) : 0;
+  /** Distance (px) from the bottom under which we consider the user
+   * "at the bottom" and auto-scroll on new content. */
+  const PIN_TOLERANCE_PX = 80;
 
   afterUpdate(async () => {
     if (!messagesEl) return;
@@ -61,13 +46,6 @@
     const targetId = $scrollToMessageId;
     if (targetId) {
       await tick();
-      if (useVirtual) {
-        const idx = $messages.findIndex(m => m.id === targetId);
-        if (idx >= 0) {
-          messagesEl.scrollTop = idx * ITEM_HEIGHT;
-          await tick();
-        }
-      }
       const el = document.getElementById('msg-' + targetId);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -79,25 +57,30 @@
       return;
     }
 
-    if (delta > 2) {
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    } else if (delta > 0 || $streaming) {
-      messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+    // Auto-scroll only when the user is pinned to the bottom. This is
+    // what stops the chat from "fighting back" when you scroll up
+    // mid-stream.
+    if (pinToBottom && (delta > 0 || $streaming)) {
+      if (delta > 2) {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      } else {
+        messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+      }
     }
     prevMessageCount = count;
   });
 
   function handleScroll() {
     if (!messagesEl) return;
-    scrollTop = messagesEl.scrollTop;
-    containerHeight = messagesEl.clientHeight;
     const distFromBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+    pinToBottom = distFromBottom < PIN_TOLERANCE_PX;
     showScrollBtn = distFromBottom > 200;
   }
 
   function scrollToBottom() {
     if (!messagesEl) return;
     messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+    pinToBottom = true;
   }
 
   $: messageCount = $messages.filter(m => m.role !== 'system').length;
@@ -130,8 +113,7 @@
             <div class="empty-orb"></div>
           </div>
         {/if}
-        {#if topPad > 0}<div class="virtual-spacer" style="height:{topPad}px" aria-hidden="true"></div>{/if}
-        {#each visibleMessages as msg (msg.id)}
+        {#each $messages as msg (msg.id)}
           <div class="msg-group" id="msg-{msg.id}">
             {#if msg.role === 'assistant' && msg.thoughts && msg.thoughts.length > 0}
               <ToolCallEnvelope thoughts={msg.thoughts} />
@@ -139,7 +121,6 @@
             <Message message={msg} {agentName} {agentAvatar} />
           </div>
         {/each}
-        {#if bottomPad > 0}<div class="virtual-spacer" style="height:{bottomPad}px" aria-hidden="true"></div>{/if}
 
         {#if $pendingSteps.length > 0}
           <ToolCallEnvelope steps={$pendingSteps} live={true} />
@@ -239,10 +220,6 @@
 
   .input-wrap {
     padding: 0 clamp(6px, 3vw, 46px);
-  }
-
-  .virtual-spacer {
-    flex-shrink: 0;
   }
 
   .msg-group {
