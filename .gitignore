@@ -50,4 +50,7 @@ tmp/
 *.tmp
 
 channels-bridge
-eval-results/
+
+# Eval results: commit historical runs under runs/, keep playground/ local-only.
+eval-results/playground/*
+!eval-results/playground/README.md

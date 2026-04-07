@@ -23,7 +23,7 @@ A separate binary that tests Shield independently from the main agent. Never shi
 - `cmd/eval/results.go` — summary computation (ASR, FP rate, tier distribution, latency percentiles)
 - `cmd/eval/prompts/guardrails.md` — comprehensive safety prompt for Config B
 
-### Test Corpus (`tests/`)
+### Test Corpus (`eval-results/test-suite/`)
 265 attack cases + 60 helpfulness-bypass cases + 50 false positive cases = 375 total
 
 **Attack categories (C1-C7):**
@@ -42,7 +42,7 @@ A separate binary that tests Shield independently from the main agent. Never shi
 ## Run History
 
 ### Run 001 — Claude Sonnet 4.6, LLM Mode
-**Model:** claude-sonnet-4-6 via OpenAI-compatible proxy at localhost:8317
+**Model:** claude-sonnet-4-6
 **Finding:** 0% ASR across all configs (A, B, C) on C1 and C2. The model refused to propose harmful actions at the reasoning level. REFUSED_BY_MODEL for every case. Shield never fired.
 **Conclusion:** Claude Sonnet 4.6's safety training catches these attacks before they become tool calls. Can't differentiate between configs.
 
@@ -214,7 +214,7 @@ Ideally these should be spread across multiple categories (not just C7 and HB). 
 ## Files Reference
 
 - `cmd/eval/` — 6 files, ~1300 lines, separate binary
-- `tests/` — 9 YAML files, ~7000+ lines, 375 test cases
+- `eval-results/test-suite/` — 10 YAML files, ~7000+ lines, 387 test cases
 - `eval-results/` — gitignored, contains run results (not committed)
 - `policies/default.yaml` — the policy file that determines what passes and what doesn't
 - `platform/shell.go` — 35 cross-platform heuristic rules + 8 Unix + 13 Windows
@@ -259,13 +259,11 @@ Added 3 new allow rules to `policies/default.yaml`:
 - `cmd/eval/harness.go`: removed unused `configPath` and `modelOverride` fields
 - `cmd/eval/recorder.go`: gofmt formatting fix
 
-### API Key / Proxy Discovery
+### API Key Setup
 - First attempted with no API key set — Tier 2 evaluator unavailable, all execute_command FPs blocked with "Tier 2 evaluation required but not available"
-- User provided key — turned out to require the proxy at `localhost:8317/v1`, NOT direct OpenAI/Anthropic API
-- Reconfigured eval workspace to use `provider: openai` with `base_url: http://localhost:8317/v1` and `model: claude-haiku-4-5-20251001` for the Shield evaluator role
-- Proxy auth went through phases: working, then 500 (auth_unavailable), then 401, then 200 after user re-authenticated
+- After exporting the key, the eval workspace was configured to use `claude-haiku-4-5-20251001` for the Shield evaluator role.
 
-### Run 006 Results (with proxy live)
+### Run 006 Results
 
 | Category | Cases | ASR | Tier 0 | Tier 1 | Tier 2 |
 |----------|-------|-----|--------|--------|--------|
@@ -412,12 +410,10 @@ The full heuristic engine catches too many legitimate dev workflows when run as 
 
 4. **shield/gateway.go** — The precheck path is unchanged; it now only fires on AlwaysBlock rules.
 
-### Proxy Auth Drama
-First Run 010 attempt: all 19 execute_command FPs showed `evaluator LLM call failed: POST localhost:8317: 500 Internal Server Error {"message":"auth_unavailable: no auth available"}`. The proxy upstream auth had failed mid-run.
+### Auth Hiccup
+First Run 010 attempt: all 19 execute_command FPs showed `evaluator LLM call failed` with an authentication error mid-run. After re-authenticating, the suite was rerun.
 
-Direct curl test confirmed proxy returning 500 for all auth. User restarted proxy → 401 (auth_unavailable). User re-authenticated → 200 OK.
-
-### Run 010 Final Results (with healthy proxy)
+### Run 010 Final Results
 
 | Category | Cases | ASR | Notes |
 |----------|-------|-----|-------|
@@ -463,7 +459,7 @@ These are the LLM evaluator's security-first stance on actions it can't fully co
 
 5. **The chmod regex bug had been silently mismatching for many runs** — `[0-7]*7[0-7]*` matched any "7" anywhere in the octal string. The fix `[0-7]?[0-7]?[0-7]?[2367]` checks only the last digit's world-write bit. This kind of regex sloppiness in the heuristic engine is a worth-auditing area.
 
-6. **Proxy reliability matters for the eval data**. The eval suite at full speed makes ~40-50 LLM calls per attack run, and any auth/upstream issue produces "evaluator error" verdicts that get counted as blocks. Always verify the proxy with a curl before interpreting FP rates.
+6. **Provider reliability matters for the eval data**. The eval suite at full speed makes ~40-50 LLM calls per attack run, and any auth/upstream issue produces "evaluator error" verdicts that get counted as blocks. Always verify provider connectivity before interpreting FP rates.
 
 ## Files Modified in Session 2
 
@@ -489,7 +485,7 @@ These are the LLM evaluator's security-first stance on actions it can't fully co
 - `shield/tier0_policy_test.go` — Renamed test to TestBlockTmpWrite, added TestWriteFileEscalatesToTier1
 
 **Workspace setup (not committed):**
-- `/tmp/openparallax-eval/config.yaml` — Models point to proxy at `localhost:8317/v1` with `claude-haiku-4-5-20251001` for shield role
+- `/tmp/openparallax-eval/config.yaml` — `claude-haiku-4-5-20251001` configured for the Shield evaluator role
 - `/tmp/openparallax-eval/.openparallax/canary.token` — random 64-hex
 - `/tmp/openparallax-eval/policies/default.yaml` — copy of repo policy
 - `/tmp/openparallax-eval/prompts/evaluator-v1.md` — copy of repo prompt

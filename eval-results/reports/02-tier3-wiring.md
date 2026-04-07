@@ -64,7 +64,7 @@ the standard path regardless of intent.
 
 ### New test suite
 
-**`tests/tier3_human_approval.yaml`** — 12 cases targeting the
+**`eval-results/test-suite/c9_tier3_human_approval.yaml`** — 12 cases targeting the
 ambiguous-by-design zone where Tier 2 should defer to a human:
 
 | ID | Action | Intent | Sim Human |
@@ -84,7 +84,7 @@ ambiguous-by-design zone where Tier 2 should defer to a human:
 
 ## Run Results
 
-Final run on `tests/tier3_human_approval.yaml` (run-010):
+Final run on `eval-results/test-suite/c9_tier3_human_approval.yaml` (run-010):
 
 ```
 Cases:            12
@@ -109,7 +109,7 @@ heuristics/ONNX (also correct behavior — Tier 3 is the fallback for
 what Tiers 0-2 can't decide). The 3 false-fail cases (T3-005, T3-009,
 T3-012) hit the same pre-existing ONNX over-firing on
 `send_message`/`move_file`/`http_request` already documented in
-EVAL-RECAP.md — not a Tier 3 issue.
+01-initial-eval.md — not a Tier 3 issue.
 
 ## Status
 
@@ -117,7 +117,7 @@ EVAL-RECAP.md — not a Tier 3 issue.
   VerdictEscalate → Tier3Manager.Submit → human decision → action
   blocked or executed accordingly.
 - **4/12 cases verifiably traverse the full path** in inject mode.
-- **All 8 attack categories from EVAL-RECAP.md still at 0.0% ASR** —
+- **All 8 attack categories from 01-initial-eval.md still at 0.0% ASR** —
   the new Tier 2 ESCALATE option did not introduce regressions.
 - **Test corpus grew** from 375 → 387 cases (added 12 Tier 3 cases).
 
@@ -128,6 +128,6 @@ EVAL-RECAP.md — not a Tier 3 issue.
 - `shield/gateway.go` — escalate() helper, Tier 2 branch
 - `cmd/eval/inject.go` — Tier 3 simulation, bug fix on legitimate-intent routing
 - `cmd/eval/runner.go` — isPass updates
-- `tests/tier3_human_approval.yaml` — new
+- `eval-results/test-suite/c9_tier3_human_approval.yaml` — new
 
 Committed as `5538226`.

@@ -685,6 +685,9 @@ func runInit(_ *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: could not register agent: %s\n", addErr)
 	}
 
+	// ─── Recommended: Tier 1 Classifier ─────────────────────
+	initClassifier()
+
 	// ─── Optional: Vector Extension ─────────────────────────
 	initVectorExt()
 
@@ -722,6 +725,55 @@ func runInit(_ *cobra.Command, args []string) error {
 }
 
 // ─── Optional Init Steps ────────────────────────────────────
+
+// initClassifier checks if the Shield Tier 1 ONNX classifier is already
+// installed and offers to download it. The classifier is recommended —
+// without it Shield runs in heuristic-only mode and detection drops on
+// encoding/obfuscation, toolchain, and multi-agent attack categories.
+func initClassifier() {
+	opHome, err := openparallaxHome()
+	if err != nil {
+		return
+	}
+
+	modelPath := filepath.Join(opHome, "models", "prompt-injection", "model.onnx")
+	if _, statErr := os.Stat(modelPath); statErr == nil {
+		fmt.Println("\n  ✓ Shield Tier 1 classifier already installed")
+		return
+	}
+
+	fmt.Println("\n  Shield Tier 1 classifier (recommended)")
+	fmt.Println("    Catches encoding/obfuscation, toolchain, and multi-agent")
+	fmt.Println("    attacks that the heuristic engine alone cannot reliably")
+	fmt.Println("    detect. Without it, Shield falls back to heuristic-only")
+	fmt.Println("    mode (still safe, but lower attack detection on those")
+	fmt.Println("    categories).")
+	fmt.Println()
+
+	var classifierChoice string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Download the Tier 1 classifier?").
+				Options(
+					huh.NewOption("Yes — base model (~700MB, recommended)", "base"),
+					huh.NewOption("Yes — small model (~250MB, faster inference)", "small"),
+					huh.NewOption("Skip — I'll run `openparallax get-classifier` later", "skip"),
+				).
+				Value(&classifierChoice),
+		),
+	)
+	if formErr := form.Run(); formErr != nil || classifierChoice == "skip" {
+		return
+	}
+
+	classifierVariant = classifierChoice
+	classifierForce = false
+	if dlErr := runGetClassifier(nil, nil); dlErr != nil {
+		fmt.Printf("  ✗ Classifier download failed: %s\n", dlErr)
+		fmt.Printf("    Run later: openparallax get-classifier --variant %s\n", classifierChoice)
+	}
+}
 
 // initVectorExt checks if the sqlite-vec extension is already installed and
 // offers to download it if missing. This enables native in-database vector
