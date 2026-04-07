@@ -8,7 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/engine"
+	"github.com/openparallax/openparallax/internal/types"
+	"gopkg.in/yaml.v3"
 )
 
 // EngineAdapter implements EngineAccess using a real Engine instance.
@@ -170,33 +173,61 @@ var readOnlyKeys = map[string]bool{
 	"web.password_hash":           true,
 }
 
-// ConfigSet updates a config value. Security-sensitive and pipeline
-// parameters are read-only — they must be edited directly in config.yaml.
-//
-// This is the legacy entry point. The persistent rewrite that mutates
-// cfg.Models / cfg.Roles and calls config.Save lives in a follow-up
-// commit; for now this implements only the identity-mutation case so
-// the build stays green and existing slash command behaviour for
-// non-model fields is preserved.
+// ConfigSet updates a config value through the canonical SettableKeys
+// registry, persists it via config.Save, and applies live changes to
+// the running engine where applicable. Security-sensitive and pipeline
+// parameters remain read-only — they must be edited directly in
+// config.yaml. The bool return reports whether the change requires a
+// restart to take effect.
 func (a *EngineAdapter) ConfigSet(key, value string) (bool, error) {
 	if readOnlyKeys[key] {
 		return false, fmt.Errorf("%s is read-only — edit config.yaml directly", key)
 	}
 
+	settable, ok := config.SettableKeys[key]
+	if !ok {
+		return false, fmt.Errorf("unknown setting %q — see /config keys for the list", key)
+	}
+
 	cfg := a.Engine.Config()
+
+	// Snapshot the current value so we can roll back if Save fails.
+	snapshot, _ := yamlClone(cfg)
+
+	if err := settable.Setter(cfg, value); err != nil {
+		return false, err
+	}
+
+	if err := config.Save(a.Engine.ConfigPath(), cfg); err != nil {
+		// Roll back the in-memory mutation.
+		if snapshot != nil {
+			*cfg = *snapshot
+		}
+		return false, fmt.Errorf("save failed: %w", err)
+	}
 
 	switch key {
 	case "identity.name":
-		cfg.Identity.Name = value
-		a.Engine.UpdateIdentity(value, "")
-		return false, nil
+		a.Engine.UpdateIdentity(cfg.Identity.Name, "")
 	case "identity.avatar":
-		cfg.Identity.Avatar = value
-		a.Engine.UpdateIdentity("", value)
-		return false, nil
+		a.Engine.UpdateIdentity("", cfg.Identity.Avatar)
 	}
 
-	return false, fmt.Errorf("setting %q via /config set is not yet supported in the new schema — edit config.yaml directly", key)
+	return settable.RequiresRestart, nil
+}
+
+// yamlClone produces a deep copy of cfg via YAML round-trip. Used as a
+// rollback snapshot before a mutation that might fail validation.
+func yamlClone(cfg *types.AgentConfig) (*types.AgentConfig, error) {
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	var clone types.AgentConfig
+	if err := yaml.Unmarshal(data, &clone); err != nil {
+		return nil, err
+	}
+	return &clone, nil
 }
 
 // FlushLogs deletes log entries older than the given number of days.
@@ -349,13 +380,58 @@ func (a *EngineAdapter) ModelRoles() map[string]string {
 	return reg.RoleMapping()
 }
 
-// SetModelRole switches a role to a different model.
+// SetModelRole switches a role to a different model. The change is
+// applied to the live registry and persisted to config.yaml so it
+// survives a restart. On Save failure both layers roll back.
 func (a *EngineAdapter) SetModelRole(role, modelName string) error {
 	reg := a.Engine.ModelRegistry()
 	if reg == nil {
 		return fmt.Errorf("model registry not available")
 	}
-	return reg.SetRole(role, modelName)
+
+	cfg := a.Engine.Config()
+	if _, ok := cfg.ModelByName(modelName); !ok {
+		return fmt.Errorf("model %q is not in the model pool", modelName)
+	}
+
+	previous := ""
+	switch role {
+	case "chat":
+		previous = cfg.Roles.Chat
+		cfg.Roles.Chat = modelName
+	case "shield":
+		previous = cfg.Roles.Shield
+		cfg.Roles.Shield = modelName
+	case "embedding":
+		previous = cfg.Roles.Embedding
+		cfg.Roles.Embedding = modelName
+	case "sub_agent":
+		previous = cfg.Roles.SubAgent
+		cfg.Roles.SubAgent = modelName
+	default:
+		return fmt.Errorf("unknown role %q", role)
+	}
+
+	if err := reg.SetRole(role, modelName); err != nil {
+		return err
+	}
+
+	if err := config.Save(a.Engine.ConfigPath(), cfg); err != nil {
+		// Roll back both layers.
+		_ = reg.SetRole(role, previous)
+		switch role {
+		case "chat":
+			cfg.Roles.Chat = previous
+		case "shield":
+			cfg.Roles.Shield = previous
+		case "embedding":
+			cfg.Roles.Embedding = previous
+		case "sub_agent":
+			cfg.Roles.SubAgent = previous
+		}
+		return fmt.Errorf("save failed: %w", err)
+	}
+	return nil
 }
 
 func formatAge(d time.Duration) string {
