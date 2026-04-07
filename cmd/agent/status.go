@@ -52,7 +52,8 @@ func runStatus(_ *cobra.Command, args []string) error {
 
 	fmt.Printf("Agent:     %s (%s)\n", agentName, statusText)
 	fmt.Printf("Workspace: %s\n", cfg.Workspace)
-	fmt.Printf("Provider:  %s / %s\n", cfg.LLM.Provider, cfg.LLM.Model)
+	chat, _ := cfg.ChatModel()
+	fmt.Printf("Provider:  %s / %s\n", chat.Provider, chat.Model)
 	if cfg.Web.Enabled {
 		webPort := cfg.Web.Port
 		if webPort == 0 {

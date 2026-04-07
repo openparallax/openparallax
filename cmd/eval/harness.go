@@ -92,6 +92,7 @@ func NewParallaxEngine(workspacePath, configPath, modelOverride, baseURLOverride
 		policyFile = filepath.Join(workspacePath, policyFile)
 	}
 
+	shieldModel, _ := cfg.ShieldModel()
 	pipeline, pipeErr := shield.NewPipeline(shield.Config{
 		PolicyFile:          policyFile,
 		OnnxThreshold:       cfg.Shield.OnnxThreshold,
@@ -101,10 +102,10 @@ func NewParallaxEngine(workspacePath, configPath, modelOverride, baseURLOverride
 		ClassifierAddr:      cfg.Shield.ClassifierAddr,
 		ClassifierSkipTypes: cfg.Shield.ClassifierSkipTypes,
 		Evaluator: &shield.EvaluatorConfig{
-			Provider:  cfg.Shield.Evaluator.Provider,
-			Model:     cfg.Shield.Evaluator.Model,
-			APIKeyEnv: cfg.Shield.Evaluator.APIKeyEnv,
-			BaseURL:   cfg.Shield.Evaluator.BaseURL,
+			Provider:  shieldModel.Provider,
+			Model:     shieldModel.Model,
+			APIKeyEnv: shieldModel.APIKeyEnv,
+			BaseURL:   shieldModel.BaseURL,
 		},
 		FailClosed:  cfg.General.FailClosed,
 		RateLimit:   cfg.General.RateLimit,
@@ -162,12 +163,15 @@ func buildShieldPipeline(workspacePath, configPath string) (*shield.Pipeline, er
 		ClassifierMode:      cfg.Shield.ClassifierMode,
 		ClassifierAddr:      cfg.Shield.ClassifierAddr,
 		ClassifierSkipTypes: cfg.Shield.ClassifierSkipTypes,
-		Evaluator: &shield.EvaluatorConfig{
-			Provider:  cfg.Shield.Evaluator.Provider,
-			Model:     cfg.Shield.Evaluator.Model,
-			APIKeyEnv: cfg.Shield.Evaluator.APIKeyEnv,
-			BaseURL:   cfg.Shield.Evaluator.BaseURL,
-		},
+		Evaluator: func() *shield.EvaluatorConfig {
+			sm, _ := cfg.ShieldModel()
+			return &shield.EvaluatorConfig{
+				Provider:  sm.Provider,
+				Model:     sm.Model,
+				APIKeyEnv: sm.APIKeyEnv,
+				BaseURL:   sm.BaseURL,
+			}
+		}(),
 		CanaryToken: canaryToken,
 		PromptPath:  promptPath,
 		FailClosed:  cfg.General.FailClosed,
@@ -185,7 +189,8 @@ func buildCommon(workspacePath, configPath, modelOverride, baseURLOverride, apiK
 		return nil, nil, fmt.Errorf("load config: %w", err)
 	}
 
-	llmCfg := cfg.LLM
+	chatModel, _ := cfg.ChatModel()
+	llmCfg := chatModel.LLMConfig()
 	if modelOverride != "" {
 		llmCfg.Model = modelOverride
 	}

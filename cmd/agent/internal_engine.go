@@ -194,7 +194,8 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 	if agentName == "" {
 		agentName = types.DefaultIdentity.Name
 	}
-	am := newAgentManager(grpcAddr, agentName, cfg.Workspace, llm.APIHost(cfg.LLM))
+	chatModel, _ := cfg.ChatModel()
+	am := newAgentManager(grpcAddr, agentName, cfg.Workspace, llm.APIHost(chatModel.LLMConfig()))
 	if amErr := am.spawnAgent(); amErr != nil {
 		eng.Log().Error("agent_spawn_failed", "error", amErr)
 		// Fall through — the engine still serves the web UI even without the CLI agent.

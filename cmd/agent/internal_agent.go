@@ -82,7 +82,8 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 	// Apply sandbox FIRST, before any untrusted operations.
 	sb := sandbox.New()
 	if sb.Available() {
-		llmHost := llm.APIHost(cfg.LLM)
+		chatModel, _ := cfg.ChatModel()
+		llmHost := llm.APIHost(chatModel.LLMConfig())
 		sbErr := sb.ApplySelf(sandbox.Config{
 			AllowedReadPaths:  []string{agentWorkspace},
 			AllowedWritePaths: []string{},
@@ -116,8 +117,9 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 	}
 
 	// Create LLM provider.
-	agentLog("info", "llm_provider_init", "provider", cfg.LLM.Provider, "model", cfg.LLM.Model)
-	provider, err := llm.NewProvider(cfg.LLM)
+	chatCfg, _ := cfg.ChatModel()
+	agentLog("info", "llm_provider_init", "provider", chatCfg.Provider, "model", chatCfg.Model)
+	provider, err := llm.NewProvider(chatCfg.LLMConfig())
 	if err != nil {
 		return fmt.Errorf("llm provider: %w", err)
 	}

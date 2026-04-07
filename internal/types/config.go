@@ -3,7 +3,6 @@ package types
 import (
 	"github.com/openparallax/openparallax/llm"
 	"github.com/openparallax/openparallax/mcp"
-	"github.com/openparallax/openparallax/shield"
 )
 
 // ModelEntry defines a single LLM provider+model in the model pool.
@@ -22,6 +21,17 @@ type ModelEntry struct {
 
 	// BaseURL overrides the provider's default API endpoint.
 	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
+}
+
+// LLMConfig converts the model entry into the runtime llm.Config DTO
+// used by llm.NewProvider and friends.
+func (m ModelEntry) LLMConfig() llm.Config {
+	return llm.Config{
+		Provider:  m.Provider,
+		Model:     m.Model,
+		APIKeyEnv: m.APIKeyEnv,
+		BaseURL:   m.BaseURL,
+	}
 }
 
 // RolesConfig maps functional roles to model names from the model pool.
@@ -56,10 +66,6 @@ type AgentConfig struct {
 	// Roles maps functional roles (chat, shield, embedding, sub_agent) to model names.
 	Roles RolesConfig `yaml:"roles" json:"roles"`
 
-	// LLM is derived from Models+Roles at load time for backward-compatible access.
-	// Not in config.yaml — populated by config.Load().
-	LLM LLMConfig `yaml:"-" json:"-"`
-
 	// Shield configures the Shield evaluation pipeline.
 	Shield ShieldConfig `yaml:"shield" json:"shield"`
 
@@ -81,9 +87,6 @@ type AgentConfig struct {
 	// General holds global settings.
 	General GeneralConfig `yaml:"general" json:"general"`
 
-	// Memory configures the memory subsystem.
-	Memory MemoryConfig `yaml:"memory,omitempty" json:"memory,omitempty"`
-
 	// MCP configures external MCP server connections.
 	MCP MCPConfig `yaml:"mcp,omitempty" json:"mcp,omitempty"`
 
@@ -101,6 +104,59 @@ type AgentConfig struct {
 
 	// OAuth configures OAuth2 providers for email and calendar integrations.
 	OAuth OAuthConfig `yaml:"oauth,omitempty" json:"oauth,omitempty"`
+}
+
+// modelByName returns the named model entry from the pool.
+func (c *AgentConfig) modelByName(name string) (ModelEntry, bool) {
+	if name == "" {
+		return ModelEntry{}, false
+	}
+	for _, m := range c.Models {
+		if m.Name == name {
+			return m, true
+		}
+	}
+	return ModelEntry{}, false
+}
+
+// ChatModel returns the model assigned to the chat role.
+// The bool reports whether the role is mapped and the model exists in the pool.
+func (c *AgentConfig) ChatModel() (ModelEntry, bool) {
+	return c.modelByName(c.Roles.Chat)
+}
+
+// ShieldModel returns the model assigned to the Tier 2 Shield evaluator role.
+// Falls back to the chat model if no shield role is mapped.
+func (c *AgentConfig) ShieldModel() (ModelEntry, bool) {
+	if m, ok := c.modelByName(c.Roles.Shield); ok {
+		return m, true
+	}
+	return c.ChatModel()
+}
+
+// EmbeddingModel returns the model assigned to the embedding role.
+// The bool reports whether the role is mapped and the model exists in the pool.
+func (c *AgentConfig) EmbeddingModel() (ModelEntry, bool) {
+	return c.modelByName(c.Roles.Embedding)
+}
+
+// SubAgentModel returns the model assigned to the sub-agent role.
+// Falls back to the chat model if no sub-agent role is mapped.
+func (c *AgentConfig) SubAgentModel() (ModelEntry, bool) {
+	if m, ok := c.modelByName(c.Roles.SubAgent); ok {
+		return m, true
+	}
+	return c.ChatModel()
+}
+
+// ImageModel returns the model assigned to the image generation role.
+func (c *AgentConfig) ImageModel() (ModelEntry, bool) {
+	return c.modelByName(c.Roles.Image)
+}
+
+// VideoModel returns the model assigned to the video generation role.
+func (c *AgentConfig) VideoModel() (ModelEntry, bool) {
+	return c.modelByName(c.Roles.Video)
 }
 
 // OAuthConfig holds OAuth2 client credentials per provider.
@@ -176,20 +232,6 @@ type CalendarConfig struct {
 	MicrosoftAccount string `yaml:"microsoft_account,omitempty" json:"microsoft_account,omitempty"`
 }
 
-// MemoryConfig configures the memory subsystem.
-type MemoryConfig struct {
-	// Embedding configures the embedding provider for semantic search.
-	Embedding EmbeddingCfg `yaml:"embedding,omitempty" json:"embedding,omitempty"`
-}
-
-// EmbeddingCfg configures the embedding provider.
-type EmbeddingCfg struct {
-	Provider  string `yaml:"provider" json:"provider"`
-	Model     string `yaml:"model,omitempty" json:"model,omitempty"`
-	APIKeyEnv string `yaml:"api_key_env,omitempty" json:"api_key_env,omitempty"`
-	BaseURL   string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
-}
-
 // MCPConfig holds MCP server configurations.
 type MCPConfig struct {
 	Servers []MCPServerConfig `yaml:"servers,omitempty" json:"servers,omitempty"`
@@ -198,14 +240,12 @@ type MCPConfig struct {
 // MCPServerConfig is an alias for the public mcp.ServerConfig type.
 type MCPServerConfig = mcp.ServerConfig
 
-// LLMConfig is an alias for the public llm.Config type.
-type LLMConfig = llm.Config
-
 // ShieldConfig configures the Shield evaluation pipeline.
+//
+// The Tier 2 evaluator's provider/model are not stored here — they
+// come from the Models pool via the role mapping in RolesConfig.Shield.
+// Use AgentConfig.ShieldModel() to resolve them.
 type ShieldConfig struct {
-	// Evaluator configures the Tier 2 LLM evaluator.
-	Evaluator EvaluatorConfig `yaml:"evaluator" json:"evaluator"`
-
 	// PolicyFile is the path to the YAML policy file.
 	PolicyFile string `yaml:"policy_file" json:"policy_file"`
 
@@ -246,9 +286,6 @@ type Tier3Config struct {
 	// TimeoutSeconds is how long to wait for user response before auto-deny (default 300).
 	TimeoutSeconds int `yaml:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
 }
-
-// EvaluatorConfig is an alias for the public shield type.
-type EvaluatorConfig = shield.EvaluatorConfig
 
 // IdentityConfig provides agent identity overrides.
 type IdentityConfig struct {
@@ -362,10 +399,6 @@ type WebConfig struct {
 
 // AgentsConfig configures sub-agent orchestration defaults.
 type AgentsConfig struct {
-	// SubAgentModel overrides the default sub-agent model.
-	// Empty means auto-detect cheapest model from the configured provider.
-	SubAgentModel string `yaml:"sub_agent_model,omitempty" json:"sub_agent_model,omitempty"`
-
 	// MaxRounds limits how many LLM calls each sub-agent can make (default 20).
 	MaxRounds int `yaml:"max_rounds,omitempty" json:"max_rounds,omitempty"`
 

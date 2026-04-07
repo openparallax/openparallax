@@ -106,7 +106,11 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		log = logging.Nop()
 	}
 
-	provider, err := llm.NewProvider(cfg.LLM)
+	chatModel, ok := cfg.ChatModel()
+	if !ok {
+		return nil, fmt.Errorf("llm provider: roles.chat is not mapped to a model in the pool")
+	}
+	provider, err := llm.NewProvider(chatModel.LLMConfig())
 	if err != nil {
 		return nil, fmt.Errorf("llm provider: %w", err)
 	}
@@ -170,7 +174,8 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	if _, statErr := os.Stat(policyFile); statErr != nil {
 		return nil, fmt.Errorf("shield policy file not found: %s — run 'openparallax init' to create it", policyFile)
 	}
-	if cfg.Shield.Evaluator.Provider != "" {
+	shieldModel, hasShieldModel := cfg.ShieldModel()
+	if hasShieldModel {
 		if _, statErr := os.Stat(promptPath); statErr != nil {
 			return nil, fmt.Errorf("shield evaluator prompt not found: %s — run 'openparallax init' to create it", promptPath)
 		}
@@ -182,6 +187,16 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		log.Warn("no_skills_found", "message", "no skills found — agent runs without domain-specific guidance")
 	}
 
+	var evaluatorCfg *shield.EvaluatorConfig
+	if hasShieldModel {
+		ec := shield.EvaluatorConfig{
+			Provider:  shieldModel.Provider,
+			Model:     shieldModel.Model,
+			APIKeyEnv: shieldModel.APIKeyEnv,
+			BaseURL:   shieldModel.BaseURL,
+		}
+		evaluatorCfg = &ec
+	}
 	shieldPipeline, err := shield.NewPipeline(shield.Config{
 		PolicyFile:          policyFile,
 		OnnxThreshold:       cfg.Shield.OnnxThreshold,
@@ -190,7 +205,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		ClassifierMode:      cfg.Shield.ClassifierMode,
 		ClassifierAddr:      cfg.Shield.ClassifierAddr,
 		ClassifierSkipTypes: cfg.Shield.ClassifierSkipTypes,
-		Evaluator:           &cfg.Shield.Evaluator,
+		Evaluator:           evaluatorCfg,
 		CanaryToken:         canaryToken,
 		PromptPath:          promptPath,
 		FailClosed:          cfg.General.FailClosed,
@@ -220,13 +235,15 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	registry.RegisterMemory(mem)
 
 	// Initialize vector search pipeline (chunk indexing + embeddings).
-	embCfg := cfg.Memory.Embedding
-	embedder := memory.NewEmbeddingProvider(memory.EmbeddingConfig{
-		Provider:  embCfg.Provider,
-		Model:     embCfg.Model,
-		APIKeyEnv: embCfg.APIKeyEnv,
-		BaseURL:   embCfg.BaseURL,
-	})
+	var embedder memory.EmbeddingProvider
+	if embModel, ok := cfg.EmbeddingModel(); ok {
+		embedder = memory.NewEmbeddingProvider(memory.EmbeddingConfig{
+			Provider:  embModel.Provider,
+			Model:     embModel.Model,
+			APIKeyEnv: embModel.APIKeyEnv,
+			BaseURL:   embModel.BaseURL,
+		})
+	}
 	embDimension := 0
 	if embedder != nil {
 		embDimension = embedder.Dimension()
@@ -240,7 +257,8 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	indexCancel()
 
 	if embedder != nil {
-		log.Info("vector_search_enabled", "provider", embCfg.Provider, "model", embCfg.Model)
+		embModel, _ := cfg.EmbeddingModel()
+		log.Info("vector_search_enabled", "provider", embModel.Provider, "model", embModel.Model)
 	} else {
 		log.Info("vector_search_disabled", "reason", "no embedding provider configured")
 	}

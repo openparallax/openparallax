@@ -1,44 +1,58 @@
 // Package config handles loading, validating, and resolving the agent configuration.
 package config
 
-import "github.com/spf13/viper"
+import "github.com/openparallax/openparallax/internal/types"
 
-// applyDefaults sets all default configuration values.
-func applyDefaults(v *viper.Viper) {
-	v.SetDefault("workspace", ".")
+// defaultConfig returns an AgentConfig populated with default values.
+// yaml.Unmarshal then overlays the on-disk file on top of this struct,
+// so any field the user did not set retains its default.
+func defaultConfig() types.AgentConfig {
+	return types.AgentConfig{
+		Workspace: ".",
 
-	v.SetDefault("shield.policy_file", "policies/default.yaml")
-	v.SetDefault("shield.onnx_threshold", 0.85)
-	v.SetDefault("shield.heuristic_enabled", true)
-	v.SetDefault("shield.classifier_enabled", true)
-	v.SetDefault("shield.classifier_mode", "local")
-	// Action types where ONNX has been observed to over-fire on benign payloads.
-	// Heuristics still run on these types — only the ML classifier is skipped.
-	// Override in workspace config to change.
-	v.SetDefault("shield.classifier_skip_types", []string{
-		"write_file",
-		"delete_file",
-		"move_file",
-		"copy_file",
-		"send_email",
-		"send_message",
-		"http_request",
-	})
+		Shield: types.ShieldConfig{
+			PolicyFile:        "policies/default.yaml",
+			OnnxThreshold:     0.85,
+			HeuristicEnabled:  true,
+			ClassifierEnabled: true,
+			ClassifierMode:    "local",
+			// Action types where ONNX has been observed to over-fire on benign
+			// payloads. Heuristics still run on these types — only the ML
+			// classifier is skipped. Override in workspace config to change.
+			ClassifierSkipTypes: []string{
+				"write_file",
+				"delete_file",
+				"move_file",
+				"copy_file",
+				"send_email",
+				"send_message",
+				"http_request",
+			},
+		},
 
-	v.SetDefault("chronicle.max_snapshots", 100)
-	v.SetDefault("chronicle.max_age_days", 30)
+		Chronicle: types.ChronicleConfig{
+			MaxSnapshots: 100,
+			MaxAgeDays:   30,
+		},
 
-	v.SetDefault("web.enabled", true)
-	v.SetDefault("web.port", 3100)
-	v.SetDefault("web.auth", true)
+		Web: types.WebConfig{
+			Enabled: true,
+			Port:    3100,
+			Auth:    true,
+		},
 
-	v.SetDefault("agents.max_tool_rounds", 25)
-	v.SetDefault("agents.context_window", 128000)
-	v.SetDefault("agents.compaction_threshold", 70)
-	v.SetDefault("agents.max_response_tokens", 4096)
+		Agents: types.AgentsConfig{
+			MaxToolRounds:       25,
+			ContextWindow:       128000,
+			CompactionThreshold: 70,
+			MaxResponseTokens:   4096,
+		},
 
-	v.SetDefault("general.fail_closed", true)
-	v.SetDefault("general.rate_limit", 30)
-	v.SetDefault("general.verdict_ttl_seconds", 60)
-	v.SetDefault("general.daily_budget", 100)
+		General: types.GeneralConfig{
+			FailClosed:        true,
+			RateLimit:         30,
+			VerdictTTLSeconds: 60,
+			DailyBudget:       100,
+		},
+	}
 }

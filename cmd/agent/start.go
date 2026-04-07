@@ -109,7 +109,7 @@ func runStart(_ *cobra.Command, args []string) error {
 	}
 
 	grpcAddr := fmt.Sprintf("localhost:%d", port)
-	fmt.Printf("Engine started on %s (LLM: %s/%s)\n", grpcAddr, cfg.LLM.Provider, cfg.LLM.Model)
+	fmt.Printf("Engine started on %s (LLM: %s/%s)\n", grpcAddr, func() string { c, _ := cfg.ChatModel(); return c.Provider }(), func() string { c, _ := cfg.ChatModel(); return c.Model }())
 	if webStatus.ok {
 		fmt.Printf("Web UI available at http://127.0.0.1:%d\n", webStatus.port)
 	} else if webStatus.err != "" {

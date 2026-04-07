@@ -56,5 +56,6 @@ func readAgentProviderModel(cfgPath string) (string, string) {
 	if err != nil {
 		return "-", "-"
 	}
-	return cfg.LLM.Provider, cfg.LLM.Model
+	chat, _ := cfg.ChatModel()
+	return chat.Provider, chat.Model
 }

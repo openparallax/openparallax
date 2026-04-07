@@ -129,17 +129,20 @@ func (a *EngineAdapter) TokenUsageToday() UsageInfo {
 // ConfigSummary returns the current config with secrets masked.
 func (a *EngineAdapter) ConfigSummary() string {
 	cfg := a.Engine.Config()
+	chat, _ := cfg.ChatModel()
+	shieldModel, _ := cfg.ShieldModel()
+	subModel, _ := cfg.SubAgentModel()
 	var lines []string
 	lines = append(lines, "Current configuration:")
-	lines = append(lines, fmt.Sprintf("  llm.provider: %s", cfg.LLM.Provider))
-	lines = append(lines, fmt.Sprintf("  llm.model: %s", cfg.LLM.Model))
-	lines = append(lines, fmt.Sprintf("  llm.api_key_env: %s", cfg.LLM.APIKeyEnv))
+	lines = append(lines, fmt.Sprintf("  chat.provider: %s", chat.Provider))
+	lines = append(lines, fmt.Sprintf("  chat.model: %s", chat.Model))
+	lines = append(lines, fmt.Sprintf("  chat.api_key_env: %s", chat.APIKeyEnv))
 	lines = append(lines, fmt.Sprintf("  identity.name: %s", cfg.Identity.Name))
 	lines = append(lines, fmt.Sprintf("  identity.avatar: %s", cfg.Identity.Avatar))
 	lines = append(lines, fmt.Sprintf("  web.port: %d", cfg.Web.Port))
-	lines = append(lines, fmt.Sprintf("  shield.evaluator.provider: %s", cfg.Shield.Evaluator.Provider))
-	lines = append(lines, fmt.Sprintf("  shield.evaluator.model: %s", cfg.Shield.Evaluator.Model))
-	lines = append(lines, fmt.Sprintf("  agents.sub_agent_model: %s", cfg.Agents.SubAgentModel))
+	lines = append(lines, fmt.Sprintf("  shield.provider: %s", shieldModel.Provider))
+	lines = append(lines, fmt.Sprintf("  shield.model: %s", shieldModel.Model))
+	lines = append(lines, fmt.Sprintf("  sub_agent.model: %s", subModel.Model))
 	lines = append(lines, fmt.Sprintf("  agents.max_rounds: %d", cfg.Agents.MaxRounds))
 	if len(cfg.Tools.DisabledGroups) > 0 {
 		lines = append(lines, fmt.Sprintf("  tools.disabled_groups: %s", strings.Join(cfg.Tools.DisabledGroups, ", ")))
@@ -169,40 +172,31 @@ var readOnlyKeys = map[string]bool{
 
 // ConfigSet updates a config value. Security-sensitive and pipeline
 // parameters are read-only — they must be edited directly in config.yaml.
+//
+// This is the legacy entry point. The persistent rewrite that mutates
+// cfg.Models / cfg.Roles and calls config.Save lives in a follow-up
+// commit; for now this implements only the identity-mutation case so
+// the build stays green and existing slash command behaviour for
+// non-model fields is preserved.
 func (a *EngineAdapter) ConfigSet(key, value string) (bool, error) {
 	if readOnlyKeys[key] {
 		return false, fmt.Errorf("%s is read-only — edit config.yaml directly", key)
 	}
 
 	cfg := a.Engine.Config()
-	restart := false
 
 	switch key {
 	case "identity.name":
 		cfg.Identity.Name = value
 		a.Engine.UpdateIdentity(value, "")
+		return false, nil
 	case "identity.avatar":
 		cfg.Identity.Avatar = value
 		a.Engine.UpdateIdentity("", value)
-	case "llm.model":
-		cfg.LLM.Model = value
-		restart = true
-	case "llm.provider":
-		cfg.LLM.Provider = value
-		restart = true
-	case "shield.evaluator.model":
-		cfg.Shield.Evaluator.Model = value
-		restart = true
-	case "shield.evaluator.provider":
-		cfg.Shield.Evaluator.Provider = value
-		restart = true
-	case "agents.sub_agent_model":
-		cfg.Agents.SubAgentModel = value
-	default:
-		return false, fmt.Errorf("unknown config key: %s", key)
+		return false, nil
 	}
 
-	return restart, nil
+	return false, fmt.Errorf("setting %q via /config set is not yet supported in the new schema — edit config.yaml directly", key)
 }
 
 // FlushLogs deletes log entries older than the given number of days.

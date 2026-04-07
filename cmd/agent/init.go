@@ -321,7 +321,7 @@ func runInit(_ *cobra.Command, args []string) error {
 
 	// Connection test for chat provider.
 	fmt.Printf("  Testing connection to %s...\n", info.label)
-	testCfg := types.LLMConfig{
+	testCfg := llm.Config{
 		Provider: llmProvider,
 		Model:    modelInput,
 		BaseURL:  baseURLInput,
@@ -448,7 +448,7 @@ func runInit(_ *cobra.Command, args []string) error {
 
 	// Connection test for shield.
 	fmt.Printf("  Testing Shield connection to %s...\n", shieldInfo.label)
-	shieldTestCfg := types.LLMConfig{
+	shieldTestCfg := llm.Config{
 		Provider: shieldProvider,
 		Model:    shieldModel,
 		BaseURL:  shieldBaseURL,

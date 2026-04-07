@@ -74,7 +74,7 @@ func runInternalSubAgent(_ *cobra.Command, _ []string) error {
 
 	name := regResp.Name
 
-	provider, err := llm.NewProvider(types.LLMConfig{
+	provider, err := llm.NewProvider(llm.Config{
 		Provider:  regResp.Provider,
 		Model:     regResp.Model,
 		APIKeyEnv: regResp.ApiKeyEnv,

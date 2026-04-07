@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/llm"
 )
 
@@ -120,7 +119,7 @@ func (s *SetupServer) handleTestProvider(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	cfg := types.LLMConfig{
+	cfg := llm.Config{
 		Provider: body.Provider,
 		Model:    body.Model,
 		BaseURL:  body.BaseURL,
@@ -154,7 +153,7 @@ func (s *SetupServer) handleTestEmbedding(w http.ResponseWriter, r *http.Request
 	}
 
 	// For embedding, we just verify the provider is reachable.
-	cfg := types.LLMConfig{
+	cfg := llm.Config{
 		Provider: body.Provider,
 		Model:    body.Model,
 		BaseURL:  body.BaseURL,

@@ -76,8 +76,8 @@ func runDoctor(_ *cobra.Command, args []string) error {
 	}
 
 	// LLM Provider
-	if cfg.LLM.Provider != "" {
-		printCheck(true, "LLM Provider", fmt.Sprintf("%s / %s", cfg.LLM.Provider, cfg.LLM.Model))
+	if chat, ok := cfg.ChatModel(); ok && chat.Provider != "" {
+		printCheck(true, "LLM Provider", fmt.Sprintf("%s / %s", chat.Provider, chat.Model))
 		passed++
 	} else {
 		printWarn("LLM Provider", "not configured")
@@ -119,8 +119,8 @@ func runDoctor(_ *cobra.Command, args []string) error {
 	}
 
 	// Embedding
-	if cfg.Memory.Embedding.Provider != "" {
-		printCheck(true, "Embedding", fmt.Sprintf("%s / %s", cfg.Memory.Embedding.Provider, cfg.Memory.Embedding.Model))
+	if emb, ok := cfg.EmbeddingModel(); ok && emb.Provider != "" {
+		printCheck(true, "Embedding", fmt.Sprintf("%s / %s", emb.Provider, emb.Model))
 		passed++
 	} else {
 		printWarn("Embedding", "not configured (FTS5 only)")

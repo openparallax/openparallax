@@ -151,10 +151,12 @@ func (m *SubAgentManager) Create(req SubAgentRequest) (string, error) {
 		timeout = time.Duration(req.TimeoutSeconds) * time.Second
 	}
 
-	// Resolve model.
+	// Resolve model. Priority: explicit request → roles.sub_agent → cheapest → chat.
 	model := req.Model
 	if model == "" {
-		model = m.engine.cfg.Agents.SubAgentModel
+		if subModel, ok := m.engine.cfg.SubAgentModel(); ok {
+			model = subModel.Model
+		}
 	}
 	if model == "" {
 		model = m.engine.llm.CheapestModel()
@@ -185,6 +187,10 @@ func (m *SubAgentManager) Create(req SubAgentRequest) (string, error) {
 
 	ctx, cancel := context.WithTimeout(m.engine.backgroundCtx, timeout)
 
+	// Resolve sub-agent provider credentials from the role mapping.
+	// Falls back to the chat model when no sub_agent role is set.
+	subModel, _ := m.engine.cfg.SubAgentModel()
+
 	sa := &SubAgent{
 		Name:       name,
 		Task:       req.Task,
@@ -199,8 +205,8 @@ func (m *SubAgentManager) Create(req SubAgentRequest) (string, error) {
 		tools:      toolDefs,
 		sessionID:  req.SessionID,
 		provider:   m.engine.llm.Name(),
-		apiKeyEnv:  m.engine.cfg.LLM.APIKeyEnv,
-		baseURL:    m.engine.cfg.LLM.BaseURL,
+		apiKeyEnv:  subModel.APIKeyEnv,
+		baseURL:    subModel.BaseURL,
 	}
 	m.agents[name] = sa
 	m.mu.Unlock()

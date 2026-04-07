@@ -45,11 +45,13 @@ func TestLoadValidConfig(t *testing.T) {
 	cfg, err := Load(path)
 	require.NoError(t, err)
 
-	// Derived LLM config from models+roles.
-	assert.Equal(t, "anthropic", cfg.LLM.Provider)
-	assert.Equal(t, "claude-sonnet-4-6", cfg.LLM.Model)
-	assert.Equal(t, "ANTHROPIC_API_KEY", cfg.LLM.APIKeyEnv)
-	assert.Equal(t, "openai", cfg.Shield.Evaluator.Provider)
+	// Derived from models+roles via accessors.
+	chat, _ := cfg.ChatModel()
+	assert.Equal(t, "anthropic", chat.Provider)
+	assert.Equal(t, "claude-sonnet-4-6", chat.Model)
+	assert.Equal(t, "ANTHROPIC_API_KEY", chat.APIKeyEnv)
+	sh, _ := cfg.ShieldModel()
+	assert.Equal(t, "openai", sh.Provider)
 	assert.True(t, cfg.General.FailClosed)
 	assert.Equal(t, 30, cfg.General.RateLimit)
 
@@ -121,7 +123,8 @@ roles:
 
 	cfg, err := Load(path)
 	require.NoError(t, err)
-	assert.Equal(t, "ollama", cfg.LLM.Provider)
+	chat, _ := cfg.ChatModel()
+	assert.Equal(t, "ollama", chat.Provider)
 }
 
 func TestLoadInvalidProvider(t *testing.T) {
