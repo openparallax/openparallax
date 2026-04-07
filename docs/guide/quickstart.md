@@ -1,13 +1,13 @@
 # Quick Start
 
-This guide takes you from a fresh build to your first conversation in under five minutes. It assumes you have already completed the [installation](/guide/installation) steps and have `dist/openparallax` ready.
+This guide takes you from a fresh install to your first conversation in under five minutes. It assumes you have already completed the [installation](/guide/installation) steps and have `openparallax` on your PATH.
 
 ## 1. Initialize a Workspace
 
 The `init` command runs an interactive wizard that configures your agent:
 
 ```bash
-./dist/openparallax init
+openparallax init
 ```
 
 The wizard walks through six steps:
@@ -27,7 +27,7 @@ At the end, the wizard asks whether to start the agent immediately.
 You can also pass the agent name as an argument to skip the name prompt:
 
 ```bash
-./dist/openparallax init Atlas
+openparallax init Atlas
 ```
 
 ## 2. Start the Agent
@@ -35,7 +35,7 @@ You can also pass the agent name as an argument to skip the name prompt:
 If you did not start during init, launch manually:
 
 ```bash
-./dist/openparallax start
+openparallax start
 ```
 
 You will see output like:
@@ -56,7 +56,7 @@ Three processes are now running:
 To get an interactive terminal interface immediately:
 
 ```bash
-./dist/openparallax start --tui
+openparallax start --tui
 ```
 
 This attaches the Bubbletea TUI directly. When you quit the TUI (with `/quit` or Ctrl+C), the engine shuts down.
@@ -64,7 +64,7 @@ This attaches the Bubbletea TUI directly. When you quit the TUI (with `/quit` or
 ### Start in the background
 
 ```bash
-./dist/openparallax start -d
+openparallax start -d
 ```
 
 Daemon mode prints the connection info and exits. The engine continues running in the background. Attach a TUI later with `openparallax attach tui`.
@@ -72,7 +72,7 @@ Daemon mode prints the connection info and exits. The engine continues running i
 ### Enable verbose logging
 
 ```bash
-./dist/openparallax start -v
+openparallax start -v
 ```
 
 This writes structured JSON logs to `<workspace>/.openparallax/engine.log`, covering every pipeline step, Shield evaluation, and executor call.
@@ -174,7 +174,7 @@ These work in both the CLI and web UI:
 Verify everything is configured correctly:
 
 ```bash
-./dist/openparallax doctor
+openparallax doctor
 ```
 
 This runs 13 checks covering config, workspace, SQLite, LLM provider, Shield, embedding, browser, email, calendar, heartbeat, audit chain integrity, sandbox, and web UI. Each check reports pass, warning (non-critical), or failure.
@@ -190,16 +190,20 @@ From the CLI TUI:
 From any terminal:
 
 ```bash
-./dist/openparallax stop
+openparallax stop
 ```
 
 The process manager sends SIGTERM to the engine and waits up to 5 seconds for a clean shutdown.
 
 ## 10. Verify Your Security Posture
 
-OpenParallax ships with a 337-case adversarial test suite. Before you start using your agent for anything important, run the eval against your workspace and confirm Shield catches what it should:
+OpenParallax ships with a 337-case adversarial test suite. Before you start using your agent for anything important, run the eval against your workspace and confirm Shield catches what it should.
+
+The eval binary is intentionally separate from the main `openparallax` binary — it never ships as part of a release. To run it, clone the repo and build it yourself:
 
 ```bash
+git clone https://github.com/openparallax/openparallax.git
+cd openparallax
 go build -o dist/openparallax-eval ./cmd/eval
 
 ./dist/openparallax-eval \
@@ -212,7 +216,7 @@ go build -o dist/openparallax-eval ./cmd/eval
 
 Expected output: 25/25 cases blocked, 0% ASR. If your numbers differ, see [Reproducing Run-013](/eval/reproducing) for the exact configuration that produced the published baseline.
 
-For the full corpus and the methodology, see [Test Your Own Security](/eval/).
+For the full corpus and the methodology, see [Test Your Own Security](/eval/). You only need Go 1.25+ to build the eval binary; Node.js is not required since the eval has no web UI.
 
 ## Next Steps
 

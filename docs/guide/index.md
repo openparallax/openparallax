@@ -19,24 +19,30 @@ OpenParallax is a reference implementation of the architecture proposed in [*Par
 
 ## Prerequisites
 
-- **Go 1.25+** (for building from source)
-- **An LLM API key** — at least one of: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`
+- **An LLM API key** — at least one of: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`. See [Installation → An LLM API Key](/guide/installation#an-llm-api-key) for where to get one and how to set it.
 - **Linux, macOS, or Windows**
 
 ## Quick Install
 
+**Linux / macOS:**
+
 ```bash
-# Clone and build
-git clone https://github.com/openparallax/openparallax.git
-cd openparallax
-make build-all
-
-# Initialize a workspace
-./dist/openparallax init
-
-# Start the agent
-./dist/openparallax start
+curl -sSL https://get.openparallax.dev | sh
+openparallax init
+openparallax start
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://get.openparallax.dev/install.ps1 | iex
+openparallax init
+openparallax start
+```
+
+The install script downloads a single static binary, drops it on your PATH, and verifies its checksum. No Go, no Node.js, no toolchain required.
+
+If you prefer to build from source (contributors, anyone tracking `main`), see [Installation → Path B](/guide/installation#path-b-build-from-source).
 
 The `init` wizard walks you through:
 1. Choosing your agent name and identity
