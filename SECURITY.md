@@ -4,18 +4,28 @@
 
 **Do not open a public issue for security vulnerabilities.**
 
-If you discover a security vulnerability in OpenParallax, please report it responsibly:
+OpenParallax uses **GitHub Private Vulnerability Reporting**. Reports are visible only to project maintainers, give you an audit trail, and integrate with CVE assignment and coordinated disclosure.
 
-1. **Email:** security@openparallax.dev
-2. **Subject:** `[SECURITY] Brief description`
-3. **Include:**
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Affected versions (or commit hash)
-   - Impact assessment (what an attacker could achieve)
-   - Suggested fix, if you have one
+### How to Report
+
+1. Go to [Security → Advisories → Report a vulnerability](https://github.com/openparallax/openparallax/security/advisories/new) on this repository
+2. Fill in:
+   - **Title** — short description
+   - **Description** — what the vulnerability is and how it works
+   - **Steps to reproduce** — minimal reproduction
+   - **Affected versions** — release tag or commit hash
+   - **Impact** — what an attacker could achieve
+   - **Suggested fix** — if you have one
 
 We will acknowledge your report within 48 hours and aim to provide a fix or mitigation within 7 days for critical issues.
+
+### What Happens Next
+
+- The report enters a private draft advisory only maintainers can see.
+- We may invite you as a collaborator on a private fork to develop the fix together.
+- Once the fix lands and a patched release is available, the advisory is published with credit to you (unless you prefer anonymity) and a CVE is requested through GitHub.
+
+We do not maintain a security@ email alias. Private GitHub reporting is the only supported channel.
 
 ## Scope
 

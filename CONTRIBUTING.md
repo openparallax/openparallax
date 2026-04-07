@@ -153,5 +153,5 @@ By contributing, you agree that your contributions will be licensed under the [A
 ## Questions?
 
 - **Bug reports and feature requests:** [GitHub Issues](https://github.com/openparallax/openparallax/issues)
-- **Security vulnerabilities:** security@openparallax.dev (see [SECURITY.md](SECURITY.md))
+- **Security vulnerabilities:** [GitHub Private Vulnerability Reporting](https://github.com/openparallax/openparallax/security/advisories/new) (see [SECURITY.md](SECURITY.md))
 - **General discussion:** [GitHub Discussions](https://github.com/openparallax/openparallax/discussions)
