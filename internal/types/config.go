@@ -106,6 +106,11 @@ type AgentConfig struct {
 	OAuth OAuthConfig `yaml:"oauth,omitempty" json:"oauth,omitempty"`
 }
 
+// ModelByName returns the named model entry from the pool.
+func (c *AgentConfig) ModelByName(name string) (ModelEntry, bool) {
+	return c.modelByName(name)
+}
+
 // modelByName returns the named model entry from the pool.
 func (c *AgentConfig) modelByName(name string) (ModelEntry, bool) {
 	if name == "" {
