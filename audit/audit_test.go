@@ -142,3 +142,38 @@ func TestChainContinuesAfterRestart(t *testing.T) {
 
 	assert.NoError(t, VerifyIntegrity(path))
 }
+
+func TestNewEventTypesRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.jsonl")
+
+	logger, err := NewLogger(path)
+	require.NoError(t, err)
+
+	cases := []struct {
+		eventType EventType
+		details   string
+	}{
+		{ConfigChanged, "chat.model"},
+		{IFCClassified, "sensitivity=4 source=/etc/passwd"},
+		{ChronicleSnapshot, "snapshot_id=abc123"},
+		{ChronicleSnapshotFailed, "disk full"},
+		{SandboxCanaryResult, "canary_status_ok"},
+	}
+
+	for _, c := range cases {
+		require.NoError(t, logger.Log(Entry{
+			EventType: c.eventType,
+			Details:   c.details,
+		}))
+	}
+	_ = logger.Close()
+
+	assert.NoError(t, VerifyIntegrity(path))
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	for _, c := range cases {
+		assert.Contains(t, string(data), c.details)
+	}
+}

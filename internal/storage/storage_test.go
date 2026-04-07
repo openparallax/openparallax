@@ -406,3 +406,46 @@ func TestSnapshotNotFound(t *testing.T) {
 	_, err := db.GetSnapshot("nonexistent")
 	assert.ErrorIs(t, err, types.ErrSnapshotNotFound)
 }
+
+func TestMetricsLatencyRoundTrip(t *testing.T) {
+	db := openTestDB(t)
+
+	// 100 samples, latencies 1..100 ms.
+	for i := 1; i <= 100; i++ {
+		db.AddLatencySample("shield_t1", int64(i))
+	}
+
+	from := time.Now().Format("2006-01-02")
+	to := from
+	p50, p95, p99 := db.GetLatencyPercentiles("shield_t1", from, to)
+
+	// Index-based percentile (p*n/100 in [0, n-1]).
+	assert.Equal(t, 51, p50)
+	assert.Equal(t, 96, p95)
+	assert.Equal(t, 100, p99)
+}
+
+func TestMetricsLatencyEmpty(t *testing.T) {
+	db := openTestDB(t)
+	from := time.Now().Format("2006-01-02")
+	to := from
+	p50, p95, p99 := db.GetLatencyPercentiles("nonexistent", from, to)
+	assert.Equal(t, 0, p50)
+	assert.Equal(t, 0, p95)
+	assert.Equal(t, 0, p99)
+}
+
+func TestMetricsLatencyIsolatedByMetricName(t *testing.T) {
+	db := openTestDB(t)
+	db.AddLatencySample("shield_t0", 5)
+	db.AddLatencySample("shield_t1", 50)
+	db.AddLatencySample("shield_t2", 500)
+
+	from := time.Now().Format("2006-01-02")
+	p50, _, _ := db.GetLatencyPercentiles("shield_t0", from, from)
+	assert.Equal(t, 5, p50)
+	p50, _, _ = db.GetLatencyPercentiles("shield_t1", from, from)
+	assert.Equal(t, 50, p50)
+	p50, _, _ = db.GetLatencyPercentiles("shield_t2", from, from)
+	assert.Equal(t, 500, p50)
+}
