@@ -72,6 +72,7 @@ export default defineConfig({
           items: [
             { text: 'Configuration', link: '/guide/configuration' },
             { text: 'CLI Commands', link: '/guide/cli' },
+            { text: 'Slash Commands', link: '/guide/slash-commands' },
             { text: 'Web UI', link: '/guide/web-ui' },
             { text: 'Sessions & OTR', link: '/guide/sessions' },
             { text: 'Optional Downloads', link: '/guide/optional-downloads' },

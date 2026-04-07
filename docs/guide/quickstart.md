@@ -59,7 +59,7 @@ To get an interactive terminal interface immediately:
 openparallax start --tui
 ```
 
-This attaches the Bubbletea TUI directly. When you quit the TUI (with `/quit` or Ctrl+C), the engine shuts down.
+This attaches the Bubbletea TUI directly. Press `Ctrl+C` (or close the terminal) to detach from the TUI — the engine keeps running in the background. To fully shut down the engine, run `openparallax stop` in another terminal.
 
 ### Start in the background
 
@@ -156,18 +156,20 @@ To return to normal mode, start a new session with `/new`.
 
 ## 7. Useful Slash Commands
 
-These work in both the CLI and web UI:
+These are the ones you will use most often. They work in both the CLI and web UI (and most messaging channels):
 
 | Command | Description |
 |---------|-------------|
-| `/help` | Show available commands |
+| `/help` | Show all available slash commands |
 | `/new` | Start a new session |
-| `/otr` | Start an OTR (off-the-record) session |
-| `/status` | Show agent status and capabilities |
+| `/otr` | Start an OTR (off-the-record) session — read-only, never persisted |
 | `/sessions` | List recent sessions |
-| `/export` | Export current session |
-| `/clear` | Clear the display |
-| `/quit` | Exit the TUI |
+| `/status` | Show agent status, Shield budget, sandbox state |
+| `/export` | Export the current session as markdown |
+| `/clear` | Clear the chat view |
+| `/quit` | **Close the current session and start a new one** (does not exit the agent — press `Ctrl+C` to detach the TUI) |
+
+OpenParallax has 19 slash commands in total. See the [Slash Commands reference](/guide/slash-commands) for the full list including session switching, configuration, model swapping, and audit verification.
 
 ## 8. Run a Health Check
 
@@ -181,19 +183,17 @@ This runs 13 checks covering config, workspace, SQLite, LLM provider, Shield, em
 
 ## 9. Stop the Agent
 
-From the CLI TUI:
+To detach the CLI TUI without stopping the agent, press `Ctrl+C` (or close the terminal). The engine keeps running in the background and you can re-attach later with `openparallax start --tui` or by opening the web UI.
 
-```
-/quit
-```
-
-From any terminal:
+To **fully shut down** the engine:
 
 ```bash
 openparallax stop
 ```
 
 The process manager sends SIGTERM to the engine and waits up to 5 seconds for a clean shutdown.
+
+(`/quit` inside the TUI closes the current session and starts a new one — it does NOT exit the agent. See the [Slash Commands reference](/guide/slash-commands#exiting-the-agent) for details.)
 
 ## 10. Test Your Own Security
 

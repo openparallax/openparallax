@@ -289,4 +289,9 @@ cd web && npx vitest run src/__tests__/specific.test.ts
 
 ### Slash Commands (Web UI + CLI)
 
-`/help`, `/new`, `/otr`, `/quit`, `/clear`, `/status`, `/restart`, `/export`, `/delete`, `/sessions`
+19 total, registered in `internal/commands/commands.go`:
+- Session: `/help`, `/new`, `/otr`, `/quit`, `/clear`, `/sessions`, `/switch`, `/delete`, `/title`, `/history`, `/export`
+- Status: `/status`, `/usage`, `/doctor`, `/audit`
+- Config (CLI/web only): `/config`, `/model`, `/restart`, `/logs`
+
+Note: `/quit` closes the current session and starts a new one. It does NOT exit the agent. Press Ctrl+C in the TUI or `openparallax stop` to shut down.
