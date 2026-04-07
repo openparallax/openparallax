@@ -158,14 +158,16 @@ The memory system maintains daily logs that record session activity by date. The
 
 ## Memory in Context Assembly
 
-When the agent processes a new message, it assembles context from multiple memory sources:
+When the agent processes a new message, it assembles context from multiple sources:
 
-1. **Memory files** — SOUL.md, IDENTITY.md, USER.md, MEMORY.md are loaded into the system prompt
-2. **Session history** — the current session's message history
-3. **Memory search** — if the conversation context suggests it, the agent can search memory for relevant past interactions
-4. **Loaded skills** — any custom skills activated for this session
+1. **Identity files** — `SOUL.md`, `IDENTITY.md`, and `USER.md` are loaded **whole** every turn. They are short and define the agent's invariants.
+2. **Semantic memory retrieval** — `MEMORY.md`, `AGENTS.md`, `HEARTBEAT.md`, and daily logs are **not** loaded whole. They are chunked and embedded at index time, then queried per turn. The top-k most relevant chunks (default 5) for the current user message are injected into the system prompt as a "Your Memory" section.
+3. **Session history** — the current session's message history (subject to compaction below).
+4. **Loaded skills** — any custom skills activated for this session.
 
-This context assembly ensures the agent has relevant background without loading the entire memory database into every prompt.
+The retrieval step is what makes memory scale. A user with 18 months of daily logs pays the same per-turn token cost as a user with 10 entries — only the most similar 5 chunks reach the LLM. The full pipeline (chunking → embedding → store → retrieve → inject) is documented in [Token Economy → Semantic Memory Retrieval](/technical/design-efficiency#semantic-memory-retrieval).
+
+Retrieved chunks are wrapped in `[MEMORY]` boundary tags so the LLM treats them as **reference data, not directives**. This prevents indirect prompt injection through poisoned memory entries — an attacker who manages to insert malicious text into MEMORY.md cannot trick the agent into obeying it.
 
 ### Compaction
 
