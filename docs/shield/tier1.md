@@ -181,7 +181,7 @@ Detects shell commands that attempt to modify protected identity files:
 
 | Rule ID | Name | Severity | Pattern |
 |---------|------|----------|---------|
-| SP-001 | `shell_writes_protected_file` | critical | Shell redirect/copy/move/delete targeting SOUL.md, IDENTITY.md, TOOLS.md, BOOT.md |
+| SP-001 | `shell_writes_protected_file` | critical | Shell redirect/copy/move/delete targeting SOUL.md, IDENTITY.md |
 
 #### Generation Safety (3 rules)
 

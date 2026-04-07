@@ -65,8 +65,6 @@ The `ContextAssembler` reads workspace files and constructs a structured system 
 # Core Guardrails        <- SOUL.md
 # User Profile           <- USER.md
 # Your Memory            <- MEMORY.md
-# Your Capabilities      <- TOOLS.md
-# Session Context         <- BOOT.md
 # Behavioral Rules       <- hardcoded rules
 # OTR Notice             <- (only in OTR mode)
 # Sensitive Data Handling <- hardcoded rules

@@ -84,7 +84,7 @@ func (idx *Indexer) IndexFile(ctx context.Context, path string) error {
 
 // IndexWorkspace indexes all memory-related files in the workspace.
 func (idx *Indexer) IndexWorkspace(ctx context.Context, workspacePath string) {
-	memFiles := []string{"MEMORY.md", "USER.md", "BOOT.md", "TOOLS.md", "AGENTS.md", "HEARTBEAT.md"}
+	memFiles := []string{"MEMORY.md", "USER.md", "AGENTS.md", "HEARTBEAT.md"}
 	for _, f := range memFiles {
 		path := filepath.Join(workspacePath, f)
 		if _, err := os.Stat(path); err == nil {

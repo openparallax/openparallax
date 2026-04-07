@@ -15,7 +15,7 @@ func setupProtectionWorkspace(t *testing.T) string {
 	dir := t.TempDir()
 
 	// Create protected files.
-	for _, f := range []string{"SOUL.md", "IDENTITY.md", "TOOLS.md", "BOOT.md",
+	for _, f := range []string{"SOUL.md", "IDENTITY.md",
 		"AGENTS.md", "HEARTBEAT.md", "USER.md", "MEMORY.md"} {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, f), []byte("content"), 0o644))
 	}
@@ -89,20 +89,6 @@ func TestProtection_ReadSOUL_Allowed(t *testing.T) {
 func TestProtection_WriteIDENTITY_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
 	action := makeAction(types.ActionWriteFile, map[string]any{"path": "IDENTITY.md", "content": "evil"})
-	allowed, _, _ := CheckProtection(action, ws)
-	assert.False(t, allowed)
-}
-
-func TestProtection_WriteTOOLS_Blocked(t *testing.T) {
-	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "TOOLS.md", "content": "evil"})
-	allowed, _, _ := CheckProtection(action, ws)
-	assert.False(t, allowed)
-}
-
-func TestProtection_WriteBOOT_Blocked(t *testing.T) {
-	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "BOOT.md", "content": "evil"})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }

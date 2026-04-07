@@ -61,15 +61,6 @@ func (c *ContextAssembler) Assemble(mode types.SessionMode, userMessage string) 
 		}
 	}
 
-	if tools := c.loadFile("TOOLS.md"); tools != "" {
-		sections = append(sections, fmt.Sprintf(
-			"Your Capabilities\n\nYou will receive formal tool definitions separately. This provides context on when and how to use them.\n\n%s", tools))
-	}
-
-	if boot := c.loadFile("BOOT.md"); boot != "" {
-		sections = append(sections, fmt.Sprintf("Session Context\n\n%s", boot))
-	}
-
 	sections = append(sections, behavioralRules())
 
 	if mode == types.SessionOTR {
@@ -139,7 +130,9 @@ func behavioralRules() string {
 	return `Behavioral Rules
 
 Act first, report after. Use tools immediately — don't describe plans.
-Report tool results accurately. Explain blocks and failures.
+Load only the tool groups you need; each group is described in the load_tools meta-tool.
+Tool calls are evaluated by Shield before execution. If a call is blocked, explain the block to the user instead of retrying blindly.
+Report tool results accurately. Explain failures.
 Search memory and workspace before saying you don't know.
 For independent subtasks, delegate to parallel sub-agents.
 Don't: repeat the request back, narrate plans, add filler phrases, add AI disclaimers.`

@@ -49,7 +49,7 @@ OTR mode uses `DisableGroups` to remove write-capable groups entirely — the to
 
 ## Stripping Markdown from System Prompts
 
-The workspace files that compose the system prompt — IDENTITY.md, TOOLS.md, and others — are written in markdown for human readability. But markdown formatting characters are tokens the LLM does not need:
+The workspace files that compose the system prompt — IDENTITY.md, SOUL.md, and others — are written in markdown for human readability. But markdown formatting characters are tokens the LLM does not need:
 
 ```markdown
 # Identity                          ← 2 tokens for "# "

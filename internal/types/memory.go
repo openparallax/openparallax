@@ -16,14 +16,10 @@ const (
 	MemoryHeartbeat MemoryFileType = "HEARTBEAT.md"
 	// MemoryAgents defines the multi-agent roster.
 	MemoryAgents MemoryFileType = "AGENTS.md"
-	// MemoryTools defines available tools and capabilities.
-	MemoryTools MemoryFileType = "TOOLS.md"
-	// MemoryBoot defines the startup checklist.
-	MemoryBoot MemoryFileType = "BOOT.md"
 )
 
 // AllMemoryFiles is the complete list of workspace memory files.
 var AllMemoryFiles = []MemoryFileType{
 	MemorySoul, MemoryIdentity, MemoryUser, MemoryMain,
-	MemoryHeartbeat, MemoryAgents, MemoryTools, MemoryBoot,
+	MemoryHeartbeat, MemoryAgents,
 }

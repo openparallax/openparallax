@@ -97,8 +97,6 @@ Six markdown files form the agent's persistent knowledge:
 | `IDENTITY.md` | Name, role, capabilities |
 | `USER.md` | Learned facts about the user (preferences, projects, context) |
 | `MEMORY.md` | Session summaries, accumulated knowledge |
-| `TOOLS.md` | Tool-specific notes and learned patterns |
-| `BOOT.md` | Startup instructions, workspace-specific config |
 
 These files are chunked, embedded, and indexed on startup. A filesystem watcher re-indexes them when they change. The agent reads these files to assemble its system prompt and searches them for relevant context when answering questions.
 

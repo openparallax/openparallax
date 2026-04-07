@@ -86,22 +86,6 @@ Session summaries and accumulated knowledge are recorded here.
 
 This file grows over time as the agent learns from conversations.
 
-### TOOLS.md
-
-Descriptions of available capabilities. This file gives the agent an overview of what it can do, organized by category (file management, shell, browser, git, memory, calendar, canvas, email, scheduled tasks).
-
-### BOOT.md
-
-Startup checklist that defines the agent's initialization sequence:
-
-1. Load SOUL.md and IDENTITY.md
-2. Load USER.md for personalization
-3. Read MEMORY.md for context continuity
-4. Parse HEARTBEAT.md for scheduled tasks
-5. Index all memory files for FTS5 search
-6. Verify Shield pipeline is operational
-7. Ready to accept messages
-
 ### HEARTBEAT.md
 
 Scheduled task definitions in cron format. See [Heartbeat](/guide/heartbeat) for details.
@@ -176,7 +160,7 @@ The memory system maintains daily logs that record session activity by date. The
 
 When the agent processes a new message, it assembles context from multiple memory sources:
 
-1. **Memory files** — SOUL.md, IDENTITY.md, USER.md, MEMORY.md, TOOLS.md, BOOT.md are loaded into the system prompt
+1. **Memory files** — SOUL.md, IDENTITY.md, USER.md, MEMORY.md are loaded into the system prompt
 2. **Session history** — the current session's message history
 3. **Memory search** — if the conversation context suggests it, the agent can search memory for relevant past interactions
 4. **Loaded skills** — any custom skills activated for this session

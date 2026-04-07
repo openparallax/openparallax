@@ -316,8 +316,6 @@ verify:
     paths:
       - "**/SOUL.md"
       - "**/IDENTITY.md"
-      - "**/TOOLS.md"
-      - "**/BOOT.md"
     tier_override: 2
 
   # Shell commands → Tier 1 (classifier)

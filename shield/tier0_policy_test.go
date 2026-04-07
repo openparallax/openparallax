@@ -11,10 +11,12 @@ import (
 
 func namedPolicyPath(t *testing.T, name string) string {
 	t.Helper()
-	// Find policies relative to repo root.
+	// The canonical policy templates are embedded in the binary at
+	// internal/templates/files/policies/. Tests read from that directory
+	// directly so the fixture and the shipped templates are byte-identical.
 	candidates := []string{
-		filepath.Join("../policies", name),
-		filepath.Join("policies", name),
+		filepath.Join("../internal/templates/files/policies", name),
+		filepath.Join("internal/templates/files/policies", name),
 	}
 	for _, c := range candidates {
 		if _, err := os.Stat(c); err == nil {

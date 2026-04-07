@@ -14,9 +14,11 @@ import (
 
 func policyPath(t *testing.T) string {
 	t.Helper()
+	// Read from the embedded templates location so the fixture and the
+	// shipped templates are byte-identical (single source of truth).
 	candidates := []string{
-		filepath.Join("../policies", "default.yaml"),
-		filepath.Join("policies", "default.yaml"),
+		filepath.Join("../internal/templates/files/policies", "default.yaml"),
+		filepath.Join("internal/templates/files/policies", "default.yaml"),
 	}
 	for _, c := range candidates {
 		if _, err := os.Stat(c); err == nil {

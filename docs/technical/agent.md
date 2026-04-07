@@ -137,8 +137,6 @@ Each batch of tool results sent back to the LLM counts as one round. The loop in
 | `SOUL.md` | `# Core Guardrails` | Non-negotiable constraints |
 | `USER.md` | `# User Profile` | User preferences and information |
 | `MEMORY.md` | `# Your Memory` | Facts from previous conversations |
-| `TOOLS.md` | `# Your Capabilities` | Tool usage guidance |
-| `BOOT.md` | `# Session Context` | Per-session context |
 
 Each section includes framing text that tells the LLM how to interpret the content. For example, SOUL.md is framed as:
 

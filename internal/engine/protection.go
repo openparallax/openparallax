@@ -32,8 +32,6 @@ var protectedFiles = map[string]ProtectionLevel{
 	// Core identity — read-only, never modifiable by the agent.
 	"soul.md":     ReadOnly,
 	"identity.md": ReadOnly,
-	"tools.md":    ReadOnly,
-	"boot.md":     ReadOnly,
 
 	// Significant changes — LLM evaluation required.
 	"agents.md":    EscalateTier2,

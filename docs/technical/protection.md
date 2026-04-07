@@ -23,8 +23,6 @@ Four protection levels are defined in `internal/engine/protection.go`:
 |---|---|
 | `SOUL.md` | Core guardrails -- non-negotiable constraints |
 | `IDENTITY.md` | Agent identity, name, role, communication style |
-| `TOOLS.md` | Tool usage guidance |
-| `BOOT.md` | Per-session context |
 
 These define the agent's fundamental identity and safety constraints. If the agent could modify them, it could alter its own guardrails -- a critical safety violation. The protection message explains why: "it defines the agent's core identity and guardrails. Edit it manually if you need to change it."
 

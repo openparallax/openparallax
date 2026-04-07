@@ -67,16 +67,12 @@ const (
 	MemoryHeartbeat FileType = "HEARTBEAT.md"
 	// MemoryAgents defines the multi-agent roster.
 	MemoryAgents FileType = "AGENTS.md"
-	// MemoryTools defines available tools and capabilities.
-	MemoryTools FileType = "TOOLS.md"
-	// MemoryBoot defines the startup checklist.
-	MemoryBoot FileType = "BOOT.md"
 )
 
 // AllFiles is the complete list of workspace memory file types.
 var AllFiles = []FileType{
 	MemorySoul, MemoryIdentity, MemoryUser, MemoryMain,
-	MemoryHeartbeat, MemoryAgents, MemoryTools, MemoryBoot,
+	MemoryHeartbeat, MemoryAgents,
 }
 
 // ErrFileNotFound indicates a memory file does not exist in the workspace.

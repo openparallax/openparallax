@@ -148,8 +148,6 @@ deny:
     paths:
       - "**/SOUL.md"
       - "**/IDENTITY.md"
-      - "**/TOOLS.md"
-      - "**/BOOT.md"
 ```
 
 Identity files define the agent's personality and capabilities. This rule prevents deletion regardless of where they are located (the `**/` prefix matches any directory depth).
@@ -178,8 +176,6 @@ verify:
     paths:
       - "**/SOUL.md"
       - "**/IDENTITY.md"
-      - "**/TOOLS.md"
-      - "**/BOOT.md"
     tier_override: 2
 ```
 

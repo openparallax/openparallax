@@ -103,7 +103,7 @@ func TestDefaultIdentityValues(t *testing.T) {
 }
 
 func TestAllMemoryFilesCount(t *testing.T) {
-	assert.Len(t, AllMemoryFiles, 8, "AllMemoryFiles should have 8 entries")
+	assert.Len(t, AllMemoryFiles, 6, "AllMemoryFiles should have 6 entries")
 }
 
 func TestAllMessagingPlatformsCount(t *testing.T) {

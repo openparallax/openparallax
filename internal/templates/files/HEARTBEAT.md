@@ -1,7 +1,5 @@
 # Heartbeat
 
-Proactive scheduled tasks. Add entries below to have the agent run tasks automatically.
+Scheduled tasks the agent runs on its own. Add entries below.
 
----
-schedules: []
----
+## Schedules

@@ -81,7 +81,7 @@ Balanced security suitable for most use cases.
 
 **Blocked:**
 - File operations on sensitive system paths (`~/.ssh/**`, `~/.aws/**`, `~/.gnupg/**`, `~/.kube/**`, `/etc/shadow`, `/etc/sudoers`)
-- Deletion of identity files (SOUL.md, IDENTITY.md, TOOLS.md, BOOT.md, AGENTS.md, HEARTBEAT.md)
+- Deletion of identity files (SOUL.md, IDENTITY.md, AGENTS.md, HEARTBEAT.md)
 
 ::: info Platform-specific sensitive paths
 The paths above (`/etc/shadow`, `/etc/sudoers`) are Linux-specific examples. The Shield policy engine works with whatever paths are relevant to your platform:
@@ -94,7 +94,7 @@ Customize your policy file to block the sensitive paths for your operating syste
 **Evaluated at higher tiers:**
 - Shell commands (Tier 1)
 - External communication: messages, emails, HTTP requests (Tier 1)
-- Identity file modification: SOUL.md, IDENTITY.md, TOOLS.md, BOOT.md (Tier 2)
+- Identity file modification: SOUL.md, IDENTITY.md (Tier 2)
 - Agent config modification: AGENTS.md, HEARTBEAT.md (Tier 2)
 - User data modification: USER.md, MEMORY.md (Tier 1)
 - Destructive file operations: delete, move (Tier 1)
@@ -195,7 +195,7 @@ Different files in the workspace have different protection levels based on the d
 | Protection Level | Files | What Happens |
 |-----------------|-------|-------------|
 | **FullBlock** | `~/.ssh/**`, `~/.aws/**`, `~/.gnupg/**`, `/etc/shadow` | Always blocked, cannot be read or written |
-| **EscalateTier2** | SOUL.md, IDENTITY.md, TOOLS.md, BOOT.md, AGENTS.md, HEARTBEAT.md | Modifications sent to LLM evaluator for approval |
+| **EscalateTier2** | SOUL.md, IDENTITY.md, AGENTS.md, HEARTBEAT.md | Modifications sent to LLM evaluator for approval |
 | **WriteTier1Min** | USER.md, MEMORY.md, destructive file ops | Must pass heuristic/ONNX check |
 | **ReadOnly** | All workspace reads, git status/diff/log | Allowed immediately |
 

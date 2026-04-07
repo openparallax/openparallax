@@ -187,8 +187,6 @@ openparallax/                    # Source checkout
   IDENTITY.md                    # Agent name, role, style
   USER.md                        # Your preferences
   MEMORY.md                      # Accumulated knowledge
-  TOOLS.md                       # Tool descriptions
-  BOOT.md                        # Startup checklist
   HEARTBEAT.md                   # Scheduled tasks
   AGENTS.md                      # Multi-agent roster
   policies/
