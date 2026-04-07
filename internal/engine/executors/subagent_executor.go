@@ -47,11 +47,21 @@ type SubAgentInfo struct {
 // SubAgentExecutor handles sub-agent tool calls by delegating to the SubAgentManager.
 type SubAgentExecutor struct {
 	manager SubAgentManagerInterface
+	// models is a snapshot of the workspace model pool taken at executor
+	// construction. The LLM picks a sub-agent model by sending the
+	// 1-based index into this slice; an empty pool means index selection
+	// is disabled and the engine default is always used.
+	models []types.ModelEntry
 }
 
-// NewSubAgentExecutor creates a new SubAgentExecutor.
-func NewSubAgentExecutor(manager SubAgentManagerInterface) *SubAgentExecutor {
-	return &SubAgentExecutor{manager: manager}
+// NewSubAgentExecutor creates a new SubAgentExecutor with a snapshot of
+// the workspace model pool. The pool is used to render the numbered
+// model menu into the create_agent tool description and to resolve the
+// LLM's index choice back to a concrete model name.
+func NewSubAgentExecutor(manager SubAgentManagerInterface, models []types.ModelEntry) *SubAgentExecutor {
+	snapshot := make([]types.ModelEntry, len(models))
+	copy(snapshot, models)
+	return &SubAgentExecutor{manager: manager, models: snapshot}
 }
 
 // SupportedActions returns the action types this executor handles.
@@ -62,29 +72,62 @@ func (e *SubAgentExecutor) SupportedActions() []types.ActionType {
 	}
 }
 
+// renderModelMenu produces the numbered model list embedded in the
+// create_agent tool description. Empty string when the pool is empty
+// or contains a single entry (in which case the default is the only
+// choice and the menu would be noise).
+func (e *SubAgentExecutor) renderModelMenu() string {
+	if len(e.models) < 2 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("Available sub-agent models — you are the judge; pick by task fit. Entries without a hint, judge from the model name:\n")
+	for i, m := range e.models {
+		fmt.Fprintf(&sb, "  %d. %s", i+1, m.Model)
+		if m.Purpose != "" {
+			fmt.Fprintf(&sb, " — %s", m.Purpose)
+		}
+		sb.WriteString("\n")
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 // ToolSchemas returns the tool definitions for sub-agent management.
 func (e *SubAgentExecutor) ToolSchemas() []ToolSchema {
+	createDesc := "Spawn a sub-agent to handle a task in its own context window. Prefer over inline work when subtasks are independent (research, multi-file scans, parallel processing) — keeps your context lean and runs them concurrently. The sub-agent starts blank: it does NOT see your conversation, files, or prior reasoning, so the task field must be self-contained. Returns the agent's name; collect with agent_result."
+	if menu := e.renderModelMenu(); menu != "" {
+		createDesc += "\n\n" + menu
+	}
+
+	modelParam := map[string]any{
+		"type":        "integer",
+		"description": "Optional. 1-based index into the model menu above. Omit to use the workspace default.",
+	}
+	if len(e.models) == 0 {
+		modelParam = map[string]any{
+			"type":        "integer",
+			"description": "Optional. No model menu is available in this workspace; omit this field.",
+		}
+	}
+
 	return []ToolSchema{
 		{
 			ActionType:  types.ActionCreateAgent,
 			Name:        "create_agent",
-			Description: "Spawn a sub-agent to handle a task in its own context window. Prefer over inline work when subtasks are independent (research, multi-file scans, parallel processing) — keeps your context lean and runs them concurrently. Returns the agent's name; collect with agent_result.",
+			Description: createDesc,
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"task": map[string]any{
 						"type":        "string",
-						"description": "Clear description of the task for the sub-agent to complete.",
+						"description": "Self-contained description of the task. Include all background, file paths, and constraints the sub-agent needs to finish without further questions.",
 					},
 					"tool_groups": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},
 						"description": "Tool groups the sub-agent should have access to (e.g. [\"files\", \"shell\"]). Omit for all available tools.",
 					},
-					"model": map[string]any{
-						"type":        "string",
-						"description": "LLM model for the sub-agent. Defaults to the cheapest available model.",
-					},
+					"model": modelParam,
 					"wait": map[string]any{
 						"type":        "boolean",
 						"description": "If true, block until the sub-agent completes and return the result directly.",
@@ -208,7 +251,30 @@ func (e *SubAgentExecutor) executeCreate(action *types.ActionRequest) *types.Act
 		}
 	}
 
-	model, _ := action.Payload["model"].(string)
+	// model is sent as a 1-based index into the workspace model pool.
+	// Accept float64 (JSON number), int, or omit entirely.
+	var model string
+	if raw, ok := action.Payload["model"]; ok && raw != nil {
+		var idx int
+		switch v := raw.(type) {
+		case float64:
+			idx = int(v)
+		case int:
+			idx = v
+		case int64:
+			idx = int(v)
+		}
+		if idx > 0 {
+			if idx > len(e.models) {
+				return &types.ActionResult{
+					Success: false,
+					Error:   fmt.Sprintf("model index %d is out of range; the workspace pool has %d entries", idx, len(e.models)),
+					Summary: "invalid model index",
+				}
+			}
+			model = e.models[idx-1].Model
+		}
+	}
 	wait, _ := action.Payload["wait"].(bool)
 
 	req := SubAgentRequest{

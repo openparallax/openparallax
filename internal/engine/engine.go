@@ -528,7 +528,7 @@ func (e *Engine) SubAgentManager() *SubAgentManager { return e.subAgentManager }
 func (e *Engine) SetupSubAgents(grpcAddr string) {
 	e.subAgentManager = NewSubAgentManager(e, grpcAddr, 5)
 	adapter := NewSubAgentManagerAdapter(e.subAgentManager)
-	e.executors.RegisterSubAgents(adapter)
+	e.executors.RegisterSubAgents(adapter, e.cfg.Models)
 }
 
 // MCPServerStatus returns the status of all configured MCP servers.

@@ -77,8 +77,10 @@ func NewRegistry(workspacePath string, cfg *types.AgentConfig, oauthMgr *oauth.M
 }
 
 // RegisterSubAgents adds the sub-agent executor and rebuilds tool groups.
-func (r *Registry) RegisterSubAgents(manager SubAgentManagerInterface) {
-	executor := NewSubAgentExecutor(manager)
+// The models snapshot is rendered into the create_agent tool description
+// so the LLM can pick a sub-agent model by 1-based index.
+func (r *Registry) RegisterSubAgents(manager SubAgentManagerInterface, models []types.ModelEntry) {
+	executor := NewSubAgentExecutor(manager, models)
 	for _, action := range executor.SupportedActions() {
 		r.executors[action] = executor
 	}

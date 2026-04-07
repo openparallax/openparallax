@@ -21,6 +21,13 @@ type ModelEntry struct {
 
 	// BaseURL overrides the provider's default API endpoint.
 	BaseURL string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
+
+	// Purpose is an optional human-written hint about when to prefer
+	// this model. Surfaced to the LLM in the create_agent tool
+	// description so it can pick a sub-agent model intentionally.
+	// Examples: "fast, cheap, scans and lookups", "stronger reasoning,
+	// multi-file context".
+	Purpose string `yaml:"purpose,omitempty" json:"purpose,omitempty"`
 }
 
 // LLMConfig converts the model entry into the runtime llm.Config DTO
