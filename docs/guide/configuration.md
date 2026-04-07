@@ -9,7 +9,7 @@ The config file lives at `<workspace>/config.yaml`. The default workspace path i
 You can specify a custom config path when starting:
 
 ```bash
-./dist/openparallax start -c /path/to/config.yaml
+openparallax start -c /path/to/config.yaml
 ```
 
 ## Full Reference
@@ -397,7 +397,7 @@ The `api_key_env` fields in config.yaml contain the **name** of the environment 
 Changes to `config.yaml` require an agent restart to take effect:
 
 ```bash
-./dist/openparallax restart
+openparallax restart
 ```
 
 Or from a conversation:

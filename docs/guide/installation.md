@@ -140,6 +140,16 @@ The resulting binary at `dist/openparallax` is fully self-contained: the web UI,
 ./dist/openparallax --version
 ```
 
+To put the binary on your PATH the same way Path A does, copy or symlink it:
+
+```bash
+sudo cp dist/openparallax /usr/local/bin/openparallax
+# or:
+sudo ln -s "$PWD/dist/openparallax" /usr/local/bin/openparallax
+```
+
+After this, every `openparallax …` command in the rest of the documentation works exactly as written.
+
 ### Run tests (recommended)
 
 ```bash
@@ -207,62 +217,25 @@ winget install OpenParallax.OpenParallax
 - Use PowerShell or Windows Terminal for the TUI
 - WSL is fully supported and provides the Linux sandbox capabilities
 
-## Optional: ONNX Classifier Setup
+## Optional Downloads
 
-Shield's Tier 1 includes an ONNX-based prompt-injection classifier. Without it, Tier 1 runs in heuristic-only mode (pattern matching and rule-based detection). The heuristic mode is effective for common injection patterns, but the ML classifier provides broader coverage.
+Four optional downloads enhance specific subsystems but are not required:
 
-To download the classifier model:
+| Download | Adds |
+|---|---|
+| **Tier 1 ONNX classifier** (`openparallax get-classifier`) | ML-based prompt-injection detection at Tier 1 |
+| **sqlite-vec extension** (`openparallax get-vector-ext`) | Native in-database vector queries for semantic memory |
+| **MCP servers** (`openparallax mcp install <name>`) | External tool integrations via the Model Context Protocol |
+| **Skill packs** (`openparallax skill install <name>`) | Domain-specific guidance the agent loads on demand |
 
-```bash
-# Download the base model (~700MB, 98.8% accuracy)
-./dist/openparallax get-classifier
+The `init` wizard offers the first two automatically. See [Optional Downloads](/guide/optional-downloads) for the full reference — what each adds, where files live on disk, how to remove, and what falls back if absent.
 
-# Or the smaller variant (~250MB, faster inference)
-./dist/openparallax get-classifier --variant small
+## Workspace Layout
 
-# Force re-download if files already exist
-./dist/openparallax get-classifier --force
-```
-
-This downloads three files into `~/.openparallax/models/prompt-injection/`:
-
-- `model.onnx` — the DeBERTa-v3 weights, fetched from [huggingface.co/openparallax/shield-classifier-v1](https://huggingface.co/openparallax/shield-classifier-v1)
-- `tokenizer.json` — matching tokenizer config
-- `libonnxruntime.{so,dylib,dll}` — Microsoft ONNX Runtime shared library, fetched from the [microsoft/onnxruntime](https://github.com/microsoft/onnxruntime/releases) releases for your platform
-
-The classifier runs in-process using a pure-Go wrapper around the dynamically loaded shared library. The main `openparallax` binary itself stays zero-CGo — the runtime extension is opt-in and isolated.
-
-After downloading, restart the agent. Shield's classifier auto-detects the files and switches from heuristic-only to dual-classifier mode. Verify with:
-
-```bash
-./dist/openparallax doctor
-```
-
-You should see `Tier 1: classifier enabled (local mode, 7 action type(s) bypassed)`. The 7 bypassed action types are `write_file`, `delete_file`, `move_file`, `copy_file`, `send_email`, `send_message`, `http_request` — see [Shield Tier 1 → Per-Action-Type ONNX Skip List](/shield/tier1#per-action-type-onnx-skip-list) for the rationale.
-
-## Optional: sqlite-vec Extension
-
-For semantic memory search at scale, the optional `sqlite-vec` extension provides native in-database vector queries:
-
-```bash
-./dist/openparallax get-vector-ext
-```
-
-This downloads the latest sqlite-vec release for your platform from [github.com/asg017/sqlite-vec](https://github.com/asg017/sqlite-vec/releases) into `~/.openparallax/extensions/sqlite-vec.{so,dylib,dll}`. Without it, Memory falls back to a built-in pure-Go cosine searcher (slower on large workspaces but functionally identical).
-
-For the full optional download story including skill packs and the future CGo classifier sidecar, see [Optional Downloads](/guide/optional-downloads).
-
-## Directory Layout After Installation
-
-After building and running `openparallax init`, your filesystem looks like this:
+After running `openparallax init`, your workspace looks like this (default location: `~/.openparallax/<agent-name>/`):
 
 ```
-openparallax/                    # Source checkout
-  dist/
-    openparallax                 # Main binary
-    openparallax-shield          # Standalone Shield binary
-
-~/.openparallax/<agent-name>/    # Workspace (default location)
+~/.openparallax/<agent-name>/
   config.yaml                    # Agent configuration
   SOUL.md                        # Core values and guardrails
   IDENTITY.md                    # Agent name, role, style
@@ -282,17 +255,7 @@ openparallax/                    # Source checkout
     engine.log                   # Engine log (when started with -v)
 ```
 
-## Upgrading
-
-Pull the latest source and rebuild:
-
-```bash
-cd openparallax
-git pull
-make build-all
-```
-
-Your workspace, sessions, memory, and configuration are preserved across upgrades. The SQLite database schema is versioned and migrates automatically on first start after an upgrade.
+Optional downloads (classifier, sqlite-vec, MCP servers, skill packs) live under `~/.openparallax/` directly and are shared across all workspaces. See [Optional Downloads → Where everything lives](/guide/optional-downloads#where-everything-lives) for the full layout.
 
 ## Next Steps
 

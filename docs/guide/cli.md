@@ -1,6 +1,6 @@
 # CLI Commands
 
-OpenParallax provides a Cobra-based CLI with subcommands for managing the agent lifecycle, sessions, memory, audit, and diagnostics. The CLI binary is at `dist/openparallax`.
+OpenParallax provides a single CLI with subcommands for managing the agent lifecycle, sessions, memory, audit, and diagnostics. After [installation](/guide/installation), the binary is on your PATH and every command below is invoked as `openparallax …`.
 
 Source: [`cmd/agent/*.go`](https://github.com/openparallax/openparallax/tree/main/cmd/agent)
 

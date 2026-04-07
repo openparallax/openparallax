@@ -195,28 +195,9 @@ openparallax stop
 
 The process manager sends SIGTERM to the engine and waits up to 5 seconds for a clean shutdown.
 
-## 10. Verify Your Security Posture
+## 10. Test Your Own Security
 
-OpenParallax ships with a 337-case adversarial test suite. Before you start using your agent for anything important, run the eval against your workspace and confirm Shield catches what it should.
-
-The eval binary is intentionally separate from the main `openparallax` binary — it never ships as part of a release. To run it, clone the repo and build it yourself:
-
-```bash
-git clone https://github.com/openparallax/openparallax.git
-cd openparallax
-go build -o dist/openparallax-eval ./cmd/eval
-
-./dist/openparallax-eval \
-  --suite eval-results/test-suite/c1_direct_injection.yaml \
-  --config C \
-  --mode inject \
-  --workspace ~/.openparallax/atlas \
-  --output eval-results/playground/$(date +%Y%m%d)-c1.json
-```
-
-Expected output: 25/25 cases blocked, 0% ASR. If your numbers differ, see [Reproducing Run-013](/eval/reproducing) for the exact configuration that produced the published baseline.
-
-For the full corpus and the methodology, see [Test Your Own Security](/eval/). You only need Go 1.25+ to build the eval binary; Node.js is not required since the eval has no web UI.
+OpenParallax ships with a 337-case adversarial test suite. The full corpus, the published baseline, and the recipe to reproduce it live in [Test Your Own Security](/eval/). It is the recommended next step for anyone using the agent in a security-sensitive context.
 
 ## Next Steps
 

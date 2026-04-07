@@ -349,58 +349,13 @@ body {
 }
 
 /* Tables */
-.vp-doc div[class*="table"] {
-  /* Wrapper VitePress puts around every table - lets us scroll instead of overflowing the page */
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  border-radius: var(--op-radius);
-  border: 1px solid var(--op-glass-border);
-  margin: 1em 0;
-}
-
-.vp-doc div[class*="table"]::-webkit-scrollbar {
-  height: 8px;
-}
-
-.vp-doc div[class*="table"]::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.vp-doc div[class*="table"]::-webkit-scrollbar-thumb {
-  background: var(--op-accent-border);
-  border-radius: 4px;
-}
-
-.vp-doc div[class*="table"]::-webkit-scrollbar-thumb:hover {
-  background: var(--op-accent);
-}
-
 .vp-doc table {
   border-collapse: collapse;
-  /* Fill the wrapper, but allow content to push beyond if needed (triggers horizontal scroll) */
   width: 100%;
-  min-width: 100%;
   background: var(--op-glass);
-  border-radius: 0;
-  overflow: visible;
-  border: none;
-  margin: 0;
-}
-
-.vp-doc td,
-.vp-doc th {
-  /* Prose wraps normally; code spans stay on one line. If the table is wider than
-     the content area, the wrapper above scrolls horizontally. */
-  white-space: normal;
-  word-break: normal;
-  overflow-wrap: normal;
-}
-
-.vp-doc td code,
-.vp-doc th code {
-  white-space: nowrap;
+  border-radius: var(--op-radius);
+  overflow: hidden;
+  border: 1px solid var(--op-glass-border);
 }
 
 .vp-doc th {
