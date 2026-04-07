@@ -29,8 +29,16 @@ Tool Call Proposed
      │
      ▼
 ┌─────────────┐
-│   Tier 2    │──── Final decision ──► ALLOW or BLOCK
-│   (LLM)    │    (rate-limited, daily budget)
+│   Tier 2    │──── BLOCK ───────────► BLOCK
+│    (LLM     │──── ALLOW ───────────► ALLOW
+│  Evaluator) │──── ESCALATE ─────────► continue
+└─────────────┘
+     │
+     ▼
+┌─────────────┐
+│   Tier 3    │──── User approves ───► ALLOW
+│  (Human-in- │──── User denies ─────► BLOCK
+│  the-Loop)  │──── Timeout ─────────► BLOCK (default-deny)
 └─────────────┘
 ```
 
@@ -60,16 +68,33 @@ The ONNX confidence threshold is configurable via `shield.onnx_threshold` (defau
 
 ### Tier 2: LLM Evaluator
 
-Tier 2 sends the action to an LLM (the Shield evaluator configured in `shield.evaluator`) for a full security review. The evaluator receives:
+Tier 2 sends the action to an LLM (the Shield evaluator configured in `shield.evaluator`) for a full security review. The evaluator receives only the action type and payload as raw data — no agent identity, no conversation history, no tools. Its single job is to decide whether the action is safe.
 
-- The action type and parameters
-- The conversation context
-- The policy rules
-- A canary token for verification (ensures the evaluator is not being manipulated)
+The evaluator returns one of three verdicts:
+
+- **ALLOW** — clearly safe to execute
+- **BLOCK** — clearly malicious or in violation of a guardrail
+- **ESCALATE** — genuinely ambiguous, needs a human decision (routes to Tier 3)
+
+A **canary token** is embedded in the evaluator prompt and must appear in the response. If the canary is missing, the evaluator was manipulated by injection in the action payload — the verdict is rejected and the action is blocked.
 
 Tier 2 is rate-limited by `general.daily_budget` (default: 100 evaluations per day) to control costs. Verdicts are cached for `general.verdict_ttl_seconds` (default: 60 seconds) to avoid redundant evaluations.
 
 **Best practice:** Use a different model for Shield evaluation than for conversation. Cross-model evaluation is harder to manipulate because a prompt injection crafted for one model is less likely to work on another.
+
+### Tier 3: Human-in-the-Loop Approval
+
+When Tier 2 returns ESCALATE, Shield broadcasts an approval request to **every connected channel adapter simultaneously** — web UI, CLI, Telegram, Discord, Signal, iMessage. The user sees the tool name, the action arguments, and Shield's reasoning, then approves or denies.
+
+Tier 3 is the fallback for actions that are ambiguous to the LLM evaluator: irreversible side effects without obvious malice (force-pushing to main, dropping a database table, sending a wire transfer email), actions whose intent depends on business context the evaluator cannot know, or operations that should never run autonomously regardless of model confidence.
+
+Three guarantees:
+
+- **First response wins.** If you approve in the web UI before Telegram delivers the message, the Telegram prompt resolves automatically.
+- **Default-deny on timeout.** If no response arrives within the configured window (default 300 seconds), the action is blocked.
+- **Rate-limited.** `shield.tier3.max_per_hour` (default 10) caps how many approval requests Shield will issue per hour. This prevents an attack from hammering the user with prompts until they click "approve" out of fatigue.
+
+Configure with `shield.tier3.timeout_seconds` and `shield.tier3.max_per_hour`. See the [Tier 3 reference](/shield/tier3) for the full approval flow and the channel adapter integration details.
 
 ## Policy Files
 

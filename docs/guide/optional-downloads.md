@@ -6,9 +6,10 @@ OpenParallax ships as a single static binary with everything needed to run a ful
 |---|---|---|---|
 | **Tier 1 ONNX classifier** | ~700MB (base) or ~250MB (small) | ML-based prompt-injection detection at Tier 1 | `openparallax get-classifier` |
 | **sqlite-vec extension** | ~1MB | Native in-database vector queries for semantic memory | `openparallax get-vector-ext` |
+| **MCP servers** | varies | External tool integrations via the Model Context Protocol | `openparallax mcp install <name>` |
 | **Skill packs** | ~10KB each | Domain-specific guidance for specific tasks | `openparallax skill install <name>` |
 
-The `init` wizard offers the first two automatically. The third is opt-in.
+The `init` wizard offers the first two automatically. The last two are opt-in and can be installed at any time.
 
 ## Tier 1 ONNX Classifier
 
@@ -80,6 +81,40 @@ The extension is a runtime-loaded SQLite plugin — not statically linked. The m
 
 Restart the engine. The memory indexer detects the extension and uses it for new embeddings. Existing embeddings continue to work via the built-in searcher; both code paths produce identical results, just at different speeds.
 
+## MCP Servers
+
+### What they add
+
+[Model Context Protocol](https://modelcontextprotocol.io) servers expose external tools to the agent — RSS readers, GitHub APIs, Notion databases, web scrapers, vector stores, anything someone has wrapped in an MCP server. Once installed, MCP tools appear under `mcp:<server-name>` in the [load_tools](/guide/tools) meta-tool, alongside the built-in tool groups.
+
+### What gets downloaded
+
+`openparallax mcp install <name>` fetches a prebuilt MCP server binary from [github.com/openparallax/mcp](https://github.com/openparallax/mcp) releases (auto-selects the right artifact for your OS and architecture) and drops it into `~/.openparallax/mcp/<name>/<binary>`.
+
+```bash
+openparallax mcp install rss              # RSS feed reader
+openparallax mcp install github           # GitHub API integration
+openparallax mcp list                     # List installed MCP servers
+openparallax mcp remove <name>            # Uninstall
+```
+
+### After installing
+
+The `mcp install` command prints the YAML you need to add to your workspace `config.yaml`:
+
+```yaml
+mcp:
+  servers:
+    - name: rss
+      command: ~/.openparallax/mcp/rss/rss-mcp
+```
+
+After editing the config, restart the engine. The agent can now load MCP tools via `load_tools(["mcp:rss"])`.
+
+### Custom MCP servers
+
+You are not limited to the openparallax/mcp registry. Any MCP-compliant binary works — point `mcp.servers[].command` at your own binary path and the engine will spawn it as a subprocess on startup. See [Configuration → MCP](/guide/configuration#mcp) for the full server config schema.
+
 ## Skill Packs
 
 ### What they add
@@ -112,6 +147,11 @@ See [Custom Skills](/guide/skills) for the schema and how to author your own.
 │       └── libonnxruntime.so       (or .dylib / .dll)
 ├── extensions/
 │   └── sqlite-vec.so               (or .dylib / .dll)
+├── mcp/
+│   ├── rss/
+│   │   └── rss-mcp                 (binary)
+│   └── github/
+│       └── github-mcp              (binary)
 ├── skills/
 │   ├── developer/
 │   │   └── SKILL.md
@@ -127,7 +167,7 @@ See [Custom Skills](/guide/skills) for the schema and how to author your own.
         └── canary.token
 ```
 
-The first three (`models/`, `extensions/`, `skills/`) are **shared across all workspaces**. Each agent's workspace is independent.
+The first four (`models/`, `extensions/`, `mcp/`, `skills/`) are **shared across all workspaces**. Each agent's workspace is independent.
 
 ## Removing optional downloads
 
@@ -136,7 +176,8 @@ Each download can be removed manually by deleting its directory:
 ```bash
 rm -rf ~/.openparallax/models/prompt-injection/   # removes ONNX classifier
 rm -rf ~/.openparallax/extensions/                # removes sqlite-vec
+openparallax mcp remove <name>                    # removes one MCP server (also: rm -rf ~/.openparallax/mcp/<name>/)
 rm -rf ~/.openparallax/skills/<name>/             # removes one skill
 ```
 
-After removing the classifier, Shield gracefully falls back to heuristic-only mode on the next engine start. After removing sqlite-vec, the memory indexer falls back to the built-in searcher. After removing a skill, the agent simply no longer has access to it.
+After removing the classifier, Shield gracefully falls back to heuristic-only mode on the next engine start. After removing sqlite-vec, the memory indexer falls back to the built-in searcher. After removing an MCP server, the agent loses access to its tools but otherwise runs normally. After removing a skill, the agent simply no longer has access to it.
