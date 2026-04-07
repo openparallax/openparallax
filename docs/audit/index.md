@@ -56,6 +56,11 @@ Every audit entry has an `event_type` that identifies what happened:
 | `INTEGRITY_VIOLATION` | 16 | Integrity chain violation detected |
 | `SESSION_STARTED` | 17 | Session started |
 | `SESSION_ENDED` | 18 | Session ended |
+| `CONFIG_CHANGED` | 19 | Workspace `config.yaml` mutated through the canonical writer (`/config set`, `/model`, web settings PUT, init wizard, web setup wizard) |
+| `IFC_CLASSIFIED` | 20 | Action tagged with a data sensitivity classification by the metadata enricher (one entry per non-empty `DataClassification`, before Shield runs) |
+| `CHRONICLE_SNAPSHOT` | 21 | Copy-on-write workspace snapshot taken successfully before a state-mutating action |
+| `CHRONICLE_SNAPSHOT_FAILED` | 22 | Snapshot attempt failed; the action still runs (snapshots are best-effort) but the failure is preserved so rollback gaps remain auditable |
+| `SANDBOX_CANARY_RESULT` | 23 | The agent process's startup sandbox canary verification result, plumbed from the sandboxed agent child to the engine via the `AgentReady` stream event |
 
 ## Entry Structure
 

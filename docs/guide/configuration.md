@@ -53,10 +53,12 @@ models:
     provider: anthropic
     model: claude-sonnet-4-6
     api_key_env: ANTHROPIC_API_KEY
+    purpose: balanced reasoning, multi-file context
   - name: shield
     provider: openai
     model: gpt-5.4-mini
     api_key_env: OPENAI_API_KEY
+    purpose: fast, cheap, scans and lookups
   - name: embedding
     provider: openai
     model: text-embedding-3-small
@@ -76,6 +78,7 @@ roles:
 | `models[].model` | Model name as recognized by the provider | Yes |
 | `models[].api_key_env` | Environment variable holding the API key | Yes (except Ollama) |
 | `models[].base_url` | Custom API base URL for OpenAI-compatible providers | No |
+| `models[].purpose` | Optional hint surfaced to the LLM in the `create_agent` tool description so it can pick a sub-agent model intentionally. Free-form text. Entries without a `purpose` are still selectable; the LLM judges from the model name. | No |
 | `roles.chat` | Model name to use for the main conversation | Yes |
 | `roles.shield` | Model name to use for Tier 2 Shield evaluation | No (defaults to chat) |
 | `roles.embedding` | Model name to use for vector embeddings | No |
@@ -416,7 +419,65 @@ The `api_key_env` fields in config.yaml contain the **name** of the environment 
 
 ## Editing Config at Runtime
 
-Changes to `config.yaml` require an agent restart to take effect:
+There are three supported ways to mutate `config.yaml`. All three go through a single canonical writer (`config.Save`) that:
+
+1. Marshals the config via `yaml.Marshal`.
+2. Writes atomically (`<path>.tmp` + rename).
+3. Re-loads the file through `Load()` to verify the round-trip succeeds.
+4. Backs up the previous file to `<workspace>/.openparallax/backups/config-<timestamp>.yaml`. The backup directory rotates to the 10 most recent.
+5. Rolls back on any failure (the on-disk file is left untouched).
+
+If the writer drifts from the loader, `openparallax doctor` catches it on the next run via the **Config writer** check, before your next restart turns it into a startup failure.
+
+### From the CLI / web UI: `/config set`
+
+```
+/config set chat.model claude-haiku-4-5-20251001
+/config set identity.name Nova
+```
+
+Identity changes take effect immediately. Model and provider changes write to disk and require a restart to take effect on the live engine.
+
+**Settable keys:**
+
+| Key | Effect |
+|---|---|
+| `identity.name` | Immediate |
+| `identity.avatar` | Immediate |
+| `chat.provider` | Restart |
+| `chat.model` | Restart |
+| `chat.api_key_env` | Restart |
+| `chat.base_url` | Restart |
+| `shield.provider` | Restart |
+| `shield.model` | Restart |
+| `shield.api_key_env` | Restart |
+| `embedding.provider` | Restart |
+| `embedding.model` | Restart |
+| `roles.chat` | Restart |
+| `roles.shield` | Restart |
+| `roles.embedding` | Restart |
+| `roles.sub_agent` | Restart |
+
+`chat.*`, `shield.*`, and `embedding.*` mutate the model in `models[]` referenced by the corresponding role (`roles.chat`, `roles.shield`, `roles.embedding`). `roles.*` swaps which named model the role points at — the target must already exist in the pool.
+
+**Read-only keys** (must be edited in `config.yaml` directly): `general.fail_closed`, `general.rate_limit`, `general.daily_budget`, `general.verdict_ttl_seconds`, `general.output_sanitization`, `agents.max_tool_rounds`, `agents.context_window`, `agents.compaction_threshold`, `agents.max_response_tokens`, `shield.policy_file`, `shield.onnx_threshold`, `shield.heuristic_enabled`, `web.host`, `web.port`, `web.password_hash`. These are gated to filesystem-level access on purpose — they constrain the trust boundary and shouldn't be settable from a web request or chat message.
+
+### From the CLI / web UI: `/model`
+
+```
+/model chat sonnet-pool-entry
+/model shield haiku-pool-entry
+```
+
+Swaps which named model from your `models[]` pool a role points at. The target name must already exist in the pool. Persisted to disk via the same writer; restart required to bind the new model on the live engine.
+
+### From the web UI settings panel
+
+`PUT /api/settings` accepts a partial JSON body and dispatches every key through the same `SettableKeys` registry. Unknown or read-only keys return `400 Bad Request`. See the [REST API reference](/reference/rest-api#put-api-settings) for the request/response shape.
+
+### After editing the file directly
+
+Changes to `config.yaml` made by an editor still require an agent restart:
 
 ```bash
 openparallax restart
@@ -427,6 +488,8 @@ Or from a conversation:
 ```
 /restart
 ```
+
+The loader runs in strict YAML mode (`KnownFields(true)`). Any unknown top-level key — most notably the legacy `llm:` block — produces a clear parse error rather than being silently ignored.
 
 ## Example: Minimal Config
 

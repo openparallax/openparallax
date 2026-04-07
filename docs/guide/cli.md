@@ -181,7 +181,7 @@ Fields containing `api_key`, `password`, `secret`, or `token` are automatically 
 
 ### `doctor`
 
-Run a 13-point system health check.
+Run a 14-point system health check.
 
 ```
 openparallax doctor [name] [flags]
@@ -193,7 +193,9 @@ openparallax doctor [name] [flags]
 |------|-------|---------|-------------|
 | `--config` | `-c` | — | Path to config.yaml |
 
-Checks: Config, Workspace, SQLite, LLM Provider, Shield, Embedding, Browser, Email, Calendar, HEARTBEAT, Audit (chain integrity), Sandbox, Web UI.
+Checks: Config, **Config writer (round-trip through `Load()`)**, Workspace, SQLite, LLM Provider, Shield, Embedding, Browser, Email, Calendar, HEARTBEAT, Audit (chain integrity), Sandbox, Web UI.
+
+The Config writer check serializes the loaded config back to a temp file via the canonical writer and re-loads it. It catches schema drift between writer and loader before the next restart turns it into a startup failure.
 
 ## Sessions
 

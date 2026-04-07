@@ -43,8 +43,8 @@ Commands that change agent behavior. **CLI and web UI only** — these are not e
 
 | Command | Description |
 |---|---|
-| `/config` | Show the current config. `/config set <key> <value>` updates a single key (non-security keys only) |
-| `/model` | Show the current model role mapping. `/model set <role> <model>` switches the model used for a role (chat, shield, embedding) |
+| `/config` | Show the current config. `/config set <key> <value>` updates a single key (non-security keys only). **Persists to `config.yaml`** through the canonical writer. |
+| `/model` | Show the current model role mapping. `/model set <role> <model>` switches the model used for a role (chat, shield, embedding, sub_agent). **Persists to `config.yaml`** so the change survives a restart. |
 | `/restart` | Restart the engine in place. The process manager respawns the engine without losing your workspace state. |
 | `/logs` | Manage engine logs — useful for flushing old entries when the log file gets large |
 

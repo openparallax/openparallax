@@ -265,7 +265,12 @@ const (
     AuditTransactionCommit   AuditEventType = 14
     AuditTransactionRollback AuditEventType = 15
     AuditIntegrityViolation  AuditEventType = 16
-    AuditSessionStarted      AuditEventType = 17
-    AuditSessionEnded        AuditEventType = 18
+    AuditSessionStarted          AuditEventType = 17
+    AuditSessionEnded            AuditEventType = 18
+    AuditConfigChanged           AuditEventType = 19
+    AuditIFCClassified           AuditEventType = 20
+    AuditChronicleSnapshot       AuditEventType = 21
+    AuditChronicleSnapshotFailed AuditEventType = 22
+    AuditSandboxCanaryResult     AuditEventType = 23
 )
 ```
