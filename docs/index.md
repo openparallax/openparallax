@@ -4,7 +4,7 @@ layout: home
 hero:
   name: OpenParallax
   text: AI Agents That Think Must Never Act
-  tagline: Open-source security framework for autonomous AI systems. 3-tier defense pipeline, kernel sandboxing, tamper-evident audit — because an agent that can execute anything will eventually execute the wrong thing.
+  tagline: Open-source security framework for autonomous AI systems. 4-tier defense pipeline, kernel sandboxing, tamper-evident audit — because an agent that can execute anything will eventually execute the wrong thing.
   actions:
     - theme: brand
       text: Get Started
@@ -18,7 +18,7 @@ hero:
 
 features:
   - title: Shield
-    details: 3-tier AI security pipeline — YAML policy matching, ONNX classifier with DeBERTa, and LLM evaluator with canary verification. Fail-closed by design. Use standalone as an MCP security proxy.
+    details: 4-tier AI security pipeline — YAML policy matching, ONNX classifier with DeBERTa, and LLM evaluator with canary verification. Fail-closed by design. Use standalone as an MCP security proxy.
     link: /shield/
     linkText: Explore Shield
   - title: Memory
@@ -55,7 +55,7 @@ features:
 
 OpenParallax is the reference implementation of the ideas presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv). The central argument: giving an LLM direct execution capability is an architectural failure. The thinking process — which talks to external APIs and can be manipulated through prompt injection — must be physically separated from the execution process, with a security pipeline between them.
 
-In OpenParallax, the **Agent** (sandboxed, kernel-isolated) proposes actions. The **Engine** (privileged, unsandboxed) evaluates every proposal through a 3-tier security pipeline before executing anything. Even a fully compromised Agent cannot cause harm — the sandbox prevents unauthorized access, and Shield blocks dangerous actions.
+In OpenParallax, the **Agent** (sandboxed, kernel-isolated) proposes actions. The **Engine** (privileged, unsandboxed) evaluates every proposal through a 4-tier security pipeline before executing anything. Even a fully compromised Agent cannot cause harm — the sandbox prevents unauthorized access, and Shield blocks dangerous actions.
 
 ---
 
@@ -87,7 +87,7 @@ See the [Quick Start guide](/guide/quickstart) for `git clone && make build-all`
 
 | Module | What It Does | Go | Python | Node.js | Standalone |
 |--------|-------------|:---:|:------:|:-------:|:----------:|
-| [Shield](/shield/) | 3-tier AI security pipeline | &#10003; | &#10003; | &#10003; | &#10003; |
+| [Shield](/shield/) | 4-tier AI security pipeline | &#10003; | &#10003; | &#10003; | &#10003; |
 | [Memory](/memory/) | Semantic memory with pluggable backends | &#10003; | &#10003; | &#10003; | |
 | [Audit](/audit/) | Tamper-evident hash chain logging | &#10003; | &#10003; | &#10003; | |
 | [Channels](/channels/) | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage | &#10003; | &#10003; | &#10003; | |

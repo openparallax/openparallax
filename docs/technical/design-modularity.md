@@ -7,7 +7,7 @@ OpenParallax is a personal AI agent built from standalone infrastructure modules
 Agent frameworks typically implement security, memory, and audit as internal components tied to their orchestrator. OpenParallax's modules are designed as standalone packages. Each module is a self-contained Go package at the repository root:
 
 ```
-shield/       3-tier AI security pipeline
+shield/       4-tier AI security pipeline
 memory/       FTS5 + vector semantic search
 audit/        Tamper-evident JSONL logging
 sandbox/      Kernel-level process isolation

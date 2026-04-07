@@ -1,6 +1,12 @@
 # Microsoft Teams
 
-The Microsoft Teams adapter connects your agent to Teams using the Microsoft Bot Framework for message exchange and Azure Active Directory for authentication. The bot can operate in 1:1 chats, group chats, and team channels. Rich responses are rendered using Adaptive Cards, providing structured layouts for action approvals, status reports, and formatted output.
+::: warning Planned — Not Yet Implemented
+The Microsoft Teams adapter is on the roadmap but not yet implemented. The configuration schema (`channels.teams`) ships in the binary, but enabling it does nothing — the agent does not connect to Teams. This page documents the planned design.
+
+If you want to help build it, see [Adding a Channel Adapter](/channels/extending) and [Contributing](https://github.com/openparallax/openparallax/blob/main/CONTRIBUTING.md).
+:::
+
+The Microsoft Teams adapter will connect your agent to Teams using the Microsoft Bot Framework for message exchange and Azure Active Directory for authentication. The bot is designed to operate in 1:1 chats, group chats, and team channels, with rich responses rendered using Adaptive Cards for structured action approvals, status reports, and formatted output.
 
 ## Prerequisites
 
@@ -109,7 +115,7 @@ Create a `manifest.json` file for a Teams app:
   },
   "description": {
     "short": "AI assistant powered by OpenParallax",
-    "full": "A personal AI agent with a 3-tier security pipeline."
+    "full": "A personal AI agent with a 4-tier security pipeline."
   },
   "icons": {
     "outline": "outline.png",

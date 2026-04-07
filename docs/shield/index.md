@@ -1,6 +1,6 @@
 # Shield
 
-Shield is a 3-tier AI security pipeline that evaluates every tool call an LLM agent proposes before it executes. It catches prompt injection, blocks access to sensitive resources, and provides cryptographic proof of every security decision. Shield implements the security pipeline described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
+Shield is a 4-tier AI security pipeline that evaluates every tool call an LLM agent proposes before it executes. It catches prompt injection, blocks access to sensitive resources, and provides cryptographic proof of every security decision. Shield implements the security pipeline described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
 
 Shield runs inside OpenParallax as the security core, but it is also a standalone product. You can drop it into any AI agent, any MCP server, any tool-calling pipeline — in Go, Python, Node.js, or as a standalone binary.
 
@@ -158,7 +158,7 @@ If any component says BLOCK, the final decision is BLOCK. ESCALATE means "I cann
 
 Shield is not just an OpenParallax component. It is independently useful for:
 
-- **MCP security gateway**: Drop Shield between your MCP client and MCP servers. Every tool call passes through 3-tier evaluation before reaching the server. Works with Claude Desktop, Cursor, and any MCP-compatible client.
+- **MCP security gateway**: Drop Shield between your MCP client and MCP servers. Every tool call passes through 4-tier evaluation before reaching the server. Works with Claude Desktop, Cursor, and any MCP-compatible client.
 - **Agent framework security**: Building your own agent with LangChain, CrewAI, AutoGen, or raw API calls? Wrap every tool execution with `shield.Evaluate()`.
 - **API security layer**: Validate LLM-generated API calls before they hit your backend.
 - **Audit and compliance**: Every Shield decision is logged with cryptographic hash chains for tamper-evident audit trails.

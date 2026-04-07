@@ -361,7 +361,7 @@ Returns `400` if no channel name is provided, `404` if the channel is not found,
 
 ## WebSocket
 
-### `GET /ws`
+### `GET /api/ws`
 
 WebSocket endpoint for real-time event streaming. Events are JSON-encoded `PipelineEvent` objects. See the [Events reference](/reference/events) for payload details.
 

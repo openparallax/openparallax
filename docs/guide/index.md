@@ -1,6 +1,6 @@
 # Getting Started
 
-OpenParallax is an open-source personal AI agent that runs on your machine, under your control. It connects to LLM providers (Anthropic, OpenAI and any OpenAI-compatible API, Google, Ollama), executes actions on your behalf, and remembers context across conversations — all secured by a 3-tier security pipeline.
+OpenParallax is an open-source personal AI agent that runs on your machine, under your control. It connects to LLM providers (Anthropic, OpenAI and any OpenAI-compatible API, Google, Ollama), executes actions on your behalf, and remembers context across conversations — all secured by a 4-tier security pipeline.
 
 OpenParallax is a reference implementation of the architecture proposed in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
 
@@ -8,11 +8,11 @@ OpenParallax is a reference implementation of the architecture proposed in [*Par
 
 - **CLI interface** — a terminal-native conversation UI built with Bubbletea
 - **Web UI** — a glassmorphism interface with session management and real-time streaming
-- **73 tool actions** — file operations, git, shell commands, browser automation, email, calendar, canvas, HTTP requests, sub-agents, clipboard, system utilities, and more
+- **69 tool actions** — file operations, git, shell commands, browser automation, email, calendar, canvas, HTTP requests, sub-agents, clipboard, system utilities, and more
 - **Semantic memory** — FTS5 full-text search plus vector embeddings that persist across sessions
 - **Custom skills** — define domain-specific guidance in markdown that the agent loads on demand
-- **Multi-channel messaging** — connect to WhatsApp, Telegram, Discord, Slack, Signal, or Teams
-- **3-tier security** — every tool call passes through policy matching, ML classification, and LLM evaluation before execution
+- **Multi-channel messaging** — CLI, web, WhatsApp, Telegram, Discord, Signal, and iMessage (Slack and Teams planned)
+- **4-tier security** — every tool call passes through policy matching, ML classification, LLM evaluation, and human approval before execution
 - **Kernel sandboxing** — the agent process is isolated at the OS level (Landlock, sandbox-exec, Job Objects)
 - **Tamper-evident audit** — every action logged with SHA-256 hash chains
 - **OTR mode** — off-the-record sessions with read-only access and no memory persistence

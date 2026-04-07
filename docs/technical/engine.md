@@ -169,7 +169,7 @@ This is the security-critical path. Every tool call proposed by the Agent passes
 5. **CheckProtection** -- hardcoded file protection (see [protection.md](protection.md)).
 6. **Emit ActionStarted** event.
 7. **Audit: PROPOSED** entry.
-8. **Shield.Evaluate** -- 3-tier security pipeline.
+8. **Shield.Evaluate** -- 4-tier security pipeline.
 9. **Emit ShieldVerdict** event.
 10. **Audit: EVALUATED** entry.
 11. **Verify hash** -- recompute and compare (TOCTOU defense).

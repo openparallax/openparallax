@@ -23,7 +23,7 @@ PUBLIC MODULES (independently importable)
 │                                                         │
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌───────────┐ │
 │  │ Shield  │  │ Memory  │  │  Audit  │  │  Sandbox  │ │
-│  │ (3-tier │  │ (FTS5 + │  │ (hash   │  │ (kernel   │ │
+│  │ (4-tier │  │ (FTS5 + │  │ (hash   │  │ (kernel   │ │
 │  │  AI     │  │  vector │  │  chain  │  │  process  │ │
 │  │  sec)   │  │  search)│  │  JSONL) │  │  isolation)│ │
 │  └────┬────┘  └────┬────┘  └────┬────┘  └─────┬─────┘ │
@@ -207,7 +207,7 @@ classifier:
   model_dir: ~/.openparallax/models/prompt-injection/
 EOF
 
-# Run — every MCP tool call now passes through 3-tier security
+# Run — every MCP tool call now passes through 4-tier security
 openparallax-shield serve
 ```
 

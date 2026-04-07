@@ -1,6 +1,6 @@
 # MCP Security Gateway
 
-Shield can sit between any MCP client and its MCP servers, evaluating every tool call before it reaches the server. This turns Shield into a transparent security gateway -- your MCP client connects to Shield, Shield connects to the actual MCP servers, and every tool call passes through the 3-tier pipeline.
+Shield can sit between any MCP client and its MCP servers, evaluating every tool call before it reaches the server. This turns Shield into a transparent security gateway -- your MCP client connects to Shield, Shield connects to the actual MCP servers, and every tool call passes through the 4-tier pipeline.
 
 ## The Problem
 
@@ -29,7 +29,7 @@ Insert Shield as a proxy between the client and server:
 ┌────────────┐    tool call    ┌─────────────┐    tool call    ┌────────────────┐
 │ MCP Client │ ──────────────▶ │   Shield    │ ──────────────▶ │   MCP Server   │
 │ (Claude,   │                 │   Gateway   │                 │ (filesystem,   │
-│  Cursor)   │ ◀────────────── │  3-tier     │ ◀────────────── │  shell, DB)    │
+│  Cursor)   │ ◀────────────── │  4-tier     │ ◀────────────── │  shell, DB)    │
 └────────────┘    result       │  pipeline   │    result       └────────────────┘
                                └─────────────┘
                                      │
@@ -139,7 +139,7 @@ Shield starts all upstream servers, discovers their tools, and presents a unifie
 
 1. Identifies which upstream server owns the tool
 2. Maps the MCP tool name to a Shield action type
-3. Runs the action through the 3-tier pipeline
+3. Runs the action through the 4-tier pipeline
 4. If ALLOW: forwards the call to the upstream server and returns the result
 5. If BLOCK: returns an error to the client with the reason
 

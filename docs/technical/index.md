@@ -31,7 +31,7 @@ The Agent talks to external LLM APIs. If those APIs are compromised — or if th
 
 The Engine trusts nothing from the Agent. Every tool call passes through:
 
-1. **Shield** — 3-tier security evaluation (policy → classifier → LLM judge)
+1. **Shield** — 4-tier security evaluation (policy → classifier → LLM judge)
 2. **IFC** — information flow control labels prevent data exfiltration
 3. **Chronicle** — workspace snapshot before any write operation
 4. **Audit** — cryptographic hash chain logs every decision
@@ -43,7 +43,7 @@ OpenParallax is composed of standalone modules that can be used independently:
 
 | Module | Purpose | Standalone Value |
 |--------|---------|-----------------|
-| [Shield](/shield/) | 3-tier AI security pipeline | Drop-in security for any AI agent or MCP server |
+| [Shield](/shield/) | 4-tier AI security pipeline | Drop-in security for any AI agent or MCP server |
 | [Memory](/memory/) | Semantic memory (FTS5 + vectors) | Pluggable memory with multiple backends |
 | [Audit](/audit/) | Tamper-evident logging | Hash-chain audit trail for any system |
 | [Sandbox](/sandbox/) | Kernel process isolation | OS-level sandboxing for any process |

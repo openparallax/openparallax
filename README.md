@@ -55,10 +55,10 @@ Prerequisites for building: Go 1.25+, Node.js 20+ (for the web frontend).
 
 ## What It Does
 
-OpenParallax is a personal AI agent that runs on your machine. It connects to LLM providers (Anthropic, OpenAI + compatible APIs, Google, Ollama), executes 73 tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
+OpenParallax is a personal AI agent that runs on your machine. It connects to LLM providers (Anthropic, OpenAI + compatible APIs, Google, Ollama), executes 69 tool actions on your behalf, and remembers context across conversations. Every action passes through a security pipeline before execution.
 
-- **Talk through CLI, web, or messaging** — terminal TUI, glassmorphism web UI, WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage
-- **73 actions** — files, git, shell, browser, email (SMTP + IMAP), calendar, canvas, HTTP, scheduling, clipboard, system utilities, sub-agents
+- **Talk through CLI, web, or messaging** — terminal TUI, glassmorphism web UI, WhatsApp, Telegram, Discord, Signal, iMessage (Slack and Teams planned)
+- **69 actions across 14 tool groups** — files, git, shell, browser, email (SMTP + IMAP), calendar, canvas, HTTP, scheduling, clipboard, system utilities, sub-agents
 - **Semantic memory** — FTS5 full-text search + vector embeddings, persistent across sessions
 - **4-tier security** — policy rules, ML classifier, LLM evaluator, human-in-the-loop approval
 - **Kernel sandboxing** — agent process isolated at the OS level (Landlock + seccomp, sandbox-exec, Job Objects)
@@ -117,7 +117,7 @@ openparallax start              (Process Manager)
 
 ```
 Tier 0: Policy (YAML rules)        → instant, deterministic
-Tier 1: Classifier (ONNX + 30 heuristic rules) → in-process ML, no API call
+Tier 1: Classifier (ONNX + 79 heuristic rules) → in-process ML, no API call
 Tier 2: LLM Evaluator (separate model, canary-verified) → budget-limited
 Tier 3: Human Approval (all channels, timeout-to-deny) → rate-limited
 ```
@@ -144,7 +144,7 @@ Every module is a standalone Go package with zero dependencies on the rest of Op
 | **[Memory](https://docs.openparallax.dev/memory/)** | Semantic memory with pluggable backends (SQLite, pgvector, Qdrant, Pinecone, ...) | &#10003; | &#10003; | &#10003; |
 | **[Audit](https://docs.openparallax.dev/audit/)** | Tamper-evident append-only logging with SHA-256 hash chains | &#10003; | &#10003; | &#10003; |
 | **[Sandbox](https://docs.openparallax.dev/sandbox/)** | Kernel-level process isolation (Landlock, sandbox-exec, Job Objects) | &#10003; | &#10003; | &#10003; |
-| **[Channels](https://docs.openparallax.dev/channels/)** | WhatsApp, Telegram, Discord, Slack, Signal, Teams, iMessage | &#10003; | &#10003; | &#10003; |
+| **[Channels](https://docs.openparallax.dev/channels/)** | WhatsApp, Telegram, Discord, Signal, iMessage (Slack and Teams planned) | &#10003; | &#10003; | &#10003; |
 | **[Chronicle](https://docs.openparallax.dev/modules/chronicle)** | Copy-on-write workspace snapshots with rollback | &#10003; | | |
 | **[LLM](https://docs.openparallax.dev/modules/llm)** | Anthropic, OpenAI + compatible APIs, Google, Ollama | &#10003; | | |
 | **[IFC](https://docs.openparallax.dev/modules/ifc)** | Information flow control with sensitivity labels | &#10003; | | |
@@ -237,7 +237,7 @@ Full documentation at **[docs.openparallax.dev](https://docs.openparallax.dev)**
 - **[Design Philosophy](https://docs.openparallax.dev/technical/design-security)** — why 4 tiers, why kernel sandboxing, why dynamic tool loading
 - **[Technical Docs](https://docs.openparallax.dev/technical/)** — architecture, pipeline, gRPC services, process model
 - **[Module Docs](https://docs.openparallax.dev/shield/)** — standalone usage for Shield, Memory, Audit, Sandbox, Channels
-- **[API Reference](https://docs.openparallax.dev/reference/config)** — config schema, 14 event types, 73 action types, 24 REST endpoints, WebSocket protocol
+- **[API Reference](https://docs.openparallax.dev/reference/config)** — config schema, 13 event types, 69 action types, 28 REST endpoints, WebSocket protocol
 
 ## License
 

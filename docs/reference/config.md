@@ -37,7 +37,7 @@ Maps functional roles to model names from the model pool.
 
 ## Shield (`shield`)
 
-Configures the 3-tier Shield security pipeline. See [Security](/guide/security) for architecture details.
+Configures the 4-tier Shield security pipeline. See [Security](/guide/security) for architecture details.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|

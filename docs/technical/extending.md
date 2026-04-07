@@ -301,7 +301,7 @@ If your action modifies state (writes files, sends messages, etc.), it should be
 
 ## Adding a New Shield Tier
 
-This is not recommended for most use cases. The three-tier architecture is designed to balance speed, accuracy, and cost. However, the Shield pipeline is extensible.
+This is not recommended for most use cases. The four-tier architecture is designed to balance speed, accuracy, and cost. However, the Shield pipeline is extensible.
 
 ### Shield Pipeline Architecture
 

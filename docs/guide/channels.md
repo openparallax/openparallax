@@ -29,7 +29,8 @@ channels:
     phone_number_id: "1234567890"
     access_token_env: WHATSAPP_ACCESS_TOKEN
     verify_token: "your-verify-token"
-    webhook_path: /webhooks/whatsapp
+    webhook_port: 8443
+    allowed_numbers: ["+1234567890"]
 ```
 
 | Field | Description |
@@ -37,7 +38,8 @@ channels:
 | `phone_number_id` | WhatsApp Business phone number ID from Meta Developer Portal |
 | `access_token_env` | Environment variable containing the permanent access token |
 | `verify_token` | Token for webhook verification (you choose this value) |
-| `webhook_path` | URL path where WhatsApp sends webhook events |
+| `webhook_port` | TCP port the adapter binds for incoming webhook requests |
+| `allowed_numbers` | List of phone numbers permitted to message the bot. Empty list allows all numbers |
 
 **Setup steps:**
 
@@ -63,20 +65,22 @@ Connect via a Telegram bot.
 channels:
   telegram:
     enabled: true
-    bot_token_env: TELEGRAM_BOT_TOKEN
-    webhook_url: "https://your-domain.com/webhooks/telegram"
-    allowed_users: ["123456789"]
+    token_env: TELEGRAM_BOT_TOKEN
+    allowed_users: [123456789]
     allowed_groups: []
     private_only: true
+    polling_interval: 1
 ```
 
 | Field | Description |
 |-------|-------------|
-| `bot_token_env` | Environment variable containing the bot token from @BotFather |
-| `webhook_url` | Public URL for receiving Telegram updates. Leave empty for long polling. |
-| `allowed_users` | List of Telegram user IDs that can interact with the bot. Empty list allows all users. |
-| `allowed_groups` | List of Telegram group chat IDs where the bot is permitted to respond. Empty list allows all groups. |
+| `token_env` | Environment variable containing the bot token from @BotFather |
+| `allowed_users` | List of Telegram user IDs (numeric) that can interact with the bot. Empty list allows all users. |
+| `allowed_groups` | List of Telegram group chat IDs (numeric) where the bot is permitted to respond. Empty list allows all groups. |
 | `private_only` | When true, the bot only responds to private (direct) messages and ignores group chats. Defaults to true for security. |
+| `polling_interval` | Long-polling interval in seconds. Defaults to 1. |
+
+The Telegram adapter uses long polling — no public URL or webhook is needed.
 
 **Setup steps:**
 
@@ -101,16 +105,20 @@ Connect via a Discord bot.
 channels:
   discord:
     enabled: true
-    bot_token_env: DISCORD_BOT_TOKEN
-    application_id: "1234567890"
+    token_env: DISCORD_BOT_TOKEN
     allowed_guilds: ["9876543210"]
+    allowed_channels: []
+    allowed_users: []
+    respond_to_mentions: true
 ```
 
 | Field | Description |
 |-------|-------------|
-| `bot_token_env` | Environment variable containing the Discord bot token |
-| `application_id` | Discord application ID from the Developer Portal |
-| `allowed_guilds` | List of Discord server (guild) IDs where the bot is permitted to operate. Required — the bot refuses to respond in unlisted guilds. Empty list registers commands globally but restricts responses to DMs only. |
+| `token_env` | Environment variable containing the Discord bot token |
+| `allowed_guilds` | List of Discord server (guild) IDs where the bot is permitted to operate. Required — the bot refuses to respond in unlisted guilds. |
+| `allowed_channels` | Optional channel ID allowlist within those guilds. Empty list allows all channels. |
+| `allowed_users` | Optional user ID allowlist. Empty list allows all members of the allowed guilds. |
+| `respond_to_mentions` | When true, the bot replies to @mentions in addition to direct messages. |
 
 **Setup steps:**
 
@@ -128,7 +136,11 @@ The bot responds to direct messages and mentions in channels. Each Discord user 
 
 ### Slack (App)
 
-Connect via a Slack app using Socket Mode or webhooks.
+::: warning Planned — Not Yet Implemented
+The Slack adapter is on the roadmap but not yet implemented. The configuration schema is defined, but enabling it has no effect at runtime.
+:::
+
+Will connect via a Slack app using Socket Mode.
 
 **Configuration:**
 
@@ -196,7 +208,11 @@ Signal provides end-to-end encrypted messaging. All messages between you and the
 
 ### Microsoft Teams (Graph API)
 
-Connect via Microsoft Teams using the Microsoft Graph API.
+::: warning Planned — Not Yet Implemented
+The Microsoft Teams adapter is on the roadmap but not yet implemented. The configuration schema is defined, but enabling it has no effect at runtime.
+:::
+
+Will connect via Microsoft Teams using the Microsoft Graph API and Bot Framework.
 
 **Configuration:**
 

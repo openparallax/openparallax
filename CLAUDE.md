@@ -1,6 +1,6 @@
 # OpenParallax
 
-Open-source personal AI agent with a 3-tier security pipeline, multi-channel messaging, and a glassmorphism web UI.
+Open-source personal AI agent with a 4-tier security pipeline, multi-channel messaging, and a glassmorphism web UI.
 
 ## Quick Reference
 
@@ -92,7 +92,7 @@ internal/
   config/             YAML config loader + defaults
   crypto/             ID generation, action hashing, canary tokens
   engine/             Pipeline orchestrator, gRPC server, protection, redaction
-    executors/        10 executor types (file, shell, git, browser, email, calendar, canvas, memory, http, schedule)
+    executors/        14 tool groups (files, shell, git, browser, email, calendar, memory, schedule, canvas, image_generation, video_generation, agents, system, utilities)
   heartbeat/          Cron scheduler (HEARTBEAT.md)
   llm/                Provider abstraction (Anthropic, OpenAI, Google, Ollama)
   logging/            Structured JSON logging with LogHook for live broadcast
@@ -101,7 +101,7 @@ internal/
   platform/           OS detection, shell rules, build-tagged kill
   sandbox/            Kernel-level process isolation (Landlock, sandbox-exec, Job Objects)
   session/            Session lifecycle (normal + OTR)
-  shield/             3-tier security pipeline
+  shield/             4-tier security pipeline
     tier0/            YAML policy matching
     tier1/            ONNX + heuristic classifier
     tier2/            LLM evaluator with canary verification
@@ -157,7 +157,7 @@ These are non-negotiable. Every commit, every file, every line.
 | Database | SQLite (modernc.org, pure Go, WAL mode) |
 | Search | FTS5 full-text + vector embeddings |
 | LLM | Anthropic, OpenAI, Google, Ollama |
-| Security | 3-tier Shield (YAML policy → ONNX+heuristic → LLM evaluator) |
+| Security | 4-tier Shield (YAML policy → ONNX+heuristic → LLM evaluator → human approval) |
 | Audit | Append-only JSONL with SHA-256 hash chain |
 | Snapshots | Copy-on-write workspace chronicle |
 | Icons | lucide-svelte |

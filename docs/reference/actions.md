@@ -2,7 +2,7 @@
 
 Every operation the Agent can perform is represented as a typed action. Actions are the atomic unit of the OpenParallax pipeline — each one passes through Shield evaluation, IFC checking, Chronicle snapshotting, and audit logging before execution.
 
-OpenParallax defines **73 action types** across **15 categories**.
+OpenParallax defines **69 action types** across **14 tool groups**.
 
 Source: [`internal/types/action.go`](https://github.com/openparallax/openparallax/blob/main/internal/types/action.go)
 

@@ -1,6 +1,6 @@
 # Security
 
-OpenParallax uses a defense-in-depth approach: a 3-tier Shield pipeline evaluates every tool call, kernel sandboxing restricts the agent process at the OS level, and a tamper-evident audit log records everything.
+OpenParallax uses a defense-in-depth approach: a 4-tier Shield pipeline evaluates every tool call, kernel sandboxing restricts the agent process at the OS level, and a tamper-evident audit log records everything.
 
 ## Shield Overview
 
@@ -92,12 +92,13 @@ Customize your policy file to block the sensitive paths for your operating syste
 :::
 
 **Evaluated at higher tiers:**
-- Shell commands (Tier 1)
-- External communication: messages, emails, HTTP requests (Tier 1)
+- Shell commands (Tier 2)
+- External communication: messages, emails, HTTP requests (Tier 2)
+- File writes (Tier 2)
+- Destructive file operations: delete, move (Tier 2)
 - Identity file modification: SOUL.md, IDENTITY.md (Tier 2)
 - Agent config modification: AGENTS.md, HEARTBEAT.md (Tier 2)
 - User data modification: USER.md, MEMORY.md (Tier 1)
-- Destructive file operations: delete, move (Tier 1)
 - Git push (Tier 1)
 
 **Allowed without evaluation:**

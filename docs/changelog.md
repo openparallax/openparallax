@@ -20,7 +20,7 @@ The first public release of OpenParallax. A reference implementation of the arch
 
 ### Security
 
-- **4-tier Shield pipeline** — Tier 0 (YAML policy matching), Tier 1 (ONNX DeBERTa classifier + 30 heuristic rules), Tier 2 (LLM evaluator with canary verification), Tier 3 (human-in-the-loop approval via all connected channels). Fail-closed at every tier.
+- **4-tier Shield pipeline** — Tier 0 (YAML policy matching), Tier 1 (ONNX DeBERTa classifier + 58 platform heuristic rules + 21 cross-platform detection rules), Tier 2 (LLM evaluator with canary verification), Tier 3 (human-in-the-loop approval via all connected channels). Fail-closed at every tier.
 - **In-process ONNX classifier** — DeBERTa v3 model runs in pure Go via `onnxruntime-purego`. No sidecar processes, no CGo. Auto-resolves latest ONNX Runtime from GitHub releases.
 - **Kernel sandboxing** — Landlock + seccomp-bpf (Linux 5.13+), sandbox-exec (macOS), Job Objects (Windows). Platform-specific canary probes verify enforcement at startup.
 - **File protection levels** — ReadOnly (SOUL/IDENTITY/TOOLS/BOOT), EscalateTier2 (AGENTS/HEARTBEAT), WriteTier1Min (MEMORY/USER), FullBlock (.openparallax/, policies/).
@@ -35,7 +35,7 @@ The first public release of OpenParallax. A reference implementation of the arch
 
 ### Features
 
-- **73 tool actions** — file operations, git, shell commands, browser automation, email (SMTP + IMAP), calendar (Google + Microsoft + CalDAV), canvas, memory, HTTP requests, scheduling, clipboard, system utilities, image/video generation, sub-agents. Organized into groups with lazy loading via `load_tools` meta-tool.
+- **69 tool actions** — file operations, git, shell commands, browser automation, email (SMTP + IMAP), calendar (Google + Microsoft + CalDAV), canvas, memory, HTTP requests, scheduling, clipboard, system utilities, image/video generation, sub-agents. Organized into 14 groups with lazy loading via `load_tools` meta-tool.
 - **Sub-agent orchestration** — parallel task execution with isolated sandboxed processes. Follow-up messaging via `agent_message`. Sub-agents poll for additional instructions after each reasoning loop.
 - **Custom skills** — domain-specific guidance in `skills/<name>/SKILL.md` with YAML frontmatter. Global skills at `~/.openparallax/skills/`, workspace skills override. Configurable disable list.
 - **Multi-channel messaging** — WhatsApp (Cloud API), Telegram (Bot API), Discord (bot), Slack (Socket Mode), Signal (signal-cli), Teams (Graph API), iMessage (AppleScript, macOS). Dynamic attach/detach at runtime.
@@ -56,7 +56,7 @@ The first public release of OpenParallax. A reference implementation of the arch
 
 Every module ships as an independently importable Go package with no dependencies on the rest of OpenParallax. Cross-language support via JSON-RPC bridge binaries for Python and Node.js:
 
-- **Shield** — 3-tier AI security pipeline. Available as Go library, Python/Node wrappers, standalone MCP proxy.
+- **Shield** — 4-tier AI security pipeline. Available as Go library, Python/Node wrappers, standalone MCP proxy.
 - **Memory** — semantic memory with pluggable backends: SQLite (default), PostgreSQL + pgvector, Qdrant, Pinecone, Weaviate, ChromaDB, Redis.
 - **Audit** — tamper-evident hash chain logging for any system.
 - **Sandbox** — kernel-level process isolation for any child process.
@@ -83,7 +83,7 @@ Every module ships as an independently importable Go package with no dependencie
 - **User guide** — installation, quickstart, configuration, CLI, web UI, sessions, memory, skills, tools, channels, security, heartbeat, troubleshooting.
 - **Technical docs** — architecture, process model, message pipeline, ecosystem, engine, agent, gRPC, events, protection, web server, extending.
 - **Module docs** — Shield (14 pages including Tier 3), Memory, Audit, Sandbox, Channels (7 platforms), Chronicle, LLM, IFC, Crypto, MCP.
-- **API reference** — config schema, environment variables, 14 event types, 73 action types, gRPC API, 24 REST endpoints, WebSocket protocol, policy syntax.
+- **API reference** — config schema, environment variables, 13 event types, 69 action types, gRPC API, 28 REST endpoints, WebSocket protocol, policy syntax.
 
 ---
 

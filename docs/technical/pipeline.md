@@ -203,7 +203,7 @@ Emit ActionStarted event
 Audit: log PROPOSED entry
     |
     v
-Shield.Evaluate (3-tier security pipeline)
+Shield.Evaluate (4-tier security pipeline)
     |
     v
 Emit ShieldVerdict event
@@ -270,7 +270,7 @@ If no title AND >= 6 messages:
 
 ## Security Pipeline Detail
 
-The Shield evaluation within `handleToolProposal` follows a 3-tier escalation:
+The Shield evaluation within `handleToolProposal` follows a 4-tier escalation:
 
 ```
 Tier 0 (YAML policy match)

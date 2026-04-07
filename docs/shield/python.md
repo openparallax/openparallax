@@ -1,6 +1,6 @@
 # Python Wrapper
 
-The `openparallax-shield` Python package provides a native Python API for Shield. It wraps the Go binary using JSON-RPC over stdin/stdout -- the same protocol MCP uses -- so you get the full 3-tier pipeline with no Go toolchain required.
+The `openparallax-shield` Python package provides a native Python API for Shield. It wraps the Go binary using JSON-RPC over stdin/stdout -- the same protocol MCP uses -- so you get the full 4-tier pipeline with no Go toolchain required.
 
 ## Install
 

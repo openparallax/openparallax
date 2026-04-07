@@ -1,6 +1,6 @@
 # Defense in Depth: The Shield Pipeline
 
-Shield is a 3-tier security pipeline that evaluates every action an AI agent proposes before execution. This page covers the architecture of each tier, the canary token mechanism, fail-closed semantics, and the role of human-in-the-loop as the final tier.
+Shield is a 4-tier security pipeline that evaluates every action an AI agent proposes before execution. This page covers the architecture of each tier, the canary token mechanism, fail-closed semantics, and the role of human-in-the-loop as the final tier.
 
 Shield implements two of the four Parallax principles: *Adversarial Validation with Graduated Determinism* (independent multi-tiered validation between reasoning and execution) and, through output sanitization, feedback-loop protection for the reasoning system. Together with Cognitive-Executive Separation and Reversible Execution (covered in [Process Isolation](/technical/design-isolation)), these form a prevent-detect-recover defense posture.
 
