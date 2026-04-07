@@ -43,6 +43,52 @@ func (db *DB) IncrementDailyMetric(metric string, delta int) {
 	)
 }
 
+// AddLatencySample stores a single latency observation for a named
+// metric so percentiles can be computed at query time. Used for
+// non-LLM events such as Shield tier evaluation.
+func (db *DB) AddLatencySample(metric string, latencyMs int64) {
+	date := time.Now().Format("2006-01-02")
+	_, _ = db.conn.Exec(
+		`INSERT INTO metrics_latency (date, metric, latency_ms) VALUES (?, ?, ?)`,
+		date, metric, latencyMs,
+	)
+}
+
+// GetLatencyPercentiles fetches all samples for a given metric in the
+// date range and returns p50/p95/p99. Returns zeros when no samples.
+func (db *DB) GetLatencyPercentiles(metric, from, to string) (p50, p95, p99 int) {
+	rows, err := db.conn.Query(
+		`SELECT latency_ms FROM metrics_latency
+		 WHERE metric = ? AND date >= ? AND date <= ?
+		 ORDER BY latency_ms`,
+		metric, from, to,
+	)
+	if err != nil {
+		return 0, 0, 0
+	}
+	defer func() { _ = rows.Close() }()
+
+	var samples []int
+	for rows.Next() {
+		var s int
+		if rows.Scan(&s) == nil {
+			samples = append(samples, s)
+		}
+	}
+	n := len(samples)
+	if n == 0 {
+		return 0, 0, 0
+	}
+	pct := func(p int) int {
+		idx := (p * n) / 100
+		if idx >= n {
+			idx = n - 1
+		}
+		return samples[idx]
+	}
+	return pct(50), pct(95), pct(99)
+}
+
 // SessionTokenUsage returns aggregated token usage for a specific session.
 type SessionTokenUsage struct {
 	InputTokens         int `json:"input_tokens"`
@@ -98,6 +144,16 @@ type PerformanceMetrics struct {
 	AvgRoundsPerMsg float64 `json:"avg_rounds_per_msg"`
 	AvgTokensPerMsg int     `json:"avg_tokens_per_msg"`
 	CacheHitRate    float64 `json:"cache_hit_rate"`
+
+	// Shield latency percentiles per tier (in milliseconds). Sourced
+	// from per-evaluation samples in metrics_latency. Zeros when no
+	// samples for that tier in the date range.
+	ShieldT0P50Ms int `json:"shield_t0_p50_ms"`
+	ShieldT0P95Ms int `json:"shield_t0_p95_ms"`
+	ShieldT1P50Ms int `json:"shield_t1_p50_ms"`
+	ShieldT1P95Ms int `json:"shield_t1_p95_ms"`
+	ShieldT2P50Ms int `json:"shield_t2_p50_ms"`
+	ShieldT2P95Ms int `json:"shield_t2_p95_ms"`
 }
 
 // LifetimeMetrics holds all-time counters independent of date range.
@@ -204,6 +260,11 @@ func (db *DB) GetMetricsSummary(from, to string) MetricsSummary {
 	// Latency percentiles (p50, p95, p99).
 	summary.Performance.P50LatencyMs, summary.Performance.P95LatencyMs,
 		summary.Performance.P99LatencyMs = db.getLatencyPercentiles(from, to)
+
+	// Shield per-tier latency percentiles.
+	summary.Performance.ShieldT0P50Ms, summary.Performance.ShieldT0P95Ms, _ = db.GetLatencyPercentiles("shield_t0", from, to)
+	summary.Performance.ShieldT1P50Ms, summary.Performance.ShieldT1P95Ms, _ = db.GetLatencyPercentiles("shield_t1", from, to)
+	summary.Performance.ShieldT2P50Ms, summary.Performance.ShieldT2P95Ms, _ = db.GetLatencyPercentiles("shield_t2", from, to)
 
 	// Top tools from daily metrics (tool:name counters).
 	toolRows, toolErr := db.conn.Query(`SELECT metric, SUM(value) FROM metrics_daily

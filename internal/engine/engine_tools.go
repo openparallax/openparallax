@@ -107,6 +107,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	shieldStart := time.Now()
 	verdict := e.shield.Evaluate(ctx, action)
 	shieldMs := time.Since(shieldStart).Milliseconds()
+	e.db.AddLatencySample(fmt.Sprintf("shield_t%d", verdict.Tier), shieldMs)
 
 	e.log.Info("shield_verdict", "session", sid, "tool", tc.Name,
 		"decision", verdict.Decision, "tier", verdict.Tier,

@@ -411,7 +411,9 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	}
 
 	// Shield evaluation.
+	shieldStart := time.Now()
 	verdict := e.shield.Evaluate(ctx, action)
+	e.db.AddLatencySample(fmt.Sprintf("shield_t%d", verdict.Tier), time.Since(shieldStart).Milliseconds())
 	e.broadcaster.Broadcast(&PipelineEvent{
 		SessionID: sid, MessageID: mid, Type: EventShieldVerdict,
 		ShieldVerdict: &ShieldVerdictEvent{

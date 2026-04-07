@@ -159,6 +159,17 @@ func (db *DB) migrate() error {
 			PRIMARY KEY (date, metric)
 		)`,
 
+		// Per-observation latency samples for percentile queries.
+		// Mirrors the llm_usage.duration_ms approach but for events
+		// (Shield evaluations etc.) that are not LLM calls.
+		`CREATE TABLE IF NOT EXISTS metrics_latency (
+			date TEXT NOT NULL,
+			metric TEXT NOT NULL,
+			latency_ms INTEGER NOT NULL,
+			timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_metrics_latency_date ON metrics_latency(date, metric)`,
+
 		// OAuth2 token storage (encrypted at rest).
 		`CREATE TABLE IF NOT EXISTS oauth_tokens (
 			provider TEXT NOT NULL,
