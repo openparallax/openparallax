@@ -40,6 +40,9 @@ const (
 	SessionStarted EventType = 17
 	// SessionEnded records the end of a session.
 	SessionEnded EventType = 18
+	// ConfigChanged records a successful config.yaml mutation through
+	// the canonical config.Save writer.
+	ConfigChanged EventType = 19
 )
 
 // LogEntry is the native Go representation of an audit log entry.

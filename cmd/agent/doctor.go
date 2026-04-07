@@ -50,6 +50,22 @@ func runDoctor(_ *cobra.Command, args []string) error {
 	printCheck(true, "Config", cfgPath+" loaded")
 	passed++
 
+	// Config round-trip — Save the loaded config to a temp file and
+	// reload it. Catches writer drift before the next restart bites.
+	tmpDir, tmpErr := os.MkdirTemp("", "openparallax-doctor-")
+	if tmpErr == nil {
+		tmpPath := filepath.Join(tmpDir, "config.yaml")
+		rtCfg := *cfg
+		if rtErr := config.Save(tmpPath, &rtCfg); rtErr != nil {
+			printCheck(false, "Config writer", rtErr.Error())
+			failed++
+		} else {
+			printCheck(true, "Config writer", "round-trip ok")
+			passed++
+		}
+		_ = os.RemoveAll(tmpDir)
+	}
+
 	// Workspace
 	if info, err := os.Stat(cfg.Workspace); err != nil || !info.IsDir() {
 		printCheck(false, "Workspace", cfg.Workspace+" not found")
