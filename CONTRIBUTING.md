@@ -68,11 +68,14 @@ Look for issues labeled `good-first-issue` — these are scoped, well-defined, a
 
 ### Areas We Especially Welcome
 
+- **Adversarial test cases** — grow the [eval corpus](https://docs.openparallax.dev/eval/). Every new case is a permanent regression test on Shield. See [Adding Test Cases](#adding-adversarial-test-cases) below.
+- **Heuristic rules** — new patterns for `platform/shell.go` (cross-platform `XP-NNN`, Unix `UX-NNN`, Windows `WIN-NNN`) and `shield/tier1_rules.go` (cross-platform detection categories: PI, PT, DE, EE, SD, GEN, EM, SP).
+- **Slack and Teams adapters** — both have config schemas in `internal/types/config.go` but no implementation. Code-complete adapters are an open invitation.
 - **Memory backends** — implementing the `Store` interface for new databases (MongoDB, DynamoDB, Milvus, etc.)
-- **Channel adapters** — new messaging platform integrations
-- **Shield policies** — curated policy files for specific use cases
+- **Channel adapters** — new messaging platform integrations beyond the seven already supported
+- **Shield policies** — curated policy files for specific deployment profiles (regulated industries, multi-tenant, air-gapped)
 - **Documentation** — improvements, corrections, tutorials
-- **Tests** — especially integration tests for security-critical paths
+- **DeBERTa retraining** — the default classifier over-fires on a few action types. A balanced retraining corpus + fine-tuned model would shrink (or eliminate) the default skip list. The model and training data are public on [HuggingFace](https://huggingface.co/openparallax/shield-classifier-v1).
 - **Platform support** — sandbox improvements for Windows, BSD
 
 ### Before Starting Large Changes
@@ -80,11 +83,54 @@ Look for issues labeled `good-first-issue` — these are scoped, well-defined, a
 For anything beyond bug fixes and small improvements, **open an issue first** to discuss the approach. This prevents wasted effort if the change doesn't align with the project direction.
 
 Things that always need discussion:
-- New dependencies (`go get`)
-- Protobuf schema changes
-- Config schema changes
+
+- New top-level dependencies (`go get`)
+- Protobuf schema changes (regenerates `internal/types/pb/`)
+- Config schema changes (existing workspace `config.yaml` files must keep working)
 - New module boundaries
-- Changes to the security pipeline
+- Changes to the Shield gateway flow
+- Removing or renaming any policy rule (existing workspace policies will break)
+- Changes to the eval test corpus structure
+- New CGo dependencies (the answer is no, except for the planned `openparallax-classifier` separate repo)
+
+## Adding Adversarial Test Cases
+
+The eval corpus is intended to grow over time. Adding a case is one of the highest-leverage contributions you can make — every case becomes a permanent regression test on the security pipeline.
+
+**Every new case must be distinguishable from existing cases on at least one dimension.** A duplicate adds no signal.
+
+Walk through this checklist before opening a PR:
+
+- [ ] **Category** (C1-C9, FP) — does it target a different attack class?
+- [ ] **Sophistication** (basic / intermediate / advanced) — different difficulty level than every existing case in the same suite-category?
+- [ ] **Action type** — does it use a different `expected_harmful_action.type`?
+- [ ] **Payload field** — does the malicious data live in a different field (`path` vs `content` vs `url` vs `body` vs `command` vs `source` vs `destination`)?
+- [ ] **Detection layer** — which tier should catch it (0/1/2/3)? Adding cases that exercise underused tiers is high-leverage.
+- [ ] **Bypass technique** — encoding, obfuscation, social engineering, multi-step trust building, indirect injection, helpfulness framing, polyglot, Unicode normalization, etc.
+- [ ] **Intent** — for FP and C9 (Tier 3) suites, malicious vs legitimate?
+- [ ] **Platform** — cross-platform vs Linux/macOS/Windows specific?
+
+If your case differs on **none** of these, it's a duplicate. See [docs/eval/contributing-tests.md](https://docs.openparallax.dev/eval/contributing-tests) for the full guide including ID conventions, the worked example, verifying the case, and what to include in the PR.
+
+Local eval runs go in `eval-results/playground/` (gitignored). When a run is worth keeping, move it to `eval-results/runs/run-NNN/` following the [naming convention](https://github.com/openparallax/openparallax/blob/main/eval-results/runs/INDEX.md).
+
+## Adding Heuristic and Policy Rules
+
+### New heuristic rule
+
+- Add the rule to `platform/shell.go` (cross-platform XP-NNN, Unix UX-NNN, Windows WIN-NNN) or `shield/tier1_rules.go` (cross-platform detection categories: PI, PT, DE, EE, SD, GEN, EM, SP)
+- Use the next sequential ID
+- Decide `AlwaysBlock`: only set true if the rule catches things the Tier 2 LLM evaluator demonstrably misses (provide evidence from a test case that fails without the rule)
+- Bump the rule count comment at the top of the file
+- Update `platform/platform_test.go` count assertion if you added a `platform/shell.go` rule
+- Add at least one positive test (the rule fires on a known attack) and one negative test (the rule does not fire on a benign similar pattern)
+- Run the FP suite to confirm no regression on legitimate operations
+
+### New policy rule
+
+- Update both `internal/templates/files/policies/default.yaml` and `internal/templates/files/policies/strict.yaml`. The strict ⊇ default invariant is enforced by `TestLoadStrictPolicy` in the shield package.
+- Run all 10 eval suites and confirm no ASR or FP regression
+- If you remove items from the default `shield.classifier_skip_types` list, also tighten the corresponding policy verify rules so those types still get reviewed
 
 ## Architecture Guide
 
@@ -92,10 +138,18 @@ Understanding the codebase:
 
 ```
 cmd/agent/          → CLI entry points (start with start.go, init.go)
+cmd/eval/           → Adversarial test runner (separate binary, never shipped in production)
+cmd/shield/         → Standalone Shield service binary
 internal/engine/    → The orchestrator (start with engine.go)
 internal/agent/     → LLM reasoning loop (start with loop.go)
-internal/shield/    → Security pipeline (start with pipeline.go, gateway.go)
+shield/             → Security pipeline (start with pipeline.go, gateway.go)
+memory/             → Chunked vector store + FTS5 + embedding cache
+sandbox/            → Kernel-level process isolation (Landlock, sandbox-exec, Job Objects)
+audit/              → Append-only JSONL with SHA-256 hash chain
+chronicle/          → Copy-on-write workspace snapshots
+ifc/                → Information flow control with sensitivity labels
 web/src/            → Svelte frontend (start with App.svelte)
+eval-results/       → Test corpus, run history, narrative reports
 ```
 
 Key interfaces:
