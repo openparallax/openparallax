@@ -47,7 +47,18 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	hash, _ := crypto.HashAction(tc.Name, tc.Arguments)
 	action.Hash = hash
 
+	isOTR := mode == types.SessionOTR
+
 	e.enricher.Enrich(action)
+	if !isOTR && action.DataClassification != nil {
+		e.auditLog(audit.Entry{
+			EventType: types.AuditIFCClassified, SessionID: sid,
+			ActionType: string(action.Type),
+			Details: fmt.Sprintf("sensitivity=%d source=%s",
+				action.DataClassification.Sensitivity,
+				action.DataClassification.SourcePath),
+		})
+	}
 
 	allowed, protection, protReason := CheckProtection(action, e.cfg.Workspace)
 	if !allowed {
@@ -68,8 +79,6 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	case WriteTier1Min:
 		action.MinTier = 1
 	}
-
-	isOTR := mode == types.SessionOTR
 
 	_ = sender.SendEvent(&PipelineEvent{
 		SessionID: sid, MessageID: mid, Type: EventActionStarted,
@@ -169,8 +178,17 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	if !isOTR {
 		if snapMeta, snapErr := e.chronicle.Snapshot(&chronicle.ActionRequest{Type: string(action.Type), Payload: action.Payload}); snapErr != nil {
 			e.log.Warn("chronicle_snapshot_failed", "session", sid, "error", snapErr)
+			e.auditLog(audit.Entry{
+				EventType: types.AuditChronicleSnapshotFailed, SessionID: sid,
+				ActionType: string(action.Type), Details: snapErr.Error(),
+			})
 		} else if snapMeta != nil {
 			e.log.Debug("chronicle_snapshot", "session", sid, "tool", tc.Name, "snapshot_id", snapMeta.ID)
+			e.auditLog(audit.Entry{
+				EventType: types.AuditChronicleSnapshot, SessionID: sid,
+				ActionType: string(action.Type),
+				Details:    "snapshot_id=" + snapMeta.ID,
+			})
 		}
 	}
 

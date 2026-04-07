@@ -693,10 +693,15 @@ func (*AgentEvent_AgentError) isAgentEvent_Event() {}
 
 // AgentReady signals the Agent is initialized and waiting for directives.
 type AgentReady struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	AgentId string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	// sandbox_canary_json carries the JSON-encoded sandbox.CanaryResult
+	// from the agent's startup verification probes. The engine emits an
+	// audit entry on receipt; empty string means the agent did not run
+	// canary verification.
+	SandboxCanaryJson string `protobuf:"bytes,2,opt,name=sandbox_canary_json,json=sandboxCanaryJson,proto3" json:"sandbox_canary_json,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *AgentReady) Reset() {
@@ -732,6 +737,13 @@ func (*AgentReady) Descriptor() ([]byte, []int) {
 func (x *AgentReady) GetAgentId() string {
 	if x != nil {
 		return x.AgentId
+	}
+	return ""
+}
+
+func (x *AgentReady) GetSandboxCanaryJson() string {
+	if x != nil {
+		return x.SandboxCanaryJson
 	}
 	return ""
 }
@@ -3797,10 +3809,11 @@ const file_openparallax_v1_pipeline_proto_rawDesc = "" +
 	"\x11response_complete\x18\x06 \x01(\v2&.openparallax.v1.AgentResponseCompleteH\x00R\x10responseComplete\x12>\n" +
 	"\vagent_error\x18\a \x01(\v2\x1b.openparallax.v1.AgentErrorH\x00R\n" +
 	"agentErrorB\a\n" +
-	"\x05event\"'\n" +
+	"\x05event\"W\n" +
 	"\n" +
 	"AgentReady\x12\x19\n" +
-	"\bagent_id\x18\x01 \x01(\tR\aagentId\"c\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12.\n" +
+	"\x13sandbox_canary_json\x18\x02 \x01(\tR\x11sandboxCanaryJson\"c\n" +
 	"\x0fLLMTokenEmitted\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +

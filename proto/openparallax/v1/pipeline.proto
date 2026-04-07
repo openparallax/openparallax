@@ -118,6 +118,11 @@ message AgentEvent {
 // AgentReady signals the Agent is initialized and waiting for directives.
 message AgentReady {
   string agent_id = 1;
+  // sandbox_canary_json carries the JSON-encoded sandbox.CanaryResult
+  // from the agent's startup verification probes. The engine emits an
+  // audit entry on receipt; empty string means the agent did not run
+  // canary verification.
+  string sandbox_canary_json = 2;
 }
 
 // LLMTokenEmitted carries a single streaming token from the LLM.

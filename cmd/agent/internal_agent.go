@@ -158,13 +158,19 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("open session stream: %w", err)
 	}
 
-	// Signal readiness with auth token.
+	// Signal readiness with auth token and the canary verification
+	// result so the engine can audit-log it (the agent itself cannot
+	// write to audit.jsonl — it lives under the hard-blocked
+	// .openparallax/ directory).
 	agentID := agentName
 	if token := os.Getenv("OPENPARALLAX_AGENT_TOKEN"); token != "" {
 		agentID = agentName + ":" + token
 	}
 	if sendErr := stream.Send(&pb.AgentEvent{
-		Event: &pb.AgentEvent_Ready{Ready: &pb.AgentReady{AgentId: agentID}},
+		Event: &pb.AgentEvent_Ready{Ready: &pb.AgentReady{
+			AgentId:           agentID,
+			SandboxCanaryJson: string(canaryJSON),
+		}},
 	}); sendErr != nil {
 		return fmt.Errorf("send ready: %w", sendErr)
 	}

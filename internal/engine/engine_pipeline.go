@@ -109,6 +109,18 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 	}
 	e.log.Info("agent_connected", "id", agentID)
 
+	// Persist the sandbox canary verification result to the audit
+	// chain. The agent process cannot write to audit.jsonl itself
+	// (the workspace's .openparallax/ directory is hard-blocked), so
+	// it ships the result on the AgentReady event for the engine to
+	// log on its behalf.
+	if ready.SandboxCanaryJson != "" {
+		e.auditLog(audit.Entry{
+			EventType: types.AuditSandboxCanaryResult,
+			Details:   ready.SandboxCanaryJson,
+		})
+	}
+
 	// Store the agent stream for forwarding messages.
 	e.mu.Lock()
 	e.agentStream = stream
@@ -357,6 +369,15 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 
 	// Metadata enrichment.
 	e.enricher.Enrich(action)
+	if !isOTRAction && action.DataClassification != nil {
+		e.auditLog(audit.Entry{
+			EventType: types.AuditIFCClassified, SessionID: sid,
+			ActionType: string(action.Type),
+			Details: fmt.Sprintf("sensitivity=%d source=%s",
+				action.DataClassification.Sensitivity,
+				action.DataClassification.SourcePath),
+		})
+	}
 
 	// Hardcoded protection check.
 	allowed, protection, protReason := CheckProtection(action, e.cfg.Workspace)
@@ -457,8 +478,20 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	}
 
 	// Chronicle snapshot.
-	if _, snapErr := e.chronicle.Snapshot(&chronicle.ActionRequest{Type: string(action.Type), Payload: action.Payload}); snapErr != nil {
+	if snapMeta, snapErr := e.chronicle.Snapshot(&chronicle.ActionRequest{Type: string(action.Type), Payload: action.Payload}); snapErr != nil {
 		e.log.Warn("chronicle_snapshot_failed", "error", snapErr)
+		if !isOTRAction {
+			e.auditLog(audit.Entry{
+				EventType: types.AuditChronicleSnapshotFailed, SessionID: sid,
+				ActionType: string(action.Type), Details: snapErr.Error(),
+			})
+		}
+	} else if snapMeta != nil && !isOTRAction {
+		e.auditLog(audit.Entry{
+			EventType: types.AuditChronicleSnapshot, SessionID: sid,
+			ActionType: string(action.Type),
+			Details:    "snapshot_id=" + snapMeta.ID,
+		})
 	}
 
 	// IFC check.

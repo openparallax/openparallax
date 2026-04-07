@@ -58,4 +58,9 @@ const (
 	AuditIntegrityViolation  = audit.IntegrityViolation
 	AuditSessionStarted      = audit.SessionStarted
 	AuditSessionEnded        = audit.SessionEnded
+	AuditConfigChanged       = audit.ConfigChanged
+	AuditIFCClassified       = audit.IFCClassified
+	AuditChronicleSnapshot   = audit.ChronicleSnapshot
+	AuditChronicleSnapshotFailed = audit.ChronicleSnapshotFailed
+	AuditSandboxCanaryResult = audit.SandboxCanaryResult
 )

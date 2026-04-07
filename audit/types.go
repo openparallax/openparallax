@@ -43,6 +43,22 @@ const (
 	// ConfigChanged records a successful config.yaml mutation through
 	// the canonical config.Save writer.
 	ConfigChanged EventType = 19
+	// IFCClassified records that an action was tagged with a data
+	// sensitivity classification by the metadata enricher. Emitted
+	// once per action at enrichment time, before Shield evaluation.
+	IFCClassified EventType = 20
+	// ChronicleSnapshot records a successful copy-on-write snapshot
+	// taken before a state-mutating action.
+	ChronicleSnapshot EventType = 21
+	// ChronicleSnapshotFailed records a snapshot attempt that errored.
+	// The action still runs (snapshots are best-effort), but the
+	// failure is preserved in the audit chain so rollback gaps are
+	// auditable after the fact.
+	ChronicleSnapshotFailed EventType = 22
+	// SandboxCanaryResult records the agent process's startup sandbox
+	// canary verification outcome, plumbed from the sandboxed agent
+	// child to the engine via the AgentReady stream event.
+	SandboxCanaryResult EventType = 23
 )
 
 // LogEntry is the native Go representation of an audit log entry.
