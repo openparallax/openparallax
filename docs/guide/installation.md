@@ -1,31 +1,17 @@
 # Installation
 
-OpenParallax is distributed as source code and compiles to a single static binary with zero runtime dependencies. There is no CGo, no shared libraries, and no container required.
+OpenParallax ships as a single static binary with zero runtime dependencies. There is no CGo, no shared libraries, and no container required.
 
-## Prerequisites
+There are two ways to install:
 
-### Go 1.25+
+- **[Path A — Install the Binary](#path-a-install-the-binary)** is for end users who just want to run an agent. One command, no toolchain.
+- **[Path B — Build from Source](#path-b-build-from-source)** is for contributors and anyone who wants to track main, run the test suite, or modify the code.
 
-OpenParallax requires Go 1.25 or later. Check your version:
+Both paths produce the same binary. Both require an LLM API key (covered below).
 
-```bash
-go version
-```
+## An LLM API Key
 
-If you need to install or upgrade Go, follow the [official instructions](https://go.dev/doc/install).
-
-### Node.js 20+ (build-time only)
-
-The web UI is built with Vite during compilation. Node.js is only needed at build time — the compiled assets are embedded into the Go binary via `go:embed`.
-
-```bash
-node --version   # v20.x or later
-npm --version
-```
-
-### An LLM API Key
-
-You need at least one API key from a supported provider:
+You need at least one API key from a supported provider before running `openparallax init`:
 
 | Provider | Environment Variable | Get a Key |
 |----------|---------------------|-----------|
@@ -41,22 +27,95 @@ Set the key in your shell profile:
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-For embedding-based semantic search, an additional key may be needed (OpenAI's `text-embedding-3-small` is recommended). The init wizard handles this configuration.
+For embedding-based semantic search, an additional key may be needed (OpenAI's `text-embedding-3-small` is recommended). The `init` wizard handles this configuration.
 
-### protoc (optional)
+## Path A: Install the Binary
 
-Only needed if you modify the `.proto` files in `proto/openparallax/v1/`. Install `protoc` along with the Go plugins:
+This is the fastest path. The install script detects your OS and architecture, downloads the prebuilt binary, and drops it on your PATH. No Go, no Node.js, no toolchain needed on your machine.
+
+### Linux / macOS
 
 ```bash
-# Install protoc plugins
+curl -sSL https://get.openparallax.dev | sh
+openparallax init
+openparallax start
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://get.openparallax.dev/install.ps1 | iex
+openparallax init
+openparallax start
+```
+
+### What the script does
+
+1. Detects your OS (`linux`, `darwin`, `windows`) and architecture (`amd64`, `arm64`)
+2. Downloads the matching `openparallax-<version>-<os>-<arch>` archive from the [latest GitHub release](https://github.com/openparallax/openparallax/releases/latest)
+3. Verifies the archive against its SHA-256 checksum from the release manifest
+4. Extracts to `/usr/local/bin/openparallax` (Linux/macOS) or `%LOCALAPPDATA%\openparallax\` (Windows) and ensures it is on your PATH
+5. Prints the installed version and a one-line "next step" pointing at `openparallax init`
+
+### Verify the install
+
+```bash
+openparallax --version
+openparallax doctor
+```
+
+`doctor` runs a 13-point health check that confirms the binary, sandbox capabilities, default policy, and (after `init`) your workspace and provider connectivity.
+
+### Upgrading
+
+Re-run the same install command. The script downloads the latest release and replaces the binary in place. Your workspace at `~/.openparallax/<agent-name>/` is untouched — sessions, memory, and configuration carry over across upgrades.
+
+### Package managers (planned)
+
+Native package manager installs are planned for a future release:
+
+- **macOS (Homebrew)**: `brew install openparallax/tap/openparallax`
+- **Windows (Scoop)**: `scoop bucket add openparallax https://github.com/openparallax/scoop-bucket && scoop install openparallax`
+- **Windows (winget)**: `winget install OpenParallax.OpenParallax`
+
+Until these ship, the curl/PowerShell one-liners above are the supported install path.
+
+## Path B: Build from Source
+
+Use this path if you are contributing to OpenParallax, tracking `main`, or want to run the test suite. You need a Go toolchain and Node.js on your machine.
+
+### Prerequisites
+
+#### Go 1.25+
+
+OpenParallax requires Go 1.25 or later:
+
+```bash
+go version
+```
+
+If you need to install or upgrade Go, follow the [official instructions](https://go.dev/doc/install).
+
+#### Node.js 20+ (build-time only)
+
+The web UI is built with Vite during compilation. Node.js is only needed at build time — the compiled assets are embedded into the Go binary via `go:embed`.
+
+```bash
+node --version   # v20.x or later
+npm --version
+```
+
+#### protoc (optional)
+
+Only needed if you modify the `.proto` files in `proto/openparallax/v1/`:
+
+```bash
 go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
-# Regenerate
 make proto
 ```
 
-## Build from Source
+### Clone and build
 
 ```bash
 # Clone the repository
@@ -81,13 +140,21 @@ The resulting binary at `dist/openparallax` is fully self-contained: the web UI,
 ./dist/openparallax --version
 ```
 
-### Run tests (optional but recommended)
+### Run tests (recommended)
 
 ```bash
 make test           # Go tests with race detection
 make lint           # golangci-lint
 cd web && npm test  # Frontend tests (Vitest)
 ```
+
+### Run the eval suite (recommended for security-sensitive use)
+
+```bash
+go build -o dist/openparallax-eval ./cmd/eval
+```
+
+See [Test Your Own Security](/eval/) for the full reproduction recipe.
 
 ## Platform Notes
 
