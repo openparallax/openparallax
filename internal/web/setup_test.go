@@ -72,7 +72,7 @@ func TestSetupCompleteCreatesWorkspace(t *testing.T) {
 	require.NoError(t, err)
 	content := string(data)
 	assert.Contains(t, content, "name: TestBot")
-	assert.Contains(t, content, `avatar: 🤖`)
+	assert.Contains(t, content, `\U0001F916`)
 	assert.Contains(t, content, "provider: anthropic")
 }
 
