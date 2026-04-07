@@ -93,10 +93,13 @@ func NewParallaxEngine(workspacePath, configPath, modelOverride, baseURLOverride
 	}
 
 	pipeline, pipeErr := shield.NewPipeline(shield.Config{
-		PolicyFile:       policyFile,
-		OnnxThreshold:    cfg.Shield.OnnxThreshold,
-		HeuristicEnabled: cfg.Shield.HeuristicEnabled,
-		ClassifierAddr:   cfg.Shield.ClassifierAddr,
+		PolicyFile:          policyFile,
+		OnnxThreshold:       cfg.Shield.OnnxThreshold,
+		HeuristicEnabled:    cfg.Shield.HeuristicEnabled,
+		ClassifierEnabled:   cfg.Shield.ClassifierEnabled,
+		ClassifierMode:      cfg.Shield.ClassifierMode,
+		ClassifierAddr:      cfg.Shield.ClassifierAddr,
+		ClassifierSkipTypes: cfg.Shield.ClassifierSkipTypes,
 		Evaluator: &shield.EvaluatorConfig{
 			Provider:  cfg.Shield.Evaluator.Provider,
 			Model:     cfg.Shield.Evaluator.Model,
@@ -152,10 +155,13 @@ func buildShieldPipeline(workspacePath, configPath string) (*shield.Pipeline, er
 	}
 
 	return shield.NewPipeline(shield.Config{
-		PolicyFile:       policyFile,
-		OnnxThreshold:    cfg.Shield.OnnxThreshold,
-		HeuristicEnabled: cfg.Shield.HeuristicEnabled,
-		ClassifierAddr:   cfg.Shield.ClassifierAddr,
+		PolicyFile:          policyFile,
+		OnnxThreshold:       cfg.Shield.OnnxThreshold,
+		HeuristicEnabled:    cfg.Shield.HeuristicEnabled,
+		ClassifierEnabled:   cfg.Shield.ClassifierEnabled,
+		ClassifierMode:      cfg.Shield.ClassifierMode,
+		ClassifierAddr:      cfg.Shield.ClassifierAddr,
+		ClassifierSkipTypes: cfg.Shield.ClassifierSkipTypes,
 		Evaluator: &shield.EvaluatorConfig{
 			Provider:  cfg.Shield.Evaluator.Provider,
 			Model:     cfg.Shield.Evaluator.Model,

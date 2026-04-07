@@ -9,18 +9,21 @@ import (
 
 // Config holds pipeline configuration.
 type Config struct {
-	PolicyFile       string
-	OnnxThreshold    float64
-	HeuristicEnabled bool
-	ClassifierAddr   string
-	Evaluator        *EvaluatorConfig
-	CanaryToken      string
-	PromptPath       string
-	FailClosed       bool
-	RateLimit        int
-	VerdictTTL       int
-	DailyBudget      int
-	Log              Logger
+	PolicyFile          string
+	OnnxThreshold       float64
+	HeuristicEnabled    bool
+	ClassifierEnabled   bool
+	ClassifierMode      string // "" (heuristic-only), "local", or "sidecar"
+	ClassifierAddr      string
+	ClassifierSkipTypes []string // action types where ONNX is bypassed
+	Evaluator           *EvaluatorConfig
+	CanaryToken         string
+	PromptPath          string
+	FailClosed          bool
+	RateLimit           int
+	VerdictTTL          int
+	DailyBudget         int
+	Log                 Logger
 }
 
 // Pipeline is the evaluation pipeline. Created once, used for all evaluations.
@@ -36,32 +39,46 @@ func NewPipeline(cfg Config) (*Pipeline, error) {
 		return nil, fmt.Errorf("policy engine init failed: %w", err)
 	}
 
-	// Try local ONNX classifier first (in-process, fastest).
-	// Fall back to HTTP sidecar if configured. Otherwise heuristic-only.
+	// The ONNX classifier is opt-in. By default Shield runs heuristic-only at
+	// Tier 1, which is a valid and proven operating mode (run-010 attack data).
+	// To enable ONNX, set shield.classifier_enabled and shield.classifier_mode
+	// in workspace config (after running `openparallax get-classifier`).
 	var onnxClient OnnxClient
 	threshold := cfg.OnnxThreshold
 	if threshold == 0 {
 		threshold = 0.85
 	}
-	localClient := NewLocalOnnxClient(threshold)
-	switch {
-	case localClient.IsAvailable():
-		onnxClient = localClient
-		if cfg.Log != nil {
-			cfg.Log.Info("onnx_classifier_loaded", "source", "local", "threshold", threshold)
-		}
-	case cfg.ClassifierAddr != "":
-		onnxClient = NewHTTPOnnxClient(cfg.ClassifierAddr)
-		if cfg.Log != nil {
-			cfg.Log.Info("onnx_classifier_loaded", "source", "http", "addr", cfg.ClassifierAddr)
-		}
-	default:
-		if cfg.Log != nil {
-			cfg.Log.Warn("onnx_classifier_unavailable",
-				"message", "Shield running in heuristic-only mode. Run 'openparallax get-classifier' for enhanced protection.")
+	if cfg.ClassifierEnabled {
+		switch cfg.ClassifierMode {
+		case "sidecar":
+			if cfg.ClassifierAddr == "" {
+				return nil, fmt.Errorf("shield.classifier_mode=sidecar requires shield.classifier_addr")
+			}
+			onnxClient = NewHTTPOnnxClient(cfg.ClassifierAddr)
+			if cfg.Log != nil {
+				cfg.Log.Info("onnx_classifier_loaded", "source", "sidecar", "addr", cfg.ClassifierAddr)
+			}
+		case "local":
+			localClient := NewLocalOnnxClient(threshold)
+			if localClient.IsAvailable() {
+				onnxClient = localClient
+				if cfg.Log != nil {
+					cfg.Log.Info("onnx_classifier_loaded", "source", "local", "threshold", threshold)
+				}
+			} else if cfg.Log != nil {
+				cfg.Log.Warn("onnx_local_unavailable",
+					"message", "shield.classifier_mode=local requested but no local model available; running heuristic-only")
+			}
+		default:
+			if cfg.Log != nil {
+				cfg.Log.Warn("onnx_unknown_mode",
+					"mode", cfg.ClassifierMode,
+					"message", "shield.classifier_mode must be \"local\" or \"sidecar\"; running heuristic-only")
+			}
 		}
 	}
 	dualClassifier := NewDualClassifier(onnxClient, threshold, cfg.HeuristicEnabled)
+	dualClassifier.SetSkipTypes(cfg.ClassifierSkipTypes)
 
 	var evaluator *Evaluator
 	if cfg.Evaluator != nil && cfg.Evaluator.Provider != "" {

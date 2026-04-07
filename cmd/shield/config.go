@@ -22,6 +22,12 @@ type ShieldConfig struct {
 	// Classifier configures Tier 1.
 	Classifier struct {
 		Threshold float64 `yaml:"threshold"`
+		// Enabled opts in to the ONNX classifier (default false, heuristic-only).
+		Enabled bool `yaml:"enabled"`
+		// Mode is "local" or "sidecar" when Enabled is true.
+		Mode string `yaml:"mode"`
+		// Addr is the sidecar address when Mode is "sidecar".
+		Addr string `yaml:"addr"`
 	} `yaml:"classifier"`
 
 	// Heuristic configures heuristic pattern matching.
@@ -94,13 +100,16 @@ func loadShieldConfig(path string) (*ShieldConfig, error) {
 
 func (c *ShieldConfig) toPipelineConfig() shield.Config {
 	return shield.Config{
-		PolicyFile:       c.Policy.File,
-		OnnxThreshold:    c.Classifier.Threshold,
-		HeuristicEnabled: c.Heuristic.Enabled,
-		Evaluator:        c.Evaluator,
-		FailClosed:       c.FailClosed,
-		RateLimit:        c.RateLimit,
-		VerdictTTL:       c.VerdictTTL,
-		DailyBudget:      c.DailyBudget,
+		PolicyFile:        c.Policy.File,
+		OnnxThreshold:     c.Classifier.Threshold,
+		HeuristicEnabled:  c.Heuristic.Enabled,
+		ClassifierEnabled: c.Classifier.Enabled,
+		ClassifierMode:    c.Classifier.Mode,
+		ClassifierAddr:    c.Classifier.Addr,
+		Evaluator:         c.Evaluator,
+		FailClosed:        c.FailClosed,
+		RateLimit:         c.RateLimit,
+		VerdictTTL:        c.VerdictTTL,
+		DailyBudget:       c.DailyBudget,
 	}
 }

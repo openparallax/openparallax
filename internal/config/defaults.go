@@ -10,6 +10,20 @@ func applyDefaults(v *viper.Viper) {
 	v.SetDefault("shield.policy_file", "policies/default.yaml")
 	v.SetDefault("shield.onnx_threshold", 0.85)
 	v.SetDefault("shield.heuristic_enabled", true)
+	v.SetDefault("shield.classifier_enabled", true)
+	v.SetDefault("shield.classifier_mode", "local")
+	// Action types where ONNX has been observed to over-fire on benign payloads.
+	// Heuristics still run on these types — only the ML classifier is skipped.
+	// Override in workspace config to change.
+	v.SetDefault("shield.classifier_skip_types", []string{
+		"write_file",
+		"delete_file",
+		"move_file",
+		"copy_file",
+		"send_email",
+		"send_message",
+		"http_request",
+	})
 
 	v.SetDefault("chronicle.max_snapshots", 100)
 	v.SetDefault("chronicle.max_age_days", 30)

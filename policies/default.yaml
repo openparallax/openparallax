@@ -131,7 +131,7 @@ verify:
       - send_message
       - send_email
       - http_request
-    tier_override: 1
+    tier_override: 2
 
   - name: evaluate_soul_modification
     action_types:
@@ -170,7 +170,7 @@ verify:
   - name: evaluate_file_writes
     action_types:
       - write_file
-    tier_override: 1
+    tier_override: 2
 
   - name: evaluate_destructive_file_ops
     action_types:
@@ -178,7 +178,7 @@ verify:
       - delete_directory
       - move_file
       - move_directory
-    tier_override: 1
+    tier_override: 2
 
   - name: evaluate_git_push
     action_types:

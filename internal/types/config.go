@@ -215,8 +215,24 @@ type ShieldConfig struct {
 	// HeuristicEnabled enables the heuristic regex classifier.
 	HeuristicEnabled bool `yaml:"heuristic_enabled" json:"heuristic_enabled"`
 
+	// ClassifierEnabled enables the ONNX injection classifier. Default is true.
+	// Set to false to run Tier 1 in heuristic-only mode (lower attack
+	// detection on encoding/obfuscation/multi-agent categories).
+	ClassifierEnabled bool `yaml:"classifier_enabled" json:"classifier_enabled"`
+
+	// ClassifierMode selects how the ONNX classifier runs when enabled:
+	// "local" loads the model in-process via the optional get-classifier
+	// download; "sidecar" connects to a CGo classifier subprocess via
+	// ClassifierAddr. Ignored when ClassifierEnabled is false.
+	ClassifierMode string `yaml:"classifier_mode,omitempty" json:"classifier_mode,omitempty"`
+
 	// ClassifierAddr is the address of the ONNX classifier sidecar (e.g., "localhost:8090").
 	ClassifierAddr string `yaml:"classifier_addr,omitempty" json:"classifier_addr,omitempty"`
+
+	// ClassifierSkipTypes lists action types where ONNX classification is
+	// skipped because the model over-fires on benign payloads. Heuristics
+	// and policy rules still run for these types.
+	ClassifierSkipTypes []string `yaml:"classifier_skip_types,omitempty" json:"classifier_skip_types,omitempty"`
 
 	// Tier3 configures human-in-the-loop approval for uncertain verdicts.
 	Tier3 Tier3Config `yaml:"tier3,omitempty" json:"tier3,omitempty"`

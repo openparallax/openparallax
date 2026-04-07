@@ -24,6 +24,7 @@ type DualClassifier struct {
 	onnxThreshold    float64
 	heuristicEnabled bool
 	rules            *HeuristicEngine
+	skipONNX         map[ActionType]bool
 }
 
 // NewDualClassifier creates a DualClassifier. Pass nil for onnx if the
@@ -34,6 +35,17 @@ func NewDualClassifier(onnx OnnxClient, threshold float64, heuristicEnabled bool
 		onnxThreshold:    threshold,
 		heuristicEnabled: heuristicEnabled,
 		rules:            NewHeuristicEngine(),
+		skipONNX:         map[ActionType]bool{},
+	}
+}
+
+// SetSkipTypes configures action types where the ONNX classifier is bypassed
+// because the model has been observed to over-fire on benign payloads.
+// Heuristics still run for these types. Replaces any prior skip set.
+func (d *DualClassifier) SetSkipTypes(types []string) {
+	d.skipONNX = make(map[ActionType]bool, len(types))
+	for _, t := range types {
+		d.skipONNX[ActionType(t)] = true
 	}
 }
 
@@ -54,7 +66,7 @@ func (d *DualClassifier) Classify(ctx context.Context, action *ActionRequest) (*
 	var onnxResult, heuristicResult *ClassifierResult
 	var wg sync.WaitGroup
 
-	if d.onnx != nil && d.onnx.IsAvailable() {
+	if d.onnx != nil && d.onnx.IsAvailable() && !d.skipONNX[action.Type] {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

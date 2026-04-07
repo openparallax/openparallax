@@ -101,6 +101,23 @@ func runDoctor(_ *cobra.Command, args []string) error {
 		passed++
 	}
 
+	// Tier 1 classifier mode
+	if cfg.Shield.ClassifierEnabled {
+		mode := cfg.Shield.ClassifierMode
+		if mode == "" {
+			mode = "local"
+		}
+		skipNote := ""
+		if n := len(cfg.Shield.ClassifierSkipTypes); n > 0 {
+			skipNote = fmt.Sprintf(", %d action type(s) bypassed", n)
+		}
+		printCheck(true, "Tier 1", fmt.Sprintf("classifier enabled (%s mode%s)", mode, skipNote))
+		passed++
+	} else {
+		printCheck(true, "Tier 1", "heuristic-only (set shield.classifier_enabled to enable ONNX detection)")
+		passed++
+	}
+
 	// Embedding
 	if cfg.Memory.Embedding.Provider != "" {
 		printCheck(true, "Embedding", fmt.Sprintf("%s / %s", cfg.Memory.Embedding.Provider, cfg.Memory.Embedding.Model))

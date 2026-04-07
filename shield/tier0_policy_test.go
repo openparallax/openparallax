@@ -107,7 +107,7 @@ func TestBlockTmpWrite(t *testing.T) {
 	assert.Equal(t, Deny, result.Decision, "write_file to /tmp should be denied")
 }
 
-func TestWriteFileEscalatesToTier1(t *testing.T) {
+func TestWriteFileEscalatesToTier2(t *testing.T) {
 	pe, err := NewPolicyEngine(namedPolicyPath(t, "default.yaml"))
 	require.NoError(t, err)
 
@@ -116,7 +116,7 @@ func TestWriteFileEscalatesToTier1(t *testing.T) {
 		Payload: map[string]any{"path": "src/main.go", "content": "package main"},
 	})
 	assert.Equal(t, Escalate, result.Decision, "write_file to workspace should escalate")
-	assert.Equal(t, 1, result.EscalateTo, "write_file should escalate to Tier 1")
+	assert.Equal(t, 2, result.EscalateTo, "write_file should escalate to Tier 2 (LLM evaluator)")
 }
 
 func TestGlobMatchSSHWildcard(t *testing.T) {

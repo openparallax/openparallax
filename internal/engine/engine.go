@@ -183,18 +183,21 @@ func New(configPath string, verbose bool) (*Engine, error) {
 	}
 
 	shieldPipeline, err := shield.NewPipeline(shield.Config{
-		PolicyFile:       policyFile,
-		OnnxThreshold:    cfg.Shield.OnnxThreshold,
-		HeuristicEnabled: cfg.Shield.HeuristicEnabled,
-		ClassifierAddr:   cfg.Shield.ClassifierAddr,
-		Evaluator:        &cfg.Shield.Evaluator,
-		CanaryToken:      canaryToken,
-		PromptPath:       promptPath,
-		FailClosed:       cfg.General.FailClosed,
-		RateLimit:        cfg.General.RateLimit,
-		VerdictTTL:       cfg.General.VerdictTTLSeconds,
-		DailyBudget:      cfg.General.DailyBudget,
-		Log:              nil, // Shield uses its own logging internally
+		PolicyFile:          policyFile,
+		OnnxThreshold:       cfg.Shield.OnnxThreshold,
+		HeuristicEnabled:    cfg.Shield.HeuristicEnabled,
+		ClassifierEnabled:   cfg.Shield.ClassifierEnabled,
+		ClassifierMode:      cfg.Shield.ClassifierMode,
+		ClassifierAddr:      cfg.Shield.ClassifierAddr,
+		ClassifierSkipTypes: cfg.Shield.ClassifierSkipTypes,
+		Evaluator:           &cfg.Shield.Evaluator,
+		CanaryToken:         canaryToken,
+		PromptPath:          promptPath,
+		FailClosed:          cfg.General.FailClosed,
+		RateLimit:           cfg.General.RateLimit,
+		VerdictTTL:          cfg.General.VerdictTTLSeconds,
+		DailyBudget:         cfg.General.DailyBudget,
+		Log:                 nil, // Shield uses its own logging internally
 	})
 	if err != nil {
 		return nil, fmt.Errorf("shield init: %w", err)

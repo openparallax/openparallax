@@ -27,10 +27,19 @@ var getClassifierCmd = &cobra.Command{
 	Use:   "get-classifier",
 	Short: "Download the Shield prompt-injection classifier",
 	Long: `Downloads the DeBERTa ONNX model and ONNX Runtime library for in-process
-Shield classification. This enables Tier 1 ML-based injection detection
-alongside the heuristic rules.
+Shield classification. The classifier catches encoding/obfuscation,
+toolchain, and multi-agent attack categories that the heuristic engine
+alone cannot reliably detect.
 
-Without the classifier, Shield runs in heuristic-only mode.`,
+By default, the classifier is enabled in shield.classifier_enabled and
+runs in "local" mode (loads the model in-process). It is bypassed for
+action types listed in shield.classifier_skip_types where the model has
+been observed to over-fire on benign payloads (write_file, delete_file,
+move_file, copy_file, send_email, send_message, http_request).
+
+Future work: a CGo-based openparallax-classifier sidecar binary (separate
+repo) will offer significantly faster inference. When available, set
+shield.classifier_mode: sidecar in workspace config.yaml.`,
 	SilenceUsage: true,
 	RunE:         runGetClassifier,
 }

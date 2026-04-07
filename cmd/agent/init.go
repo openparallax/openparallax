@@ -685,9 +685,6 @@ func runInit(_ *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: could not register agent: %s\n", addErr)
 	}
 
-	// ─── Optional: Classifier ──────────────────────────────
-	initClassifier()
-
 	// ─── Optional: Vector Extension ─────────────────────────
 	initVectorExt()
 
@@ -725,46 +722,6 @@ func runInit(_ *cobra.Command, args []string) error {
 }
 
 // ─── Optional Init Steps ────────────────────────────────────
-
-// initClassifier checks if the Shield classifier is already installed and
-// offers to download it if missing.
-func initClassifier() {
-	opHome, err := openparallaxHome()
-	if err != nil {
-		return
-	}
-
-	modelPath := filepath.Join(opHome, "models", "prompt-injection", "model.onnx")
-	if _, statErr := os.Stat(modelPath); statErr == nil {
-		fmt.Println("\n  ✓ Shield classifier already installed")
-		return
-	}
-
-	fmt.Println()
-	var classifierChoice string
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Download Shield classifier for local safety evaluation?").
-				Options(
-					huh.NewOption("Base (~700MB, 98.8% accuracy)", "base"),
-					huh.NewOption("Small (~250MB, faster inference)", "small"),
-					huh.NewOption("Skip", "skip"),
-				).
-				Value(&classifierChoice),
-		),
-	)
-	if formErr := form.Run(); formErr != nil || classifierChoice == "skip" {
-		return
-	}
-
-	classifierVariant = classifierChoice
-	classifierForce = false
-	if dlErr := runGetClassifier(nil, nil); dlErr != nil {
-		fmt.Printf("  ✗ Classifier download failed: %s\n", dlErr)
-		fmt.Printf("    Run later: openparallax get-classifier --variant %s\n", classifierChoice)
-	}
-}
 
 // initVectorExt checks if the sqlite-vec extension is already installed and
 // offers to download it if missing. This enables native in-database vector
