@@ -408,10 +408,14 @@ A typo in the model name causes connection test failures. Common mistakes:
 If using a custom `base_url` for OpenAI-compatible APIs (LM Studio, Together AI, Groq, vLLM):
 
 ```yaml
-llm:
-  provider: openai
-  model: your-model
-  base_url: "http://localhost:1234/v1"
+models:
+  - name: chat
+    provider: openai
+    model: your-model
+    api_key_env: OPENAI_API_KEY
+    base_url: "http://localhost:1234/v1"
+roles:
+  chat: chat
 ```
 
 Verify the service is running and reachable:
@@ -723,8 +727,13 @@ Look at `duration_ms` fields to identify which stage is slow.
 Larger models are slower. For faster responses:
 
 ```yaml
-llm:
-  model: claude-haiku-4-5-20251001  # faster than sonnet
+models:
+  - name: chat
+    provider: anthropic
+    model: claude-haiku-4-5-20251001  # faster than sonnet
+    api_key_env: ANTHROPIC_API_KEY
+roles:
+  chat: chat
 ```
 
 **Step 3: Check Shield evaluation overhead**

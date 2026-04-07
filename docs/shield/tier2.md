@@ -179,17 +179,19 @@ The evaluator LLM can (and should) be a different provider and model from the ch
 
 ```yaml
 # In config.yaml (OpenParallax)
-shield:
-  evaluator:
+models:
+  - name: chat
+    provider: openai
+    model: gpt-5.4
+    api_key_env: OPENAI_API_KEY
+  - name: shield
     provider: anthropic
     model: claude-sonnet-4-6
     api_key_env: ANTHROPIC_API_KEY
 
-# The chat LLM can be a different provider
-llm:
-  provider: openai
-  model: gpt-5.4
-  api_key_env: OPENAI_API_KEY
+roles:
+  chat: chat
+  shield: shield
 ```
 
 ```yaml

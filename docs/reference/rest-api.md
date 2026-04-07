@@ -125,7 +125,7 @@ Returns the current configuration (secrets masked).
 ```json
 {
   "agent": { "name": "Atlas", "avatar": "" },
-  "llm": { "provider": "anthropic", "model": "claude-sonnet-4-6", "api_key_configured": true, "base_url": "" },
+  "chat": { "provider": "anthropic", "model": "claude-sonnet-4-6", "api_key_configured": true, "base_url": "" },
   "shield": { "policy": "default", "evaluator": { "provider": "...", "model": "..." }, "tier2_budget": 100, "tier2_used_today": 5 },
   "memory": { "embedding": { "provider": "openai", "model": "text-embedding-3-small", "api_key_configured": true, "base_url": "" } },
   "mcp": { "servers": [...] },
@@ -145,7 +145,7 @@ Updates configuration fields. Changes are written to `config.yaml` on disk.
 ```json
 {
   "agent": { "name": "NewName" },
-  "llm": { "provider": "openai", "model": "gpt-5.4" }
+  "chat": { "provider": "openai", "model": "gpt-5.4" }
 }
 ```
 
@@ -155,13 +155,13 @@ Updates configuration fields. Changes are written to `config.yaml` on disk.
 {
   "success": true,
   "restart_required": true,
-  "changed": ["llm.provider", "llm.model"],
+  "changed": ["chat.provider", "chat.model"],
   "immediate": [],
-  "needs_restart": ["llm.provider", "llm.model"]
+  "needs_restart": ["chat.provider", "chat.model"]
 }
 ```
 
-Identity changes (`agent.name`, `agent.avatar`) take effect immediately. LLM, Shield evaluator, and memory embedding changes require a restart.
+Identity changes (`agent.name`, `agent.avatar`) take effect immediately. Chat, Shield evaluator, and memory embedding changes require a restart.
 
 Read-only fields (`web.port`, `shield.tier2_budget`) return `400 Bad Request` if included.
 

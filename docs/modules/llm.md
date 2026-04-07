@@ -28,39 +28,40 @@ The `llm` package eliminates this by normalizing:
 
 ### Provider Selection
 
-The provider is selected by the `provider` field in `config.yaml`:
+Each provider is declared as an entry in the `models` pool in
+`config.yaml` and selected by name through the `roles` mapping:
 
 ```yaml
-# Anthropic Claude
-llm:
-  provider: anthropic
-  model: claude-sonnet-4-6
-  api_key_env: ANTHROPIC_API_KEY
-```
+models:
+  # Anthropic Claude
+  - name: chat
+    provider: anthropic
+    model: claude-sonnet-4-6
+    api_key_env: ANTHROPIC_API_KEY
 
-```yaml
-# OpenAI (or any OpenAI-compatible endpoint)
-llm:
-  provider: openai
-  model: gpt-5.4
-  api_key_env: OPENAI_API_KEY
-  base_url: ""   # Leave empty for OpenAI, set for Azure/DeepSeek/etc.
-```
+  # OpenAI (or any OpenAI-compatible endpoint)
+  - name: shield
+    provider: openai
+    model: gpt-5.4-mini
+    api_key_env: OPENAI_API_KEY
+    base_url: ""   # Leave empty for OpenAI, set for Azure/DeepSeek/etc.
 
-```yaml
-# Google Gemini
-llm:
-  provider: google
-  model: gemini-3.1-pro
-  api_key_env: GOOGLE_AI_API_KEY
-```
+  # Google Gemini
+  - name: embedding
+    provider: google
+    model: text-embedding-004
+    api_key_env: GOOGLE_AI_API_KEY
 
-```yaml
-# Local Ollama
-llm:
-  provider: ollama
-  model: llama3.1:70b
-  base_url: http://localhost:11434   # Optional, this is the default
+  # Local Ollama
+  - name: local
+    provider: ollama
+    model: llama3.1:70b
+    base_url: http://localhost:11434   # Optional, this is the default
+
+roles:
+  chat: chat
+  shield: shield
+  embedding: embedding
 ```
 
 ## Provider Interface

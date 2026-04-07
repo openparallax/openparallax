@@ -40,24 +40,46 @@ The name is substituted into workspace template files (SOUL.md, IDENTITY.md, etc
 
 ---
 
-### llm
+### models and roles
 
-Primary LLM provider configuration for conversations and tool use.
+Every LLM the agent can use is declared once in the `models` pool, and
+each functional role (`chat`, `shield`, `embedding`, `sub_agent`) maps
+to a model name from that pool. The legacy `llm:` top-level key is no
+longer accepted — any config containing it will fail to load.
 
 ```yaml
-llm:
-  provider: anthropic                # anthropic, openai, google, ollama
-  model: claude-sonnet-4-6    # Model identifier
-  api_key_env: ANTHROPIC_API_KEY     # Environment variable containing the API key
-  base_url: ""                       # Custom API endpoint (for OpenAI-compatible APIs)
+models:
+  - name: chat
+    provider: anthropic
+    model: claude-sonnet-4-6
+    api_key_env: ANTHROPIC_API_KEY
+  - name: shield
+    provider: openai
+    model: gpt-5.4-mini
+    api_key_env: OPENAI_API_KEY
+  - name: embedding
+    provider: openai
+    model: text-embedding-3-small
+    api_key_env: OPENAI_API_KEY
+
+roles:
+  chat: chat
+  shield: shield
+  embedding: embedding
+  sub_agent: chat
 ```
 
 | Field | Description | Required |
 |-------|-------------|----------|
-| `provider` | LLM provider identifier | Yes |
-| `model` | Model name as recognized by the provider | Yes |
-| `api_key_env` | Name of the environment variable holding the API key | Yes (except Ollama) |
-| `base_url` | Custom API base URL. Use this for OpenAI-compatible providers like LM Studio, Together AI, Groq, or vLLM. Leave empty for the official API endpoint. | No |
+| `models[].name` | Unique identifier for this model in the pool | Yes |
+| `models[].provider` | LLM provider identifier | Yes |
+| `models[].model` | Model name as recognized by the provider | Yes |
+| `models[].api_key_env` | Environment variable holding the API key | Yes (except Ollama) |
+| `models[].base_url` | Custom API base URL for OpenAI-compatible providers | No |
+| `roles.chat` | Model name to use for the main conversation | Yes |
+| `roles.shield` | Model name to use for Tier 2 Shield evaluation | No (defaults to chat) |
+| `roles.embedding` | Model name to use for vector embeddings | No |
+| `roles.sub_agent` | Model name to use for sub-agent tasks | No (defaults to chat) |
 
 **Supported providers and default models:**
 
@@ -414,16 +436,21 @@ workspace: /home/user/.openparallax/atlas
 identity:
   name: Atlas
 
-llm:
-  provider: anthropic
-  model: claude-sonnet-4-6
-  api_key_env: ANTHROPIC_API_KEY
-
-shield:
-  evaluator:
+models:
+  - name: chat
+    provider: anthropic
+    model: claude-sonnet-4-6
+    api_key_env: ANTHROPIC_API_KEY
+  - name: shield
     provider: anthropic
     model: claude-haiku-4-5-20251001
     api_key_env: ANTHROPIC_API_KEY
+
+roles:
+  chat: chat
+  shield: shield
+
+shield:
   policy_file: policies/default.yaml
 
 web:
@@ -440,16 +467,19 @@ identity:
   name: Atlas
   avatar: "⬡"
 
-llm:
-  provider: anthropic
-  model: claude-sonnet-4-6
-  api_key_env: ANTHROPIC_API_KEY
-
-shield:
-  evaluator:
+models:
+  - name: chat
+    provider: anthropic
+    model: claude-sonnet-4-6
+    api_key_env: ANTHROPIC_API_KEY
+  - name: shield
     provider: openai
     model: gpt-5.4-mini
     api_key_env: OPENAI_API_KEY
+
+roles:
+  chat: chat
+  shield: shield
   policy_file: policies/default.yaml
   heuristic_enabled: true
 

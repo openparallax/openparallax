@@ -15,8 +15,11 @@ These use standard names so you don't need to duplicate credentials already in y
 These variables are referenced by `config.yaml` through the `api_key_env` field. You can use any variable name — the config just says "read the key from this env var":
 
 ```yaml
-llm:
-  api_key_env: MY_CUSTOM_KEY_VAR  # reads $MY_CUSTOM_KEY_VAR at runtime
+models:
+  - name: chat
+    provider: anthropic
+    model: claude-sonnet-4-6
+    api_key_env: MY_CUSTOM_KEY_VAR  # reads $MY_CUSTOM_KEY_VAR at runtime
 ```
 
 ## OpenParallax Variables (`OP_*`)

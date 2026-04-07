@@ -145,18 +145,19 @@ Configuration values are resolved in this order (highest priority first):
 It is recommended to use different LLM providers or models for the chat conversation and the Shield Tier 2 evaluator. This provides **security diversity** -- if an attack is crafted to exploit a specific model's weaknesses, a different model in the evaluator may catch it.
 
 ```yaml
-# Chat uses Claude
-llm:
-  provider: anthropic
-  model: claude-sonnet-4-6
-  api_key_env: ANTHROPIC_API_KEY
-
-# Shield evaluator uses GPT-4o (different provider, different model)
-shield:
-  evaluator:
+models:
+  - name: chat
+    provider: anthropic
+    model: claude-sonnet-4-6
+    api_key_env: ANTHROPIC_API_KEY
+  - name: shield
     provider: openai
     model: gpt-5.4
     api_key_env: OPENAI_API_KEY
+
+roles:
+  chat: chat
+  shield: shield
 ```
 
 Both providers must have valid API keys set. The Shield evaluator only runs for actions that escalate to Tier 2, so the cost is proportional to the number of escalations, not the number of total actions.
@@ -164,16 +165,19 @@ Both providers must have valid API keys set. The Shield evaluator only runs for 
 You can also use the same provider with a different model:
 
 ```yaml
-llm:
-  provider: anthropic
-  model: claude-sonnet-4-6
-  api_key_env: ANTHROPIC_API_KEY
-
-shield:
-  evaluator:
+models:
+  - name: chat
+    provider: anthropic
+    model: claude-sonnet-4-6
+    api_key_env: ANTHROPIC_API_KEY
+  - name: shield
     provider: anthropic
     model: claude-opus-4-20250514  # More capable model for security decisions
     api_key_env: ANTHROPIC_API_KEY
+
+roles:
+  chat: chat
+  shield: shield
 ```
 
 ## Classifier Setup
