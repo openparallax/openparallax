@@ -6,6 +6,8 @@
 
 Open-source personal AI agent with a 4-tier security pipeline, kernel sandboxing, tamper-evident audit, and composable modules that other agent developers can import independently.
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/openparallax/openparallax.svg)](https://pkg.go.dev/github.com/openparallax/openparallax)
+[![Go Report Card](https://goreportcard.com/badge/github.com/openparallax/openparallax)](https://goreportcard.com/report/github.com/openparallax/openparallax)
 [![Go 1.25+](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square)](LICENSE)
 [![Zero CGo](https://img.shields.io/badge/CGo-disabled-success?style=flat-square)](https://pkg.go.dev)
@@ -13,7 +15,7 @@ Open-source personal AI agent with a 4-tier security pipeline, kernel sandboxing
 [![Security](https://img.shields.io/badge/Shield-4--tier%20pipeline-ff3366?style=flat-square)](https://docs.openparallax.dev/shield/)
 [![Single Binary](https://img.shields.io/badge/Deploy-single%20binary-orange?style=flat-square)](https://docs.openparallax.dev/guide/installation)
 
-[Documentation](https://docs.openparallax.dev) &bull; [Quick Start](#quick-start) &bull; [Architecture](#architecture) &bull; [Modules](#composable-modules) &bull; [Contributing](CONTRIBUTING.md)
+[Documentation](https://docs.openparallax.dev) &bull; [Quick Start](#quick-start) &bull; [Architecture](#architecture) &bull; [Modules](#composable-modules) &bull; [Test Your Own Security](#test-your-own-security) &bull; [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -186,6 +188,30 @@ The architecture is designed around one assumption: **the AI agent is fully untr
 - **Read-only config** — security-sensitive settings cannot be changed via API or slash commands
 
 For vulnerability reports, see [SECURITY.md](SECURITY.md).
+
+## Test Your Own Security
+
+The Parallax paradigm is open and reproducible. We don't ask you to trust the architecture — we ship the same 337-case adversarial corpus we use to validate Shield. Run it on your own deployment, your own LLM provider, your own policy. The result is reproducible. The methodology is documented. The data is committed.
+
+```bash
+# Build the eval binary
+go build -o dist/openparallax-eval ./cmd/eval
+
+# Run a single suite (encoding/obfuscation attacks) against your workspace
+./dist/openparallax-eval \
+  --suite eval-results/test-suite/c5_encoding_obfuscation.yaml \
+  --config C \
+  --mode inject \
+  --workspace ~/.openparallax/atlas \
+  --output eval-results/playground/$(date +%Y%m%d-%H%M)-c5.json
+```
+
+**Run-013 baseline** (latest, default config): **277/280 attacks blocked (98.9%)**, **0 false positives on 50 legitimate operations**. The full 337-case corpus, run history, narrative reports, and methodology live under [`eval-results/`](eval-results/README.md):
+
+- 9 attack categories — direct injection, indirect injection, multistep context, toolchain attacks, encoding/obfuscation, multi-agent, validator-targeted, helpfulness bypass, Tier 3 ambiguous
+- 50 false-positive cases — real dev/sysadmin/file/comms/web operations Shield must not block
+- 13 historical runs from the original methodology pivot through the current default
+- 4 narrative reports walking through every architectural decision
 
 ## Development
 
