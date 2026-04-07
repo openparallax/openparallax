@@ -138,7 +138,7 @@ Returns the current configuration (secrets masked).
 
 ### `PUT /api/settings`
 
-Updates configuration fields. Changes are written to `config.yaml` on disk.
+Updates configuration fields. The handler flattens the nested JSON body into dot-paths, dispatches every key through the canonical `SettableKeys` registry, and persists via the same writer used by `/config set` and the CLI init wizard. Atomic across all keys in the body — either every key validates and the file is updated, or nothing changes.
 
 **Request body:** Partial settings object (only include fields to change).
 
@@ -148,6 +148,21 @@ Updates configuration fields. Changes are written to `config.yaml` on disk.
   "chat": { "provider": "openai", "model": "gpt-5.4" }
 }
 ```
+
+**Accepted JSON paths** (mapped to canonical keys):
+
+| JSON path | Canonical key | Restart? |
+|---|---|---|
+| `agent.name` | `identity.name` | Immediate |
+| `agent.avatar` | `identity.avatar` | Immediate |
+| `chat.provider` | `chat.provider` | Restart |
+| `chat.model` | `chat.model` | Restart |
+| `chat.api_key_env` | `chat.api_key_env` | Restart |
+| `chat.base_url` | `chat.base_url` | Restart |
+| `shield.evaluator.provider` | `shield.provider` | Restart |
+| `shield.evaluator.model` | `shield.model` | Restart |
+| `memory.embedding.provider` | `embedding.provider` | Restart |
+| `memory.embedding.model` | `embedding.model` | Restart |
 
 **Response:**
 
@@ -161,9 +176,14 @@ Updates configuration fields. Changes are written to `config.yaml` on disk.
 }
 ```
 
-Identity changes (`agent.name`, `agent.avatar`) take effect immediately. Chat, Shield evaluator, and memory embedding changes require a restart.
+Identity changes take effect immediately on the live engine. Chat, Shield evaluator, and memory embedding changes require a restart.
 
-Read-only fields (`web.port`, `shield.tier2_budget`) return `400 Bad Request` if included.
+**Errors:**
+
+- `400 Bad Request` — unknown or read-only key (e.g. `web.port`, `shield.tier2_budget`, anything from the `general.*` block), value of the wrong type, or a model reference that doesn't resolve in the pool.
+- `500 Internal Server Error` — `config.Save` failed (round-trip validation rejected the result; the on-disk file is left untouched).
+
+Every successful save also creates a backup at `<workspace>/.openparallax/backups/config-<timestamp>.yaml` and rotates the directory to the 10 most recent.
 
 ### `POST /api/settings/test-mcp`
 
@@ -303,7 +323,26 @@ Returns aggregated usage metrics for a time period.
 |-----------|------|---------|-------------|
 | `period` | `string` | today | Period: `weekly`, `monthly`, `yearly`, or omit for today |
 
-**Response:** Metrics summary object with token usage and daily metrics.
+**Response:** Metrics summary object with token usage, daily metrics, and a `performance` block:
+
+```json
+{
+  "performance": {
+    "avg_latency_ms": 1240,
+    "p50_latency_ms": 980,
+    "p95_latency_ms": 2400,
+    "p99_latency_ms": 3800,
+    "shield_t0_p50_ms": 1,
+    "shield_t0_p95_ms": 4,
+    "shield_t1_p50_ms": 22,
+    "shield_t1_p95_ms": 71,
+    "shield_t2_p50_ms": 540,
+    "shield_t2_p95_ms": 1820
+  }
+}
+```
+
+The top-level `*_latency_ms` fields are LLM call durations sourced from `llm_usage.duration_ms`. The `shield_t{0,1,2}_p{50,95}_ms` fields are per-tier Shield evaluation latencies sourced from the `metrics_latency` table; one sample is recorded per Shield evaluation. Zeros mean no samples for that tier in the date range.
 
 ### `GET /api/metrics/session/{id}`
 

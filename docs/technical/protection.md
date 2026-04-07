@@ -69,7 +69,7 @@ These are system-critical files. The agent cannot read or write them. Exposing `
 
 | Directory | Purpose |
 |---|---|
-| `.openparallax/` | Internal system directory (database, logs, sandbox status) |
+| `.openparallax/` | Internal system directory (database, logs, audit chain, sandbox status, **config backups**) |
 | `policies/` | Shield YAML policy files |
 
 All files within these directories are blocked from agent access.

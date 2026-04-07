@@ -183,18 +183,46 @@ Generate videos using AI.
 
 ### agents
 
-Spawn and manage sub-agents for parallel task execution.
+Spawn and manage sub-agents for parallel task execution. Each sub-agent runs as a separate sandboxed process with its own LLM context window. The agent is nudged through its system prompt and the tool descriptions to prefer sub-agent delegation when it has 2+ independent subtasks (research, multi-file scans, parallel processing) — keeping the parent's context lean and running the work concurrently.
 
 | Tool | Description |
 |------|-------------|
 | `create_agent` | Spawn a new sub-agent with a specific task |
 | `agent_status` | Check the status of a running sub-agent |
 | `agent_result` | Retrieve the result from a completed sub-agent |
-| `agent_message` | Send a message to a running sub-agent |
+| `agent_message` | Send an additional instruction to a running sub-agent |
 | `delete_agent` | Terminate and clean up a sub-agent |
 | `list_agents` | List all active sub-agents |
 
-Sub-agents run as separate sandboxed processes with their own LLM context, enabling parallel task execution.
+#### Sub-agent context isolation
+
+A sub-agent starts with a **blank context** — it does NOT inherit the parent's conversation, files-loaded state, or prior reasoning. The `task` parameter must be self-contained: include all background, file paths, and constraints the sub-agent needs to finish without further questions. The `create_agent` tool description in the LLM's tool schema spells this out so the model gets it right by default.
+
+#### Sub-agent tool scoping
+
+When spawning, the parent passes `tool_groups` to constrain which tool groups the sub-agent receives. Omit it for all available groups. Three groups are **always stripped** from sub-agents regardless of what was requested:
+
+- `agents` — sub-agents cannot spawn their own sub-agents (recursion prevention)
+- `memory` — only the parent owns memory writes
+- `schedule` — only the parent owns the heartbeat scheduler
+
+The `load_tools` meta-tool is also unavailable to sub-agents — they receive a frozen tool slice at spawn time and cannot expand their toolset mid-run. The parent's `tool_groups` parameter is the cage.
+
+#### Sub-agent model selection
+
+The `model` parameter on `create_agent` is a **1-based index** into the workspace's `models[]` pool, not a raw provider model string. The `create_agent` tool description rendered for the LLM auto-includes a numbered menu of the available models when the pool has two or more entries:
+
+```
+Available sub-agent models — you are the judge; pick by task fit.
+Entries without a hint, judge from the model name:
+  1. claude-haiku-4-5-20251001 — fast, cheap, scans and lookups
+  2. claude-sonnet-4-6 — balanced reasoning, multi-file context
+  3. gpt-5.4-mini
+```
+
+The `purpose` annotation comes from the optional `models[].purpose` field in `config.yaml`. Entries without a `purpose` are still selectable; the LLM judges from the model name. Out-of-range indices return a graceful error so the LLM can recover on the next round. Omit the `model` parameter to use the engine default (cheapest available, or whatever `roles.sub_agent` points at). The pool snapshot is taken at engine startup, so live config edits cannot drift the index mapping mid-session.
+
+See [Configuration → models and roles](/guide/configuration#models-and-roles) for the `purpose` field reference.
 
 ### system
 

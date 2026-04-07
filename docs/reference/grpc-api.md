@@ -40,7 +40,7 @@ message AgentEvent {
 
 | Event | When Sent | Description |
 |-------|-----------|-------------|
-| `AgentReady` | Once, after connection | Agent has loaded config, applied sandbox, verified canary probes. Ready to process messages. Contains `canary_result` with sandbox verification status. |
+| `AgentReady` | Once, after connection | Agent has loaded config, applied sandbox, verified canary probes. Ready to process messages. Contains `agent_id` and `sandbox_canary_json` (JSON-encoded `sandbox.CanaryResult`). On receipt the engine emits a `SANDBOX_CANARY_RESULT` audit entry — the agent process is sandboxed and physically cannot write to `audit.jsonl` itself, so the result rides on this stream event. |
 | `LLMTokenEmitted` | During LLM streaming | A text token from the LLM. Contains `token` (string) and `message_id`. |
 | `ToolCallProposed` | When LLM wants to use a tool | The Agent proposes a tool call. Contains `call_id`, `tool_name`, `arguments_json`. The Engine evaluates this through Shield before executing. |
 | `ToolDefsRequest` | When Agent needs more tools | The Agent wants to load additional tool groups. Contains `groups` (string array of group names). The Engine responds with `ToolDefsDelivery`. |
@@ -71,7 +71,9 @@ message EngineDirective {
 #### Lifecycle
 
 ```
-Agent connects → sends AgentReady (with canary result)
+Agent connects → sends AgentReady (with sandbox_canary_json)
+                     ↓
+Engine emits SANDBOX_CANARY_RESULT audit entry
                      ↓
 Engine validates canary → if sandbox failed, terminates Agent
                      ↓

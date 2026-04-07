@@ -1031,6 +1031,21 @@ openparallax audit --type ACTION_BLOCKED
 openparallax audit --lines 20
 ```
 
+## Config Backups
+
+Every successful write to `config.yaml` (via `/config set`, `/model`, the web settings panel, or the init/setup wizard) goes through the canonical writer, which copies the previous file to `<workspace>/.openparallax/backups/config-<timestamp>.yaml` before overwriting. The directory rotates to the 10 most recent backups.
+
+```bash
+ls <workspace>/.openparallax/backups/
+# config-20260407-141522.yaml
+# config-20260407-141733.yaml
+# ...
+```
+
+To roll back to a previous config: stop the engine, copy the backup over the current `config.yaml`, restart. The next save will produce a new backup, so you do not lose the rolled-back state on the first edit.
+
+If a save fails (validation rejects the result), the on-disk file is left untouched and no backup is created — the writer rolls back atomically and the API returns the validation error.
+
 ## Getting Help
 
 If you cannot resolve an issue:

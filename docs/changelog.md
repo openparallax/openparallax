@@ -4,6 +4,37 @@ All notable changes to OpenParallax are documented here. This project follows [c
 
 ---
 
+## Unreleased
+
+### Config persistence
+
+- **Schema cut.** The legacy `llm:` top-level key is removed entirely. Workspace configuration uses `models[]` (a pool of provider+model entries) and `roles{}` (mapping of `chat`, `shield`, `embedding`, `sub_agent`, `image`, `video` to model names from the pool). The loader runs in strict YAML mode (`KnownFields(true)`); any leftover `llm:` block now produces a clear parse error rather than being silently ignored.
+- **Single canonical writer.** A new `config.Save` in the config package marshals via `yaml.Marshal`, writes atomically through `<path>.tmp` + rename, re-loads through `Load()` to verify the round-trip succeeds, backs up the previous file to `<workspace>/.openparallax/backups/config-<timestamp>.yaml` (rotation: 10 most recent), and rolls back on any failure. All three previous writers (`init` CLI wizard, web setup wizard, web settings PUT) now go through it. Replaces three independent `strings.Builder` writers that emitted divergent schemas.
+- **`SettableKeys` registry.** A single map enumerates every key writable through `/config set`, `/model`, or `PUT /api/settings`, with each key's setter and `RequiresRestart` flag. Both surfaces dispatch through the same registry so they cannot drift.
+- **Persistent slash commands.** `/config set` and `/model` now persist to `config.yaml` through `config.Save` with two-layer rollback on validation failure. Previously they mutated the in-memory pointer only and silently lost the change on restart.
+- **Doctor round-trip check.** `openparallax doctor` grows a 14th check that Saves the loaded config to a temp file and reloads it, catching any future writer drift on the next `doctor` run instead of on the next restart.
+
+### Audit chain additions
+
+Four new event types now reach `audit.jsonl`. Previously these subsystems wrote to the structured engine log only or not at all.
+
+- **`CONFIG_CHANGED` (19)** — emitted when the canonical writer persists a successful mutation (slot reserved; emission wiring deferred).
+- **`IFC_CLASSIFIED` (20)** — emitted at the metadata enricher site, once per action that received a non-empty `DataClassification`. Includes sensitivity level and source path.
+- **`CHRONICLE_SNAPSHOT` (21)** and **`CHRONICLE_SNAPSHOT_FAILED` (22)** — emitted at both Chronicle call sites (gRPC pipeline path and direct tool execution path) so success and failure both land in the chain. Snapshot failures don't block the action (snapshots are best-effort) but the failure is preserved so rollback gaps remain auditable.
+- **`SANDBOX_CANARY_RESULT` (23)** — the sandboxed agent process cannot write to `audit.jsonl` itself (the workspace's `.openparallax/` directory is hard-blocked), so the JSON-encoded canary verification result now rides on the `AgentReady` proto event and the engine emits the audit entry on receipt. Adds a `sandbox_canary_json` field to `AgentReady`.
+
+### Metrics
+
+- **Per-tier Shield latency persistence.** New `metrics_latency` table stores one sample per Shield evaluation, tagged by tier. `AddLatencySample` and `GetLatencyPercentiles` helpers mirror the existing `llm_usage.duration_ms` percentile pattern. `GET /api/metrics` exposes new fields `shield_t{0,1,2}_p{50,95}_ms` in the `performance` block. Sourced from observation samples, not the audit chain — audit stays clean of performance telemetry.
+
+### Sub-agent delegation
+
+- **LLM nudge.** The `agents` tool group description, the `create_agent` tool description, and the agent's behavioral rules now use a consistent vocabulary ("default for 2+ independent subtasks", "parallel", "cost", "clean context") to push the LLM toward delegating parallelizable work. Net cost ~60 tokens of static system context, amortized across every turn.
+- **Numeric model index.** The `model` parameter on `create_agent` is now a 1-based integer index into a numbered menu rendered into the tool description from the workspace `models[]` pool. Out-of-range returns a graceful error so the LLM can recover on the next round. Optional `models[].purpose` annotation per pool entry surfaces a hand-written hint ("fast, cheap, scans") into the menu; entries without one are still selectable. The pool snapshot is taken at engine startup so live config edits cannot drift the index mapping mid-session.
+- **Context isolation made explicit.** The `task` parameter description spells out that the sub-agent starts with a blank context — it does NOT see the parent's conversation, files, or prior reasoning. The parent must include all background.
+
+---
+
 ## v0.1.0 — Initial Release
 
 The first public release of OpenParallax. A reference implementation of the architecture described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax) (forthcoming on arXiv).
