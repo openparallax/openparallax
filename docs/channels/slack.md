@@ -3,7 +3,7 @@
 ::: warning Planned — Not Yet Implemented
 The Slack adapter is on the roadmap but not yet implemented. The configuration schema (`channels.slack`) ships in the binary, but enabling it does nothing — the agent does not connect to Slack. This page documents the planned design.
 
-If you want to help build it, see [Adding a Channel Adapter](/channels/extending) and [Contributing](https://github.com/openparallax/openparallax/blob/main/CONTRIBUTING.md).
+If you want to help build it, see [Contributing](https://github.com/openparallax/openparallax/blob/main/CONTRIBUTING.md).
 :::
 
 The Slack adapter will connect your agent to Slack workspaces using Socket Mode for real-time event delivery and the Web API for sending responses. Socket Mode uses a WebSocket connection initiated from your side, so no public URL or webhook endpoint is required. The adapter is designed to handle message formatting in Slack's `mrkdwn` syntax, reply in threads to keep channels organized, and respect channel restrictions to control where the bot operates.

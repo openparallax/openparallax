@@ -21,6 +21,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Guide', link: '/guide/' },
+      { text: 'Eval', link: '/eval/' },
       { text: 'Technical', link: '/technical/' },
       {
         text: 'Modules',
@@ -73,6 +74,7 @@ export default defineConfig({
             { text: 'CLI Commands', link: '/guide/cli' },
             { text: 'Web UI', link: '/guide/web-ui' },
             { text: 'Sessions & OTR', link: '/guide/sessions' },
+            { text: 'Optional Downloads', link: '/guide/optional-downloads' },
           ]
         },
         {
@@ -83,6 +85,7 @@ export default defineConfig({
             { text: 'Tools & Actions', link: '/guide/tools' },
             { text: 'Channels', link: '/guide/channels' },
             { text: 'Security', link: '/guide/security' },
+            { text: 'Test Your Own Security', link: '/eval/' },
             { text: 'Heartbeat', link: '/guide/heartbeat' },
           ]
         },
@@ -90,6 +93,22 @@ export default defineConfig({
           text: 'Help',
           items: [
             { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+          ]
+        }
+      ],
+
+      '/eval/': [
+        {
+          text: 'Test Your Own Security',
+          items: [
+            { text: 'Why an Eval Suite', link: '/eval/' },
+            { text: 'Quick Start', link: '/eval/quickstart' },
+            { text: 'Test Suite Layout', link: '/eval/test-suite' },
+            { text: 'Methodology', link: '/eval/methodology' },
+            { text: 'Reproducing Run-013', link: '/eval/reproducing' },
+            { text: 'Run History', link: '/eval/runs' },
+            { text: 'Reports', link: '/eval/reports' },
+            { text: 'Adding Test Cases', link: '/eval/contributing-tests' },
           ]
         }
       ],
