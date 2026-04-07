@@ -92,7 +92,17 @@ The evaluator returns a JSON object:
 }
 ```
 
-Shield parses this response, strips any markdown code fences (models sometimes wrap JSON in ` ```json `), and extracts the verdict fields.
+The `decision` field accepts three values:
+
+| Decision | Meaning |
+|---|---|
+| `ALLOW` | The action is clearly safe to execute. |
+| `BLOCK` | The action is clearly malicious or violates a guardrail. Shield blocks it immediately. |
+| `ESCALATE` | The action is **genuinely ambiguous** — intent is unclear, side effects are irreversible without obvious malice, or the security implications depend on facts the evaluator cannot verify. Shield routes to [Tier 3](/shield/tier3) for human approval. |
+
+The evaluator prompt explicitly instructs the LLM to use `ESCALATE` rather than guess. Better to ask a human than to wrongly approve a destructive action or wrongly block a legitimate one.
+
+Shield parses this response, strips any markdown code fences (models sometimes wrap JSON in ` ```json `), and extracts the verdict fields. An unrecognized `decision` value is treated as `ALLOW` (fail-open at the parsing layer; the canary check below provides a separate fail-closed guarantee).
 
 ## Canary Token Verification
 

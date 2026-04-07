@@ -50,11 +50,11 @@ Policy evaluation is instant (microseconds) and requires no network calls.
 
 Tier 1 combines two detection methods:
 
-**Heuristic rules** (always available): Pattern matching against known-dangerous patterns. Detects prompt injection attempts, suspicious shell commands, credential access patterns, and other high-risk indicators.
+**Heuristic rules** (always available): Pattern matching against ~79 known-dangerous patterns. Detects prompt injection attempts, suspicious shell commands, credential access patterns, and other high-risk indicators.
 
-**ONNX classifier** (optional): A DeBERTa-v3 model trained on prompt injection datasets. Runs in-process using pure Go ONNX inference. Provides 98.8% accuracy on injection detection.
+**ONNX classifier** (recommended, downloaded separately): A fine-tuned DeBERTa-v3 model trained on prompt injection data. Runs in-process using pure Go ONNX inference. The `init` wizard offers to download it; without it, Tier 1 falls back to heuristic-only mode (lower attack detection on encoding/obfuscation/multi-agent categories). The model card and training data are public on [HuggingFace](https://huggingface.co/openparallax/shield-classifier-v1).
 
-Install the classifier with `openparallax get-classifier`. Without it, Tier 1 runs in heuristic-only mode.
+The default config bypasses ONNX for a few action types where the trained model over-fires on benign payloads (`write_file`, `delete_file`, `move_file`, `copy_file`, `send_email`, `send_message`, `http_request`). These types are escalated to Tier 2 instead so the LLM evaluator handles content judgment. The full story is in [eval reports/03-classifier-optimization](https://github.com/openparallax/openparallax/blob/main/eval-results/reports/03-classifier-optimization.md). For the configuration knobs, see [Tier 1 — Per-Action-Type Skip List](/shield/tier1#per-action-type-onnx-skip-list).
 
 The ONNX confidence threshold is configurable via `shield.onnx_threshold` (default: 0.85).
 

@@ -56,6 +56,111 @@ Either classifier can be absent:
 - If heuristic is disabled (`heuristic_enabled: false`), only ONNX runs.
 - If both are unavailable, Tier 1 returns ALLOW with confidence 0.5 and source `"none"`.
 
+## Per-Action-Type ONNX Skip List
+
+The ONNX classifier was trained on a corpus weighted toward injection-positive examples. As a result, it **over-fires on certain action types whose payloads are structurally similar to injection attempts even when benign**: `write_file` content, `delete_file` operations, `move_file` operations, `copy_file` operations, `send_email` body, `send_message` body, and `http_request` body all look "suspicious" to the classifier when they're really just normal application data.
+
+The default config bypasses ONNX for these action types via `shield.classifier_skip_types`:
+
+```yaml
+shield:
+  classifier_skip_types:
+    - write_file
+    - delete_file
+    - move_file
+    - copy_file
+    - send_email
+    - send_message
+    - http_request
+```
+
+When an action of one of these types reaches Tier 1, the dual classifier still runs the heuristic engine but skips ONNX entirely. If the heuristic engine doesn't BLOCK, the action escalates to Tier 2 (the LLM evaluator) for content judgment instead of being incorrectly flagged as injection.
+
+### The Tier 2 escalation pairing
+
+The skip list only works because the **default policy escalates these same action types to Tier 2** via verify rules:
+
+```yaml
+verify:
+  - name: evaluate_external_communication
+    action_types: [send_message, send_email, http_request]
+    tier_override: 2
+
+  - name: evaluate_file_writes
+    action_types: [write_file]
+    tier_override: 2
+
+  - name: evaluate_destructive_file_ops
+    action_types: [delete_file, delete_directory, move_file, move_directory]
+    tier_override: 2
+```
+
+Without these escalations, skipped action types would bypass content review entirely. The skip list and the policy escalations are a matched pair — change one and you must change the other.
+
+### The story behind the skip list
+
+The skip list pattern emerged from a three-step optimization documented in [eval reports/03](https://github.com/openparallax/openparallax/blob/main/eval-results/reports/03-classifier-optimization.md):
+
+| Attempt | Approach | Result |
+|---|---|---|
+| **1** | Make ONNX opt-in, default to heuristic-only | C5 0% → 100%, C4 0% → 92%, C6 0% → 96%. ONNX is doing critical work on encoding/obfuscation/multi-agent. Reverted. |
+| **2** | Per-action-type skip list, leave policy unchanged | C5/C6/C7 → 0% (great), but C1/C2/C3/C4/C8 still leaking because skipped types fell through Tier 1 with no review |
+| **3** | Skip list + escalate skipped types to Tier 2 | **277/280 attacks blocked (98.9%), FP 0/50 (0%).** This is the current default. |
+
+The trade is **-1.1pt attack detection for -36pt FP rate**. Strongly net positive for production. The 3 remaining attack misses are Tier 2 LLM evaluator judgment calls on genuinely ambiguous edge cases.
+
+### Customizing the skip list
+
+Operators with different requirements can override:
+
+```yaml
+# Stricter: run ONNX on every action type, accept higher FP
+shield:
+  classifier_skip_types: []
+
+# Looser: skip ONNX on more types if you have specific FPs to address
+shield:
+  classifier_skip_types:
+    - write_file
+    - delete_file
+    - move_file
+    - copy_file
+    - send_email
+    - send_message
+    - http_request
+    - browser_navigate    # additional skip
+```
+
+If you remove items from the default skip list, also tighten the corresponding policy verify rules to ensure those types still get reviewed.
+
+## AlwaysBlock Heuristic Precheck
+
+When the policy escalates an action past Tier 1 (e.g. `execute_command` → Tier 2), the dual classifier doesn't run by default — the action goes straight to the LLM evaluator. This is the right call for most rules because the heuristic engine has known false positives on legitimate dev workflows (e.g. `rm -rf node_modules`, `kill -HUP $(cat app.pid)`, `chmod 755 deploy.sh`).
+
+But a small subset of heuristic rules catch attack patterns the Tier 2 LLM evaluator demonstrably misses — typically agent-internal enumeration like `ls -la .openparallax/` or `grpcurl -plaintext localhost:...`. These rules need to fire deterministically even on Tier 2 escalations.
+
+The `AlwaysBlock` flag on `platform.HeuristicRule` distinguishes the two:
+
+```go
+type HeuristicRule struct {
+    ID          string
+    Pattern     string
+    Severity    string
+    AlwaysBlock bool   // fires even when Tier 0 escalates past Tier 1
+}
+```
+
+The gateway runs `HeuristicEngine.EvaluateAlwaysBlock()` as a precheck on Tier 2 escalations. Only AlwaysBlock=true rules fire in this path. The rest of the heuristic engine is bypassed (avoiding the dev-workflow FPs) and ONNX is bypassed entirely (avoiding the structured-payload over-fires).
+
+Currently, two rules are tagged `AlwaysBlock: true`:
+
+| ID | Pattern | What it catches |
+|---|---|---|
+| `XP-036` | `(?i)(ls\|dir\|cat\|head\|find)\s+.*\.openparallax` | Listing or reading agent internal files |
+| `XP-037` | `(?i)grpcurl\s+` | gRPC service enumeration against the local engine |
+
+To add more, set `AlwaysBlock: true` on a new rule in `platform/shell.go` and provide a test case demonstrating the Tier 2 LLM evaluator misses the attack pattern.
+
 ## ONNX DeBERTa Classifier
 
 The ONNX classifier uses a fine-tuned DeBERTa v3 model trained specifically for prompt injection detection. It runs entirely in-process -- no HTTP calls, no sidecar processes.
