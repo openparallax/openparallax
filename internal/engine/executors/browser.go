@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +14,13 @@ import (
 	"github.com/chromedp/chromedp"
 	"github.com/openparallax/openparallax/internal/logging"
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/platform"
 )
+
+// flatpakWrapperPrefix is the temp file prefix used for the chromedp wrapper
+// scripts that exec into a Flatpak browser. Stored as a constant so the
+// startup sweep and the wrapper writer agree on what to look for.
+const flatpakWrapperPrefix = "openparallax-browser-"
 
 // BrowserExecutor handles all browser actions via chromedp (Chrome DevTools Protocol).
 // Maintains a persistent headless browser session that is lazily started on first use
@@ -34,6 +39,11 @@ type BrowserExecutor struct {
 // NewBrowserExecutor detects a Chromium-based browser and creates the executor.
 // Returns nil if no browser is found — browser tools won't appear in the LLM's tool set.
 func NewBrowserExecutor(log *logging.Logger) *BrowserExecutor {
+	// Sweep stale flatpak wrapper scripts left behind by previous crashes.
+	// Crash-leftover wrappers accumulate forever otherwise; the idle
+	// shutdown only cleans up wrappers from the live session.
+	sweepStaleFlatpakWrappers(log)
+
 	browserPath := DetectBrowser()
 	if browserPath == "" {
 		if log != nil {
@@ -45,6 +55,29 @@ func NewBrowserExecutor(log *logging.Logger) *BrowserExecutor {
 		log.Info("browser_detected", "path", browserPath)
 	}
 	return &BrowserExecutor{browserPath: browserPath, log: log}
+}
+
+// sweepStaleFlatpakWrappers removes any openparallax-browser-*.sh scripts in
+// the system temp directory. Called once at executor construction so a
+// previous crash cannot leak files indefinitely.
+func sweepStaleFlatpakWrappers(log *logging.Logger) {
+	entries, err := os.ReadDir(os.TempDir())
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, flatpakWrapperPrefix) || !strings.HasSuffix(name, ".sh") {
+			continue
+		}
+		full := filepath.Join(os.TempDir(), name)
+		if err := os.Remove(full); err == nil && log != nil {
+			log.Info("browser_wrapper_cleanup", "path", full)
+		}
+	}
 }
 
 // WorkspaceScope reports that the browser executor does not write to the
@@ -350,7 +383,7 @@ func (b *BrowserExecutor) resolveBrowserBinary() string {
 // createFlatpakWrapper writes a temp shell script that delegates to flatpak run.
 // chromedp needs a single executable path; this wrapper provides that.
 func createFlatpakWrapper(flatpakCmd string) (string, error) {
-	f, err := os.CreateTemp("", "openparallax-browser-*.sh")
+	f, err := os.CreateTemp("", flatpakWrapperPrefix+"*.sh")
 	if err != nil {
 		return "", err
 	}
@@ -440,37 +473,5 @@ func DetectBrowser() string {
 }
 
 func browserCandidates() []string {
-	switch runtime.GOOS {
-	case "linux":
-		return []string{
-			"google-chrome", "google-chrome-stable", "chromium", "chromium-browser",
-			"microsoft-edge", "microsoft-edge-stable", "brave-browser", "opera", "vivaldi",
-		}
-	case "darwin":
-		return []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-			"/Applications/Chromium.app/Contents/MacOS/Chromium",
-			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-			"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-			"/Applications/Arc.app/Contents/MacOS/Arc",
-			"/Applications/Opera.app/Contents/MacOS/Opera",
-			"/Applications/Vivaldi.app/Contents/MacOS/Vivaldi",
-		}
-	case "windows":
-		programFiles := os.Getenv("ProgramFiles")
-		programFilesX86 := os.Getenv("ProgramFiles(x86)")
-		localAppData := os.Getenv("LocalAppData")
-		return []string{
-			filepath.Join(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
-			filepath.Join(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
-			filepath.Join(localAppData, "Google", "Chrome", "Application", "chrome.exe"),
-			filepath.Join(programFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
-			filepath.Join(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
-			filepath.Join(programFiles, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-			filepath.Join(localAppData, "Programs", "Opera", "opera.exe"),
-			filepath.Join(localAppData, "Vivaldi", "Application", "vivaldi.exe"),
-		}
-	default:
-		return nil
-	}
+	return platform.BrowserCandidates()
 }

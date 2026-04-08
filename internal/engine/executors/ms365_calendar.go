@@ -150,7 +150,12 @@ func (p *ms365CalendarProvider) doRequest(ctx context.Context, method, reqURL st
 			return respBody, nil
 
 		case resp.StatusCode == http.StatusUnauthorized && attempt == 0:
-			// Token might be stale — force refresh and retry.
+			// Access token is stale. Mark it expired so the next
+			// GetValidToken call uses the refresh token instead of
+			// returning the same dead token from cache.
+			if err := p.oauthMgr.InvalidateAccessToken(ctx, "microsoft", p.account); err != nil {
+				return nil, fmt.Errorf("invalidate stale token: %w", err)
+			}
 			continue
 
 		case resp.StatusCode == http.StatusTooManyRequests:

@@ -138,6 +138,19 @@ func (m *Manager) storeTokensLocked(ctx context.Context, provider, account strin
 	return err
 }
 
+// InvalidateAccessToken marks the stored access token as expired so the next
+// GetValidToken call is forced to use the refresh token. The refresh token
+// itself is left intact. Used by API clients that observe a 401 response and
+// need to retry with a freshly minted access token.
+func (m *Manager) InvalidateAccessToken(ctx context.Context, provider, account string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, err := m.db.Conn().ExecContext(ctx,
+		`UPDATE oauth_tokens SET expiry = ?, updated_at = datetime('now') WHERE provider = ? AND account = ?`,
+		time.Unix(0, 0).Format(time.RFC3339), provider, account)
+	return err
+}
+
 // RevokeTokens deletes stored tokens for the given provider and account.
 func (m *Manager) RevokeTokens(ctx context.Context, provider, account string) error {
 	m.mu.Lock()

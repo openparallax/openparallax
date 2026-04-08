@@ -102,13 +102,20 @@ func (g *GitExecutor) commit(action *types.ActionRequest, repoPath string) *type
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "commit message is required"}
 	}
 
-	// Stage files.
+	// Stage files. Use the `--` separator so any filename beginning with a
+	// dash is treated as a path, not a flag, and reject empty entries up
+	// front so the LLM can't smuggle a flag through an empty string.
 	if files, ok := action.Payload["files"].([]any); ok && len(files) > 0 {
+		fileArgs := make([]string, 0, len(files))
 		for _, f := range files {
-			if fname, ok := f.(string); ok {
-				g.runGit(action.RequestID, repoPath, "add", fname)
+			fname, ok := f.(string)
+			if !ok || fname == "" {
+				return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "files entries must be non-empty strings"}
 			}
+			fileArgs = append(fileArgs, fname)
 		}
+		args := append([]string{"add", "--"}, fileArgs...)
+		g.runGit(action.RequestID, repoPath, args...)
 	} else {
 		g.runGit(action.RequestID, repoPath, "add", "-A")
 	}

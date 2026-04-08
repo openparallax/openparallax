@@ -90,10 +90,8 @@ func (s *ScheduleExecutor) addSchedule(action *types.ActionRequest) *types.Actio
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "cron and task are required", Summary: "schedule add failed"}
 	}
 
-	// Validate cron expression.
-	fields := strings.Fields(cronExpr)
-	if len(fields) != 5 {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "cron expression must have 5 fields (minute hour day month weekday)", Summary: "invalid cron expression"}
+	if err := validateCronExpression(cronExpr); err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "invalid cron expression"}
 	}
 
 	entry := fmt.Sprintf("- `%s` — %s\n", cronExpr, task)
@@ -190,4 +188,64 @@ func (s *ScheduleExecutor) removeSchedule(action *types.ActionRequest) *types.Ac
 		Output:  fmt.Sprintf("Removed: %s", removed.Task),
 		Summary: "schedule removed",
 	}
+}
+
+// cronFieldRanges describes the valid value range for each of the five cron
+// fields, in the order minute, hour, day, month, weekday.
+var cronFieldRanges = [5]struct {
+	name     string
+	min, max int
+}{
+	{"minute", 0, 59},
+	{"hour", 0, 23},
+	{"day", 1, 31},
+	{"month", 1, 12},
+	{"weekday", 0, 6},
+}
+
+// validateCronExpression checks that expr is a 5-field cron line and that
+// every field is either "*", a "*/N" step, or one or more comma-separated
+// integers within the field's allowed range. The grammar mirrors what the
+// heartbeat loop's matchField actually evaluates, so anything this validator
+// accepts is something the scheduler will execute, and anything it rejects
+// would have silently never matched.
+func validateCronExpression(expr string) error {
+	fields := strings.Fields(expr)
+	if len(fields) != 5 {
+		return fmt.Errorf("cron expression must have 5 fields (minute hour day month weekday)")
+	}
+	for i, field := range fields {
+		r := cronFieldRanges[i]
+		if err := validateCronField(field, r.min, r.max); err != nil {
+			return fmt.Errorf("%s field %q: %w", r.name, field, err)
+		}
+	}
+	return nil
+}
+
+func validateCronField(field string, minVal, maxVal int) error {
+	if field == "*" {
+		return nil
+	}
+	if strings.HasPrefix(field, "*/") {
+		step, err := strconv.Atoi(field[2:])
+		if err != nil || step <= 0 {
+			return fmt.Errorf("step must be a positive integer")
+		}
+		if step > maxVal {
+			return fmt.Errorf("step %d exceeds max %d", step, maxVal)
+		}
+		return nil
+	}
+	for _, part := range strings.Split(field, ",") {
+		part = strings.TrimSpace(part)
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return fmt.Errorf("%q is not an integer", part)
+		}
+		if n < minVal || n > maxVal {
+			return fmt.Errorf("%d is outside allowed range %d-%d", n, minVal, maxVal)
+		}
+	}
+	return nil
 }

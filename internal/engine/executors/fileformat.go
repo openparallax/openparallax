@@ -350,7 +350,10 @@ func (f *FileFormatExecutor) pdfRead(action *types.ActionRequest) *types.ActionR
 
 	conf := pdfmodel.NewDefaultConfiguration()
 	if extractErr := pdfapi.ExtractContentFile(path, tmpDir, nil, conf); extractErr != nil {
-		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: fmt.Sprintf("extract PDF content: %s", extractErr)}
+		// Strip the temp dir path from any error so callers don't learn
+		// where on disk OpenParallax stages PDF extraction.
+		msg := strings.ReplaceAll(extractErr.Error(), tmpDir, "<tmp>")
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: fmt.Sprintf("extract PDF content: %s", msg)}
 	}
 
 	// Read extracted text files from temp dir.

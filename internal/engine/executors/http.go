@@ -16,6 +16,22 @@ const (
 	httpMaxResponseBody = 1 << 20 // 1MB
 )
 
+// forbiddenHTTPHeaders are header names the LLM is not permitted to set on
+// outbound requests. Credentials must be sourced from workspace config (not
+// LLM context, which can be poisoned by injected content), and host/proxy
+// overrides would let the agent reroute traffic away from the validated URL.
+var forbiddenHTTPHeaders = map[string]bool{
+	"authorization":       true,
+	"proxy-authorization": true,
+	"cookie":              true,
+	"set-cookie":          true,
+	"host":                true,
+}
+
+func isForbiddenHTTPHeader(name string) bool {
+	return forbiddenHTTPHeaders[strings.ToLower(strings.TrimSpace(name))]
+}
+
 // HTTPExecutor handles HTTP requests.
 type HTTPExecutor struct{}
 
@@ -93,6 +109,13 @@ func (h *HTTPExecutor) Execute(ctx context.Context, action *types.ActionRequest)
 
 	if headers, ok := action.Payload["headers"].(map[string]any); ok {
 		for k, v := range headers {
+			if isForbiddenHTTPHeader(k) {
+				return &types.ActionResult{
+					RequestID: action.RequestID, Success: false,
+					Error:   fmt.Sprintf("header %q is not allowed — credentials and host overrides must come from the workspace config, not the LLM", k),
+					Summary: "blocked: forbidden header",
+				}
+			}
 			if vs, ok := v.(string); ok {
 				req.Header.Set(k, vs)
 			}

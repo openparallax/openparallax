@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/openparallax/openparallax/internal/types"
@@ -21,6 +22,38 @@ func NewCanvasExecutor(workspace string) *CanvasExecutor {
 	return &CanvasExecutor{workspacePath: workspace}
 }
 
+// canvasTypeExt maps a canvas content type to its default file extension.
+// canvasTypes is a set view used for validation. Both must list the same
+// keys; the schema's enum is generated from canvasTypeList() so the LLM
+// always sees the same list the executor enforces.
+var canvasTypeExt = map[string]string{
+	"html":       ".html",
+	"svg":        ".svg",
+	"markdown":   ".md",
+	"mermaid":    ".mmd",
+	"css":        ".css",
+	"javascript": ".js",
+	"json":       ".json",
+	"yaml":       ".yaml",
+}
+
+var canvasTypes = func() map[string]bool {
+	out := make(map[string]bool, len(canvasTypeExt))
+	for k := range canvasTypeExt {
+		out[k] = true
+	}
+	return out
+}()
+
+func canvasTypeList() string {
+	keys := make([]string, 0, len(canvasTypeExt))
+	for k := range canvasTypeExt {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ", ")
+}
+
 // WorkspaceScope reports that canvas writes are confined to the workspace.
 func (c *CanvasExecutor) WorkspaceScope() WorkspaceScope { return ScopeScoped }
 
@@ -32,7 +65,11 @@ func (c *CanvasExecutor) SupportedActions() []types.ActionType {
 }
 
 func (c *CanvasExecutor) ToolSchemas() []ToolSchema {
-	typeEnum := []string{"html", "svg", "markdown", "mermaid", "css", "javascript", "json", "yaml"}
+	typeEnum := make([]string, 0, len(canvasTypeExt))
+	for k := range canvasTypeExt {
+		typeEnum = append(typeEnum, k)
+	}
+	sort.Strings(typeEnum)
 	return []ToolSchema{
 		{
 			ActionType:  types.ActionCanvasCreate,
@@ -105,19 +142,21 @@ func (c *CanvasExecutor) Execute(_ context.Context, action *types.ActionRequest)
 func (c *CanvasExecutor) createFile(action *types.ActionRequest) *types.ActionResult {
 	rawPath, _ := action.Payload["path"].(string)
 	contentType, _ := action.Payload["type"].(string)
+	if contentType != "" && !canvasTypes[contentType] {
+		return ErrorResult(action.RequestID, fmt.Sprintf("type %q is not supported (allowed: %s)", contentType, canvasTypeList()), "invalid canvas type")
+	}
 	if rawPath == "" {
 		// LLM omitted path — generate a default from the content type.
-		ext := map[string]string{
-			"html": ".html", "svg": ".svg", "markdown": ".md", "mermaid": ".mmd",
-			"css": ".css", "javascript": ".js", "json": ".json", "yaml": ".yaml",
-		}
-		suffix := ext[contentType]
+		suffix := canvasTypeExt[contentType]
 		if suffix == "" {
 			suffix = ".txt"
 		}
 		rawPath = "canvas" + suffix
 	}
-	path := ResolvePath(rawPath, c.workspacePath)
+	path, err := ResolveInWorkspace(rawPath, c.workspacePath)
+	if err != nil {
+		return ErrorResult(action.RequestID, err.Error(), "invalid canvas path")
+	}
 	content, _ := action.Payload["content"].(string)
 	if contentType == "" {
 		contentType = inferTypeFromExt(rawPath)
@@ -144,7 +183,10 @@ func (c *CanvasExecutor) updateFile(action *types.ActionRequest) *types.ActionRe
 	if rawPath == "" {
 		return ErrorResult(action.RequestID, "path is required", "canvas_update requires a file path")
 	}
-	path := ResolvePath(rawPath, c.workspacePath)
+	path, err := ResolveInWorkspace(rawPath, c.workspacePath)
+	if err != nil {
+		return ErrorResult(action.RequestID, err.Error(), "invalid canvas path")
+	}
 	content, _ := action.Payload["content"].(string)
 
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -164,7 +206,10 @@ func (c *CanvasExecutor) createProject(action *types.ActionRequest) *types.Actio
 	if rawPath == "" {
 		return ErrorResult(action.RequestID, "path is required", "canvas_project requires a directory path")
 	}
-	dir := ResolvePath(rawPath, c.workspacePath)
+	dir, err := ResolveInWorkspace(rawPath, c.workspacePath)
+	if err != nil {
+		return ErrorResult(action.RequestID, err.Error(), "invalid project path")
+	}
 	filesRaw, ok := action.Payload["files"].([]any)
 	if !ok || len(filesRaw) == 0 {
 		return ErrorResult(action.RequestID, "files array is required", "project creation failed")
@@ -174,26 +219,51 @@ func (c *CanvasExecutor) createProject(action *types.ActionRequest) *types.Actio
 		return ErrorResult(action.RequestID, err.Error(), "failed to create project directory")
 	}
 
-	var created []string
-	for _, f := range filesRaw {
+	// Validate every entry up front so a hostile name (path traversal,
+	// empty, missing) cannot leave the project half-written.
+	type planned struct {
+		fullPath string
+		relName  string
+		content  string
+	}
+	plan := make([]planned, 0, len(filesRaw))
+	for i, f := range filesRaw {
 		file, ok := f.(map[string]any)
 		if !ok {
-			continue
+			return ErrorResult(action.RequestID, fmt.Sprintf("files[%d] is not an object", i), "invalid project entry")
 		}
 		name, _ := file["name"].(string)
 		content, _ := file["content"].(string)
 		if name == "" {
-			continue
+			return ErrorResult(action.RequestID, fmt.Sprintf("files[%d] is missing name", i), "invalid project entry")
 		}
+		fullPath, err := ResolveInWorkspace(filepath.Join(dir, name), c.workspacePath)
+		if err != nil {
+			return ErrorResult(action.RequestID, fmt.Sprintf("files[%d] (%q): %s", i, name, err.Error()), "invalid project entry")
+		}
+		// Make sure the file lands inside the project dir, not just inside
+		// the workspace, so a name like "../sibling/leak" can't escape the
+		// project root.
+		rel, relErr := filepath.Rel(dir, fullPath)
+		if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return ErrorResult(action.RequestID, fmt.Sprintf("files[%d] (%q) escapes the project directory", i, name), "invalid project entry")
+		}
+		plan = append(plan, planned{fullPath: fullPath, relName: name, content: content})
+	}
 
-		filePath := filepath.Join(dir, name)
-		if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
-			continue
+	created := make([]string, 0, len(plan))
+	for _, p := range plan {
+		if err := os.MkdirAll(filepath.Dir(p.fullPath), 0o755); err != nil {
+			return ErrorResult(action.RequestID,
+				fmt.Sprintf("create directory for %q failed after %d files: %s", p.relName, len(created), err.Error()),
+				"project creation failed")
 		}
-		if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
-			continue
+		if err := os.WriteFile(p.fullPath, []byte(p.content), 0o644); err != nil {
+			return ErrorResult(action.RequestID,
+				fmt.Sprintf("write %q failed after %d files: %s", p.relName, len(created), err.Error()),
+				"project creation failed")
 		}
-		created = append(created, name)
+		created = append(created, p.relName)
 	}
 
 	return SuccessResult(action.RequestID,
@@ -202,23 +272,19 @@ func (c *CanvasExecutor) createProject(action *types.ActionRequest) *types.Actio
 }
 
 func inferTypeFromExt(path string) string {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".html", ".htm":
+	ext := strings.ToLower(filepath.Ext(path))
+	for typ, defaultExt := range canvasTypeExt {
+		if ext == defaultExt {
+			return typ
+		}
+	}
+	switch ext {
+	case ".htm":
 		return "html"
-	case ".md", ".markdown":
+	case ".markdown":
 		return "markdown"
-	case ".svg":
-		return "svg"
-	case ".css":
-		return "css"
-	case ".js":
-		return "javascript"
-	case ".json":
-		return "json"
-	case ".yaml", ".yml":
+	case ".yml":
 		return "yaml"
-	case ".mmd":
-		return "mermaid"
 	default:
 		return ""
 	}
