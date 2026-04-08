@@ -169,6 +169,44 @@ export function loadMessages(msgs: Message[]) {
   messages.set(msgs);
 }
 
+// failPendingToolCall marks the most recent in-progress tool call as a
+// failure. Used when the engine emits a terminal event for a tool (such as
+// otr_blocked) without a matching action_completed, leaving an orphaned
+// "started" card. The match is implicit-by-recency because action processing
+// is sequential per session, so the last unfinished tool_call is guaranteed
+// to be the one the terminal event refers to.
+export function failPendingToolCall(summary: string) {
+  pendingSteps.update(steps => {
+    const updated = [...steps];
+    for (let i = updated.length - 1; i >= 0; i--) {
+      const s = updated[i];
+      if (s.type === 'tool_call' && !s.result) {
+        updated[i] = { ...s, result: { success: false, summary } };
+        break;
+      }
+    }
+    return updated;
+  });
+}
+
+// failStream is called when the pipeline aborts mid-message with an error
+// (LLM provider down, agent crash, transport failure). It preserves any
+// partial content the agent already produced, appends a system error line
+// so the user can see what happened, and clears stream state so the input
+// is unblocked. The persisted system message survives a refresh just like
+// any other entry in the chat thread.
+export function failStream(errorMessage: string) {
+  const partial = get(streamingText).trim();
+  const steps = get(pendingSteps);
+  if (partial || steps.length > 0) {
+    finalizeResponse(partial);
+  }
+  addSystemMessage('⚠ ' + errorMessage);
+  streaming.set(false);
+  streamingText.set('');
+  pendingSteps.set([]);
+}
+
 export function addSystemMessage(content: string) {
   messages.update(msgs => [...msgs, {
     id: 'sys-' + Date.now(),

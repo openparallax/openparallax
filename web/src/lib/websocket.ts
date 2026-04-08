@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { connected, reconnecting } from '../stores/connection';
 import { currentSessionId } from '../stores/session';
-import { appendToken, addToolCallWithFlush, updateToolCallVerdict, completeToolCall, finalizeResponse, setStreaming, startNewStream, clearStreamingText, addTier3Request, addSystemMessage } from '../stores/messages';
+import { appendToken, addToolCallWithFlush, updateToolCallVerdict, completeToolCall, finalizeResponse, setStreaming, startNewStream, clearStreamingText, addTier3Request, addSystemMessage, failStream, failPendingToolCall } from '../stores/messages';
 import { addSubAgent, updateSubAgentProgress, completeSubAgent, failSubAgent, cancelSubAgent } from '../stores/subagents';
 import { addLogEntry } from '../stores/console';
 import type { WSEvent } from './types';
@@ -138,11 +138,26 @@ function handleEvent(event: WSEvent) {
       }
       break;
 
-    case 'otr_blocked':
-    case 'error':
-      setStreaming(false);
+    case 'error': {
+      // Terminal pipeline error (LLM provider down, agent crash, transport
+      // failure). Surface the engine's message so the user knows what
+      // happened, preserve any partial assistant output, and unblock input.
+      const msg = (event as any).error?.message || 'unknown error';
+      failStream(msg);
       activeStreamSessionId = null;
       break;
+    }
+
+    case 'otr_blocked': {
+      // Per-tool block. The engine emits action_started + otr_blocked but
+      // no action_completed, so the orphaned tool card needs to be marked
+      // failed here. The session is NOT terminal — the agent receives the
+      // tool error and may keep going, so we leave streaming state alone
+      // and let the eventual response_complete finalize.
+      const reason = event.otr_blocked?.reason || 'OTR mode does not allow this action';
+      failPendingToolCall('Blocked by OTR: ' + reason);
+      break;
+    }
 
     case 'session_created':
     case 'command_result':
