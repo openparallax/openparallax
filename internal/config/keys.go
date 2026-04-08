@@ -6,11 +6,12 @@ import (
 	"github.com/openparallax/openparallax/internal/types"
 )
 
-// SettableKey describes a config key that can be mutated via /config set
-// or PUT /api/settings. Each key has a setter that mutates the in-memory
-// AgentConfig and a flag indicating whether the change requires a
-// restart to take effect (model/provider changes do; identity changes
-// do not).
+// SettableKey describes a config key that can be mutated via the
+// /config set or /model slash commands (CLI and web chat channels).
+// Each key has a setter that mutates the in-memory AgentConfig and a
+// flag indicating whether the change requires a restart to take effect
+// (model/provider changes do; identity changes do not). The web
+// settings panel is read-only — there is no HTTP write surface.
 type SettableKey struct {
 	Path            string
 	RequiresRestart bool
@@ -18,9 +19,9 @@ type SettableKey struct {
 }
 
 // SettableKeys enumerates every config key writable through the public
-// surface. Adding a new settable key is a one-line change here; both
-// EngineAdapter.ConfigSet and Server.handlePutSettings dispatch through
-// this map so the two stay in lockstep.
+// surface. Adding a new settable key is a one-line change here.
+// EngineAdapter.ConfigSet (the /config set slash command dispatcher)
+// is the sole consumer.
 var SettableKeys = map[string]SettableKey{
 	"identity.name": {
 		Path: "identity.name",
