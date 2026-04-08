@@ -107,6 +107,11 @@ func runStart(_ *cobra.Command, args []string) error {
 	if pm.cmd != nil && pm.cmd.Process != nil {
 		_ = registry.WritePID(workspace, pm.cmd.Process.Pid)
 	}
+	// Record the actual gRPC port the engine bound to. The engine
+	// silently falls back to a dynamic OS port when the requested
+	// one is in use, so the registry's GRPCPort field can lie. Any
+	// attach client (TUI) reads this file first.
+	_ = registry.WriteGRPCPort(workspace, port)
 
 	grpcAddr := fmt.Sprintf("localhost:%d", port)
 	fmt.Printf("Engine started on %s (LLM: %s/%s)\n", grpcAddr, func() string { c, _ := cfg.ChatModel(); return c.Provider }(), func() string { c, _ := cfg.ChatModel(); return c.Model }())
@@ -146,6 +151,7 @@ func runStart(_ *cobra.Command, args []string) error {
 	select {
 	case <-pm.done:
 		_ = registry.RemovePID(workspace)
+		_ = registry.RemoveGRPCPort(workspace)
 		return nil
 	case <-sigCh:
 		if !startTUI {
@@ -154,6 +160,7 @@ func runStart(_ *cobra.Command, args []string) error {
 		cancel()
 		pm.stopEngine()
 		_ = registry.RemovePID(workspace)
+		_ = registry.RemoveGRPCPort(workspace)
 		return nil
 	}
 }

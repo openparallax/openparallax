@@ -61,7 +61,16 @@ func runAttach(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("agent %q is not running — start it first: openparallax start %s", rec.Name, rec.Slug)
 	}
 
-	grpcAddr := fmt.Sprintf("localhost:%d", rec.GRPCPort)
+	// Prefer the runtime port file written by `start`. The registry's
+	// GRPCPort is the *requested* port from agent creation; the engine
+	// can fall back to a dynamic OS port if the requested one is in
+	// use, in which case the registry value is stale and would lead to
+	// "connection refused" against a port no engine is listening on.
+	port := rec.GRPCPort
+	if runtimePort, ok := registry.ReadGRPCPort(rec.Workspace); ok {
+		port = runtimePort
+	}
+	grpcAddr := fmt.Sprintf("localhost:%d", port)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

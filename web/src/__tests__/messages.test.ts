@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 import {
   messages, pendingSteps, shieldLog,
   streaming, streamingText,
-  addUserMessage, appendToken, addToolCallWithFlush, updateToolCallVerdict,
+  addUserMessage, appendToken, addToolCall, updateToolCallVerdict,
   completeToolCall, finalizeResponse, clearMessages,
   setStreaming, startNewStream,
 } from '../stores/messages';
@@ -40,27 +40,34 @@ describe('messages store', () => {
     expect(get(streamingText)).toBe('');
   });
 
-  it('addToolCallWithFlush flushes reasoning and adds tool in order', () => {
+  it('addToolCall inserts a separator into streamingText and pushes the tool', () => {
     appendToken('thinking about this...');
-    addToolCallWithFlush('read_file', 'Reading');
-    const steps = get(pendingSteps);
-    expect(steps).toHaveLength(2);
-    expect(steps[0].type).toBe('reasoning');
-    expect(steps[0].content).toBe('thinking about this...');
-    expect(steps[1].type).toBe('tool_call');
-    expect(steps[1].toolName).toBe('read_file');
-    expect(get(streamingText)).toBe('');
-  });
-
-  it('addToolCallWithFlush skips empty reasoning', () => {
-    addToolCallWithFlush('read_file', 'Reading');
+    addToolCall('read_file', 'Reading');
     const steps = get(pendingSteps);
     expect(steps).toHaveLength(1);
     expect(steps[0].type).toBe('tool_call');
+    expect(steps[0].toolName).toBe('read_file');
+    // streamingText is preserved (reasoning stays visible) with a
+    // blank-line separator appended for the next reasoning burst.
+    expect(get(streamingText)).toBe('thinking about this...\n\n');
+  });
+
+  it('addToolCall does not double-separate when streamingText already ends in a blank line', () => {
+    appendToken('thinking...\n\n');
+    addToolCall('read_file', 'Reading');
+    expect(get(streamingText)).toBe('thinking...\n\n');
+  });
+
+  it('addToolCall on empty stream just adds the tool', () => {
+    addToolCall('read_file', 'Reading');
+    const steps = get(pendingSteps);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].type).toBe('tool_call');
+    expect(get(streamingText)).toBe('');
   });
 
   it('updateToolCallVerdict attaches verdict and logs', () => {
-    addToolCallWithFlush('read_file', 'Reading');
+    addToolCall('read_file', 'Reading');
     updateToolCallVerdict({
       toolName: 'read_file',
       decision: 'ALLOW',
@@ -75,12 +82,11 @@ describe('messages store', () => {
   });
 
   it('completeToolCall attaches result', () => {
-    addToolCallWithFlush('write_file', 'Writing');
+    addToolCall('write_file', 'Writing');
     completeToolCall({ tool_name: 'write_file', success: true, summary: 'done' });
 
     const steps = get(pendingSteps);
-    const tool = steps.find(s => s.type === 'tool_call');
-    expect(tool?.result?.success).toBe(true);
+    expect(steps[0].result?.success).toBe(true);
   });
 
   it('finalizeResponse creates assistant message', () => {
@@ -106,7 +112,7 @@ describe('messages store', () => {
   });
 
   it('blocked tool call preserves shield info through finalization', () => {
-    addToolCallWithFlush('execute_command', 'rm -rf /');
+    addToolCall('execute_command', 'rm -rf /');
     updateToolCallVerdict({
       toolName: 'execute_command',
       decision: 'BLOCK',
@@ -126,19 +132,38 @@ describe('messages store', () => {
     expect(toolThought?.detail?.success).toBe(false);
   });
 
-  it('interleaves reasoning and tool calls chronologically', () => {
+  it('reasoning fragments accumulate in streamingText across tool calls', () => {
     appendToken('Let me think...');
-    addToolCallWithFlush('read_file', 'reading config');
+    addToolCall('read_file', 'reading config');
     appendToken('Now I will write...');
-    addToolCallWithFlush('write_file', 'writing output');
+    addToolCall('write_file', 'writing output');
 
+    // Two tool cards collected, no reasoning entries.
     const steps = get(pendingSteps);
-    expect(steps).toHaveLength(4);
-    expect(steps[0].type).toBe('reasoning');
-    expect(steps[1].type).toBe('tool_call');
-    expect(steps[1].toolName).toBe('read_file');
-    expect(steps[2].type).toBe('reasoning');
-    expect(steps[3].type).toBe('tool_call');
-    expect(steps[3].toolName).toBe('write_file');
+    expect(steps).toHaveLength(2);
+    expect(steps[0].toolName).toBe('read_file');
+    expect(steps[1].toolName).toBe('write_file');
+
+    // Reasoning stays visible in the bubble with separators.
+    expect(get(streamingText)).toBe('Let me think...\n\nNow I will write...\n\n');
+  });
+
+  it('finalizeResponse uses engine content verbatim and filters reasoning out of thoughts', () => {
+    appendToken('thinking');
+    addToolCall('read_file', 'reading');
+    completeToolCall({ tool_name: 'read_file', success: true, summary: 'ok' });
+
+    // Engine sends merged content + a thoughts list including a
+    // reasoning entry. The persisted message must use the merged
+    // content as-is and drop reasoning from thoughts.
+    finalizeResponse('thinking\n\nDone reading. The answer is 42.', [
+      { stage: 'reasoning', summary: 'thinking' },
+      { stage: 'tool_call', summary: 'read_file → ok', detail: { tool_name: 'read_file', success: true } },
+    ]);
+
+    const msg = get(messages)[0];
+    expect(msg.content).toBe('thinking\n\nDone reading. The answer is 42.');
+    expect(msg.thoughts).toHaveLength(1);
+    expect(msg.thoughts![0].stage).toBe('tool_call');
   });
 });

@@ -63,3 +63,42 @@ func isProcessAlive(pid int) bool {
 func pidFilePath(workspace string) string {
 	return filepath.Join(workspace, ".openparallax", "engine.pid")
 }
+
+// portFilePath returns the path of the runtime gRPC port file. The
+// registry's GRPCPort field records the *requested* port (workspace
+// configuration); this file records the port the engine *actually*
+// bound to, which may differ when the requested port was in use and
+// the engine fell back to a dynamic OS-allocated port. Attach paths
+// (TUI, etc.) prefer this file over the registry record.
+func portFilePath(workspace string) string {
+	return filepath.Join(workspace, ".openparallax", "engine.port")
+}
+
+// WriteGRPCPort records the runtime gRPC port the engine actually bound to.
+func WriteGRPCPort(workspace string, port int) error {
+	path := portFilePath(workspace)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create port dir: %w", err)
+	}
+	return os.WriteFile(path, []byte(strconv.Itoa(port)+"\n"), 0o644)
+}
+
+// ReadGRPCPort reads the runtime gRPC port. Returns (0, false) if no
+// runtime port file exists, leaving the caller to fall back to the
+// registry record.
+func ReadGRPCPort(workspace string) (int, bool) {
+	data, err := os.ReadFile(portFilePath(workspace))
+	if err != nil {
+		return 0, false
+	}
+	port, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || port <= 0 {
+		return 0, false
+	}
+	return port, true
+}
+
+// RemoveGRPCPort deletes the runtime gRPC port file.
+func RemoveGRPCPort(workspace string) error {
+	return os.Remove(portFilePath(workspace))
+}

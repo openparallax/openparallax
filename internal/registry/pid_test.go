@@ -56,3 +56,36 @@ func TestIsRunningNoPIDFile(t *testing.T) {
 	workspace := t.TempDir()
 	assert.False(t, IsRunning(workspace))
 }
+
+func TestWriteReadRemoveGRPCPort(t *testing.T) {
+	workspace := t.TempDir()
+
+	// Missing → (0, false).
+	port, ok := ReadGRPCPort(workspace)
+	assert.False(t, ok)
+	assert.Equal(t, 0, port)
+
+	// Write.
+	require.NoError(t, WriteGRPCPort(workspace, 47384))
+
+	// Read.
+	port, ok = ReadGRPCPort(workspace)
+	require.True(t, ok)
+	assert.Equal(t, 47384, port)
+
+	// Remove.
+	require.NoError(t, RemoveGRPCPort(workspace))
+	_, ok = ReadGRPCPort(workspace)
+	assert.False(t, ok)
+}
+
+func TestReadGRPCPortInvalidContents(t *testing.T) {
+	workspace := t.TempDir()
+	dotDir := filepath.Join(workspace, ".openparallax")
+	require.NoError(t, os.MkdirAll(dotDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dotDir, "engine.port"), []byte("not-a-number"), 0o644))
+
+	port, ok := ReadGRPCPort(workspace)
+	assert.False(t, ok)
+	assert.Equal(t, 0, port)
+}
