@@ -78,6 +78,11 @@ func (h *HeuristicEngine) EvaluateAlwaysBlock(action *ActionRequest) *Classifier
 // Evaluate checks an action against all heuristic rules.
 // Only scans security-relevant fields (command, path, url, source, destination)
 // to avoid false positives on file content being written.
+//
+// Match priority: Block > Escalate > Allow. A rule without the Escalate
+// flag is treated as a hard block; a rule with Escalate routes the
+// action to the Tier 2 LLM evaluator instead. If both a block and an
+// escalate rule fire on the same action, the block wins.
 func (h *HeuristicEngine) Evaluate(action *ActionRequest) *ClassifierResult {
 	texts := []string{string(action.Type)}
 	securityFields := []string{"command", "path", "source", "destination", "url", "pattern"}
@@ -88,31 +93,46 @@ func (h *HeuristicEngine) Evaluate(action *ActionRequest) *ClassifierResult {
 	}
 	combined := strings.Join(texts, " ")
 
-	var highestSeverity string
-	var matchedRule string
+	var blockSev, escalateSev string
+	var blockRule, escalateRule string
 
 	for _, cr := range h.rules {
-		if cr.pattern.MatchString(combined) {
-			if isHigherSeverity(cr.rule.Severity, highestSeverity) {
-				highestSeverity = cr.rule.Severity
-				matchedRule = cr.rule.Name
+		if !cr.pattern.MatchString(combined) {
+			continue
+		}
+		if cr.rule.Escalate {
+			if isHigherSeverity(cr.rule.Severity, escalateSev) {
+				escalateSev = cr.rule.Severity
+				escalateRule = cr.rule.Name
+			}
+		} else {
+			if isHigherSeverity(cr.rule.Severity, blockSev) {
+				blockSev = cr.rule.Severity
+				blockRule = cr.rule.Name
 			}
 		}
 	}
 
-	if highestSeverity == "" {
+	if blockSev != "" {
 		return &ClassifierResult{
-			Decision:   VerdictAllow,
-			Confidence: 0.7,
-			Reason:     "no heuristic rules matched",
+			Decision:   VerdictBlock,
+			Confidence: severityToConfidence(blockSev),
+			Reason:     fmt.Sprintf("heuristic: %s (%s)", blockRule, blockSev),
 			Source:     "heuristic",
 		}
 	}
-
+	if escalateSev != "" {
+		return &ClassifierResult{
+			Decision:   VerdictEscalate,
+			Confidence: severityToConfidence(escalateSev),
+			Reason:     fmt.Sprintf("heuristic-escalate: %s (%s)", escalateRule, escalateSev),
+			Source:     "heuristic",
+		}
+	}
 	return &ClassifierResult{
-		Decision:   VerdictBlock,
-		Confidence: severityToConfidence(highestSeverity),
-		Reason:     fmt.Sprintf("heuristic: %s (%s)", matchedRule, highestSeverity),
+		Decision:   VerdictAllow,
+		Confidence: 0.7,
+		Reason:     "no heuristic rules matched",
 		Source:     "heuristic",
 	}
 }

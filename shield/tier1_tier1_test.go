@@ -57,7 +57,9 @@ func TestHeuristicPathTraversal(t *testing.T) {
 	r := h.Evaluate(action(ActionReadFile, map[string]any{
 		"path": "../../etc/passwd",
 	}))
-	assert.Equal(t, VerdictBlock, r.Decision)
+	// PT-001 escalates (nested ../ is sometimes legitimate in monorepos);
+	// the Tier 2 evaluator decides intent.
+	assert.Equal(t, VerdictEscalate, r.Decision)
 }
 
 func TestHeuristicNullByte(t *testing.T) {
@@ -119,7 +121,9 @@ func TestHeuristicWebhookExfil(t *testing.T) {
 	r := h.Evaluate(action(ActionHTTPRequest, map[string]any{
 		"url": "https://hooks.slack.com/services/T00/B00/xxx",
 	}))
-	assert.Equal(t, VerdictBlock, r.Decision)
+	// DE-003 escalates: Slack/Discord webhooks are legitimate notification
+	// channels; the Tier 2 evaluator judges intent.
+	assert.Equal(t, VerdictEscalate, r.Decision)
 }
 
 // Benign commands should NOT trigger.

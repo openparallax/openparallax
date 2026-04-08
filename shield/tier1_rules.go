@@ -17,20 +17,21 @@ func CrossPlatformDetectionRules() []platform.HeuristicRule {
 		{ID: "PI-004", Name: "jailbreak_markers", Pattern: `(?i)(DAN|do anything now|developer mode|god mode|jailbreak)`, Category: "prompt_injection", Severity: "high", Description: "Jailbreak keyword detected"},
 		{ID: "PI-005", Name: "instruction_override", Pattern: `(?i)(forget|disregard|override|bypass)\s+(your|all|every)\s+(rules|instructions|guidelines|constraints)`, Category: "prompt_injection", Severity: "critical", Description: "Instruction override attempt"},
 
-		// Path traversal (3 rules)
-		{ID: "PT-001", Name: "dot_dot_traversal", Pattern: `\.\./\.\./`, Category: "path_traversal", Severity: "high", Description: "Directory traversal via ../"},
+		// Path traversal (3 rules; PT-001 escalates because nested ../
+		// is sometimes legitimate in monorepo relative imports)
+		{ID: "PT-001", Name: "dot_dot_traversal", Pattern: `\.\./\.\./`, Category: "path_traversal", Severity: "high", Description: "Directory traversal via ../ — sometimes legitimate in monorepos.", Escalate: true},
 		{ID: "PT-002", Name: "null_byte", Pattern: `%00|\\x00|\\0`, Category: "path_traversal", Severity: "critical", Description: "Null byte injection"},
 		{ID: "PT-003", Name: "url_encoded_traversal", Pattern: `%2[eE]%2[eE]/%2[eE]%2[eE]/`, Category: "path_traversal", Severity: "high", Description: "URL-encoded directory traversal"},
 
-		// Data exfiltration (3 rules)
-		{ID: "DE-001", Name: "base64_in_url", Pattern: `https?://.*[?&].*=.*[A-Za-z0-9+/]{40,}`, Category: "data_exfiltration", Severity: "high", Description: "Base64 payload in URL parameter"},
-		{ID: "DE-002", Name: "dns_exfil", Pattern: `[a-zA-Z0-9]{30,}\.[a-zA-Z]{2,}`, Category: "data_exfiltration", Severity: "medium", Description: "Possible DNS exfiltration"},
-		{ID: "DE-003", Name: "webhook_exfil", Pattern: `(?i)(hooks\.slack\.com|discord\.com/api/webhooks)`, Category: "data_exfiltration", Severity: "high", Description: "Webhook exfiltration target"},
+		// Data exfiltration — DE-001 (base64_in_url) and DE-002
+		// (dns_exfil) were dropped: false positives on every signed
+		// S3/JWT URL and any long subdomain (e.g. AWS internal hosts).
+		{ID: "DE-003", Name: "webhook_exfil", Pattern: `(?i)(hooks\.slack\.com|discord\.com/api/webhooks)`, Category: "data_exfiltration", Severity: "high", Description: "Slack/Discord webhook — legitimate notification channels but worth a look.", Escalate: true},
 
 		// Sensitive data (3 rules)
 		{ID: "SD-001", Name: "private_key_content", Pattern: `-----BEGIN\s+(RSA|EC|OPENSSH|PGP)\s+PRIVATE\s+KEY-----`, Category: "sensitive_data", Severity: "critical", Description: "Private key content detected"},
 		{ID: "SD-002", Name: "aws_key", Pattern: `AKIA[0-9A-Z]{16}`, Category: "sensitive_data", Severity: "critical", Description: "AWS access key detected"},
-		{ID: "SD-003", Name: "jwt_token", Pattern: `eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+`, Category: "sensitive_data", Severity: "high", Description: "JWT token detected"},
+		{ID: "SD-003", Name: "jwt_token", Pattern: `eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+`, Category: "sensitive_data", Severity: "high", Description: "JWT token detected — legitimate JWT handling code is common.", Escalate: true},
 
 		// Encoding evasion (1 rule)
 		{ID: "EE-001", Name: "zero_width_chars", Pattern: `[\x{200B}\x{200C}\x{200D}\x{FEFF}\x{00AD}]`, Category: "encoding_evasion", Severity: "high", Description: "Zero-width character detected"},
@@ -43,8 +44,9 @@ func CrossPlatformDetectionRules() []platform.HeuristicRule {
 		{ID: "GEN-002", Name: "gen_csam_adjacent", Pattern: `(?i)(child|minor|underage|teen|kid|boy|girl)\s.*(nude|naked|explicit|sexual|bath)`, Category: "generation_safety", Severity: "critical", Description: "Generation prompt contains CSAM-adjacent content"},
 		{ID: "GEN-003", Name: "gen_weapons_visual", Pattern: `(?i)(how to (make|build|assemble)|blueprint|schematic|diagram).*(bomb|explosive|weapon|firearm|gun)`, Category: "generation_safety", Severity: "critical", Description: "Generation prompt requests weapons manufacturing visuals"},
 
-		// Email safety (2 rules)
-		{ID: "EM-001", Name: "email_move_to_trash", Pattern: `(?i)email_move.*trash`, Category: "email_safety", Severity: "high", Description: "Moving email to trash is destructive"},
-		{ID: "EM-002", Name: "email_bulk_mark", Pattern: `(?i)email_mark.*(read|unread|flagged)`, Category: "email_safety", Severity: "medium", Description: "Bulk email flag modification"},
+		// Email safety (2 rules) — both escalate; moving to trash and
+		// bulk flag changes are normal user actions.
+		{ID: "EM-001", Name: "email_move_to_trash", Pattern: `(?i)email_move.*trash`, Category: "email_safety", Severity: "medium", Description: "Moving email to trash — normal user action; let evaluator judge.", Escalate: true},
+		{ID: "EM-002", Name: "email_bulk_mark", Pattern: `(?i)email_mark.*(read|unread|flagged)`, Category: "email_safety", Severity: "low", Description: "Bulk email flag modification — normal user action; let evaluator judge.", Escalate: true},
 	}
 }

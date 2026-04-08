@@ -94,7 +94,7 @@ func TestShellInjectionRulesNonEmpty(t *testing.T) {
 			xpCount++
 		}
 	}
-	assert.Equal(t, 37, xpCount, "should have exactly 37 cross-platform rules")
+	assert.Equal(t, 25, xpCount, "should have exactly 25 cross-platform rules after the Tier S/A/B redesign")
 }
 
 func TestShellInjectionRulesPlatformSpecific(t *testing.T) {
