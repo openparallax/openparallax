@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/openparallax/openparallax/internal/types"
+	pb "github.com/openparallax/openparallax/internal/types/pb"
 	"github.com/openparallax/openparallax/llm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -524,4 +525,41 @@ func TestRunLoopLLMError(t *testing.T) {
 	assert.Equal(t, EventLoopError, events[0].Type)
 	assert.Equal(t, "LLM_CALL_FAILED", events[0].ErrorCode)
 	assert.NotEmpty(t, events[0].ErrorMessage)
+}
+
+// TestToolDefsToLLM_PreservesParameters guards against the regression where
+// the gRPC ToolDef → llm.ToolDefinition conversion silently dropped the
+// parameters_json field. Without parameters, every tool reaches the OpenAI
+// SDK as a function with no input schema, the marshaler elides it as
+// zero-value, and upstream Anthropic / OpenAI-compatible proxies reject the
+// request with "input_schema: Field required".
+func TestToolDefsToLLM_PreservesParameters(t *testing.T) {
+	defs := []*pb.ToolDef{
+		{
+			Name:           "load_tools",
+			Description:    "meta-tool",
+			ParametersJson: `{"type":"object","properties":{"groups":{"type":"array","items":{"type":"string"}}},"required":["groups"]}`,
+		},
+		{
+			Name:           "no_args",
+			Description:    "tool without parameters json",
+			ParametersJson: "",
+		},
+	}
+
+	tools := ToolDefsToLLM(defs)
+	require.Len(t, tools, 2)
+
+	require.NotNil(t, tools[0].Parameters, "parameters_json must be unmarshaled into a non-nil schema map")
+	assert.Equal(t, "object", tools[0].Parameters["type"])
+	props, ok := tools[0].Parameters["properties"].(map[string]any)
+	require.True(t, ok, "properties must round-trip as map[string]any")
+	assert.Contains(t, props, "groups")
+	required, ok := tools[0].Parameters["required"].([]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"groups"}, required)
+
+	// Empty parameters_json is allowed and produces a tool with no schema
+	// (the LLM provider layer can decide whether to omit or substitute).
+	assert.Nil(t, tools[1].Parameters)
 }

@@ -338,13 +338,25 @@ func truncateResult(s string) string {
 }
 
 // ToolDefsToLLM converts proto tool definitions to LLM tool definitions.
+// The engine ships each tool's JSON Schema as the parameters_json field on
+// the wire (see engine_pipeline.go llmToolsToProto). It must be unmarshaled
+// here so the LLM provider sees the schema — without it the OpenAI SDK
+// elides parameters as a zero value, the upstream provider receives a
+// function definition with no input_schema, and the request is rejected.
 func ToolDefsToLLM(defs []*pb.ToolDef) []llm.ToolDefinition {
 	result := make([]llm.ToolDefinition, 0, len(defs))
 	for _, d := range defs {
-		result = append(result, llm.ToolDefinition{
+		def := llm.ToolDefinition{
 			Name:        d.Name,
 			Description: d.Description,
-		})
+		}
+		if d.ParametersJson != "" {
+			var params map[string]any
+			if err := json.Unmarshal([]byte(d.ParametersJson), &params); err == nil {
+				def.Parameters = params
+			}
+		}
+		result = append(result, def)
 	}
 	return result
 }
