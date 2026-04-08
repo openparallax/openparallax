@@ -255,8 +255,8 @@ mcp:
 Every MCP tool call is logged to the audit file with full details:
 
 ```jsonl
-{"timestamp":"2026-04-03T10:30:00Z","tool":"read_file","server":"filesystem","action_type":"read_file","payload":{"path":"/home/user/workspace/main.go"},"verdict":"ALLOW","tier":0,"confidence":1.0,"reasoning":"policy allow: allow_workspace_reads","hash":"sha256:...","prev_hash":"sha256:..."}
-{"timestamp":"2026-04-03T10:30:01Z","tool":"bash","server":"shell","action_type":"execute_command","payload":{"command":"rm -rf /"},"verdict":"BLOCK","tier":1,"confidence":0.95,"reasoning":"heuristic: rm -rf detected (critical)","hash":"sha256:...","prev_hash":"sha256:..."}
+{"timestamp":"2026-04-03T10:30:00Z","tool":"read_file","server":"filesystem","action_type":"read_file","payload":{"path":"/home/user/workspace/main.go"},"verdict":"ALLOW","tier":0,"confidence":1.0,"reasoning":"policy allow [allow_workspace_reads]: read_file on \"/home/user/workspace/main.go\" matched a policy pattern","hash":"sha256:...","prev_hash":"sha256:..."}
+{"timestamp":"2026-04-03T10:30:01Z","tool":"bash","server":"shell","action_type":"execute_command","payload":{"command":"rm -rf /"},"verdict":"BLOCK","tier":1,"confidence":0.95,"reasoning":"heuristic [rm_rf_root, critical]: Recursive root delete detected","hash":"sha256:...","prev_hash":"sha256:..."}
 ```
 
 Each audit entry includes:

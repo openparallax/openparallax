@@ -141,7 +141,7 @@ shield = Shield(policy_file="policies/default.yaml")
 verdict = shield.evaluate("read_file", {"path": "/home/user/.ssh/id_rsa"})
 print(verdict.decision)    # BLOCK
 print(verdict.tier)        # 0
-print(verdict.reasoning)   # policy deny: block_sensitive_system_paths
+print(verdict.reasoning)   # policy deny [block_sensitive_system_paths]: read_file on "/home/user/.ssh/id_rsa" matched a policy pattern
 
 # Evaluate a shell command.
 verdict = shield.evaluate("execute_command", {"command": "ls -la"})
@@ -211,7 +211,7 @@ Output:
 [PASS] read_file: policy allow: allow_workspace_reads
 [PASS] execute_command: classifier approved
 [PASS] write_file: classifier approved
-[FAIL] read_file: policy deny: block_sensitive_system_paths
+[FAIL] read_file: policy deny [block_sensitive_system_paths]: read_file on "/home/user/.ssh/id_rsa" matched a policy pattern
 [PASS] send_email: classifier approved
 ```
 

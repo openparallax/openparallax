@@ -78,7 +78,7 @@ Every eval run writes a single JSON file with this shape:
             "decision": "BLOCK",
             "tier": 1,
             "confidence": 1.0,
-            "reasoning": "ONNX: INJECTION (1.00)",
+            "reasoning": "classifier [INJECTION, conf 1.00]: prompt-injection ONNX model flagged this input — paraphrasing the request will not bypass it",
             "latency_ms": 1934
           }
         }

@@ -182,7 +182,7 @@ Evaluate an action.
   "decision": "BLOCK",
   "tier": 1,
   "confidence": 0.95,
-  "reasoning": "heuristic: rm -rf detected (critical)",
+  "reasoning": "heuristic [rm_rf_root, critical]: Recursive root delete detected",
   "action_hash": "sha256:a1b2c3d4e5f6...",
   "evaluated_at": "2026-04-03T10:30:00Z",
   "expires_at": "2026-04-03T10:35:00Z"

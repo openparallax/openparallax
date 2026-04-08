@@ -72,7 +72,7 @@ func main() {
 
     fmt.Printf("Decision: %s\n", verdict.Decision)   // BLOCK
     fmt.Printf("Tier:     %d\n", verdict.Tier)        // 0
-    fmt.Printf("Reason:   %s\n", verdict.Reasoning)   // policy deny: block_sensitive_paths
+    fmt.Printf("Reason:   %s\n", verdict.Reasoning)   // policy deny [block_sensitive_paths]: read_file on "/home/user/.ssh/id_rsa" matched a policy pattern
 }
 ```
 
@@ -130,7 +130,7 @@ verdict = shield.evaluate(
 
 print(verdict.decision)    # BLOCK
 print(verdict.tier)        # 0
-print(verdict.reasoning)   # policy deny: block_sensitive_paths
+print(verdict.reasoning)   # policy deny [block_sensitive_paths]: read_file on "/home/user/.ssh/id_rsa" matched a policy pattern
 ```
 
 ### With Custom Configuration
@@ -181,7 +181,7 @@ const verdict = await shield.evaluate({
 
 console.log(verdict.decision)    // BLOCK
 console.log(verdict.tier)        // 0
-console.log(verdict.reasoning)   // policy deny: block_sensitive_paths
+console.log(verdict.reasoning)   // policy deny [block_sensitive_paths]: read_file on "/home/user/.ssh/id_rsa" matched a policy pattern
 ```
 
 ### With Full Configuration
@@ -287,7 +287,7 @@ Response:
   "decision": "BLOCK",
   "tier": 0,
   "confidence": 1.0,
-  "reasoning": "policy deny: block_sensitive_paths",
+  "reasoning": "policy deny [block_sensitive_paths]: read_file on \"/home/user/.ssh/id_rsa\" matched a policy pattern",
   "action_hash": "sha256:a1b2c3...",
   "evaluated_at": "2026-04-03T10:30:00Z"
 }

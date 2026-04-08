@@ -158,7 +158,7 @@ const verdict = await shield.evaluate({
 
 console.log(verdict.decision)   // "BLOCK"
 console.log(verdict.tier)       // 0
-console.log(verdict.reasoning)  // "policy deny: block_sensitive_system_paths"
+console.log(verdict.reasoning)  // "policy deny [block_sensitive_system_paths]: read_file on \"/home/user/.ssh/id_rsa\" matched a policy pattern"
 
 await shield.close()
 ```

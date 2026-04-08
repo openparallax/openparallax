@@ -39,10 +39,10 @@ The `Gateway.Evaluate` method orchestrates the pipeline. Actions flow through ti
 t0Result := g.cfg.Policy.Evaluate(action)
 switch t0Result.Decision {
 case Deny:
-    return g.block(action, 0, 1.0, "policy deny: "+t0Result.Reason)
+    return g.block(action, 0, 1.0, formatPolicyReason("policy deny", action.Type, t0Result))
 case Allow:
     if action.MinTier <= 0 {
-        return g.allow(action, 0, 1.0, "policy allow: "+t0Result.Reason)
+        return g.allow(action, 0, 1.0, formatPolicyReason("policy allow", action.Type, t0Result))
     }
     // MinTier override requires higher evaluation — fall through.
 case Escalate:

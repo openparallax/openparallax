@@ -49,7 +49,7 @@ Like SOUL.md, identity modifications are escalated to Tier 2 in the default and 
 
 ### USER.md
 
-Your personal profile. The agent uses this to personalize responses.
+Your personal profile. The agent uses this to personalize responses, and is nudged through its system prompt to append durable facts it learns about you (preferences, role, projects, recurring contacts, working hours) so they survive across sessions.
 
 ```markdown
 # User Profile

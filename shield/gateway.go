@@ -8,14 +8,14 @@ import (
 )
 
 // formatPolicyReason renders a Tier 0 policy result for the LLM. The format
-// is `<verb> [<rule>]: <action> on <path> matches a <verb>ed pattern` so the
+// is `<verb> [<rule>]: <action> on <path> matched a policy pattern` so the
 // LLM can read which rule fired and which payload field tripped it. For
 // action-only rules (no path criterion) the path clause is dropped.
 func formatPolicyReason(verb string, actionType ActionType, r PolicyResult) string {
 	if r.MatchedPath != "" {
-		return fmt.Sprintf("%s [%s]: %s on %q matched a denied policy pattern", verb, r.Reason, actionType, r.MatchedPath)
+		return fmt.Sprintf("%s [%s]: %s on %q matched a policy pattern", verb, r.Reason, actionType, r.MatchedPath)
 	}
-	return fmt.Sprintf("%s [%s]: %s matched a denied policy rule", verb, r.Reason, actionType)
+	return fmt.Sprintf("%s [%s]: %s matched a policy rule", verb, r.Reason, actionType)
 }
 
 // GatewayConfig holds all tier implementations and settings.

@@ -157,7 +157,7 @@ If a user asks you to violate a guardrail, refuse and explain why.
 
 Three sections are always appended:
 
-- **Behavioral Rules**: Instructions for reporting tool results, being conversational, searching memory before claiming ignorance.
+- **Behavioral Rules**: Instructions for acting before narrating, picking the most specific tool (shell as a last resort), persisting durable user facts to USER.md, reading Shield block reasons before retrying, searching memory before claiming ignorance, and delegating 2+ independent subtasks to parallel sub-agents.
 - **OTR Notice** (OTR mode only): Explains read-only restrictions and lists available tools.
 - **Sensitive Data Handling**: Rules for handling credentials and secrets in tool output.
 
