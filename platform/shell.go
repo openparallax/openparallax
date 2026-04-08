@@ -33,13 +33,19 @@ type HeuristicRule struct {
 	// the action past Tier 1 (e.g., execute_command escalated to Tier 2). These
 	// are high-precision rules that the Tier 2 LLM evaluator has been observed
 	// to miss — typically agent-internal enumeration or service introspection.
+	//
+	// AlwaysBlock and Escalate are mutually exclusive: AlwaysBlock means
+	// "block at the heuristic precheck regardless of tier", Escalate means
+	// "do not block, route to Tier 2 instead". Setting both is meaningless
+	// and a rule that does so is rejected at construction time.
 	AlwaysBlock bool `json:"always_block,omitempty"`
 
 	// Escalate indicates the rule catches a context-dependent risk (e.g.
 	// `rm -rf node_modules`, `&&` chains, `find -delete`) that should not
 	// be hard-blocked but should be sent to the Tier 2 LLM evaluator with
 	// full conversation context. The evaluator decides intent. Rules
-	// without this flag are treated as hard blocks.
+	// without this flag are treated as hard blocks. Mutually exclusive
+	// with AlwaysBlock — see the AlwaysBlock doc above.
 	Escalate bool `json:"escalate,omitempty"`
 }
 

@@ -19,13 +19,20 @@ type compiledRule struct {
 }
 
 // NewHeuristicEngine creates a HeuristicEngine with platform-aware rules.
-// All regex patterns are compiled at init time. Invalid patterns are skipped.
+// All regex patterns are compiled at init time. Invalid patterns are
+// skipped. Rules that set both AlwaysBlock and Escalate are skipped
+// because the combination is incoherent and indicates a rule
+// definition bug — AlwaysBlock means "block before tier evaluation"
+// and Escalate means "do not block, route to Tier 2".
 func NewHeuristicEngine() *HeuristicEngine {
 	allRules := platform.ShellInjectionRules()
 	allRules = append(allRules, CrossPlatformDetectionRules()...)
 
 	compiled := make([]compiledRule, 0, len(allRules))
 	for _, r := range allRules {
+		if r.AlwaysBlock && r.Escalate {
+			continue
+		}
 		re, err := regexp.Compile(r.Pattern)
 		if err != nil {
 			continue

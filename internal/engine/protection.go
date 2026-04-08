@@ -92,8 +92,8 @@ func CheckProtection(action *types.ActionRequest, workspacePath string) (bool, P
 	// agent must send absolute paths (with ~ expansion) for every payload
 	// field. This makes Shield's path-based rules deterministic.
 	for _, rawPath := range allPaths {
-		if !isAbsolutePathSpec(rawPath) {
-			return false, FullBlock, "path " + rawPath + " is relative — Shield requires absolute paths so it can evaluate the literal target. Resend with the full absolute path (e.g. /home/user/Desktop/project/" + rawPath + ")."
+		if !platform.IsAbsolutePathSpec(rawPath) {
+			return false, FullBlock, "path " + rawPath + " is relative — Shield requires absolute paths so it can evaluate the literal target. Resend with the full absolute path."
 		}
 	}
 
@@ -192,8 +192,8 @@ func checkShellProtection(action *types.ActionRequest, workspacePath string) (bo
 	// command. Reject relative cd targets outright.
 	cmdBody := cmd
 	cdBase := ""
-	if base, rest, ok := parseLeadingCD(cmd); ok {
-		if !isAbsolutePathSpec(base) {
+	if base, rest, ok := platform.StripLeadingCD(cmd); ok {
+		if !platform.IsAbsolutePathSpec(base) {
 			return false, FullBlock, "cd target " + base + " is relative — Shield requires `cd <absolute-path> && <command>` so it can resolve write targets. Resend with the full absolute path."
 		}
 		cdBase = platform.NormalizePath(base)
@@ -206,7 +206,7 @@ func checkShellProtection(action *types.ActionRequest, workspacePath string) (bo
 	for _, target := range writeTargets {
 		// Reject relative write targets when there's no cd prefix to anchor
 		// them. With a cd prefix, the resolution base is the cd target.
-		if !isAbsolutePathSpec(target) && cdBase == "" {
+		if !platform.IsAbsolutePathSpec(target) && cdBase == "" {
 			return false, FullBlock, "shell command contains relative path " + target + " — Shield requires absolute paths or a leading `cd <absolute-path> && ` prefix. Resend with the full absolute path."
 		}
 		base := workspacePath
@@ -404,48 +404,6 @@ func resolveProtectionPath(raw, workspacePath string) string {
 		expanded = filepath.Join(workspacePath, expanded)
 	}
 	return filepath.Clean(expanded)
-}
-
-// isAbsolutePathSpec returns true when the raw path the agent sent is an
-// absolute path the engine can evaluate without an implicit working
-// directory. A path starting with ~ counts as absolute because
-// platform.NormalizePath expands it to the user's home directory.
-// Empty strings are accepted (the field is optional).
-func isAbsolutePathSpec(raw string) bool {
-	if raw == "" {
-		return true
-	}
-	if strings.HasPrefix(raw, "~") {
-		return true
-	}
-	return filepath.IsAbs(raw)
-}
-
-// leadingCDRe matches an optional `cd <path> && ` prefix at the start of a
-// shell command. Captures the cd target (group 1, possibly quoted) and the
-// rest of the command (group 2). Whitespace tolerant.
-var leadingCDRe = regexp.MustCompile(`^\s*cd\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s*&&\s*(.*)$`)
-
-// parseLeadingCD detects a `cd <path> && <command>` prefix on a shell
-// command and returns the cd target and the rest of the command. Returns
-// ok=false when the command does not start with a recognized cd prefix.
-// Only the simplest single-cd form is recognized; chained cds, env-var
-// targets, command substitution, and globs all return ok=false and the
-// caller treats the command as having no implicit working directory.
-func parseLeadingCD(cmd string) (target, rest string, ok bool) {
-	m := leadingCDRe.FindStringSubmatch(cmd)
-	if m == nil {
-		return "", "", false
-	}
-	// One of the three capture groups holds the target.
-	for _, candidate := range m[1:4] {
-		if candidate != "" {
-			target = candidate
-			break
-		}
-	}
-	rest = m[4]
-	return target, rest, true
 }
 
 // --- Shell command write target extraction ---
