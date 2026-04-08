@@ -142,8 +142,12 @@ function handleEvent(event: WSEvent) {
       // Terminal pipeline error (LLM provider down, agent crash, transport
       // failure). Surface the engine's message so the user knows what
       // happened, preserve any partial assistant output, and unblock input.
-      const msg = (event as any).error?.message || 'unknown error';
-      failStream(msg);
+      // The same error is also persisted server-side as a system message
+      // for non-OTR sessions, so a refresh shows the same line.
+      const err = (event as any).error || {};
+      const msg = err.message || 'unknown error';
+      const recoverable = err.recoverable !== false;
+      failStream(msg, recoverable);
       activeStreamSessionId = null;
       break;
     }

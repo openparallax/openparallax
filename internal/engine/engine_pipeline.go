@@ -343,6 +343,19 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 				ActionType: ae.Code,
 				Details:    ae.Message,
 			})
+
+			// Persist a system message into the session transcript so the
+			// error survives a refresh, but only for non-OTR sessions —
+			// OTR explicitly stores nothing on disk and that contract
+			// applies to errors as well.
+			if !e.currentMsgOTR {
+				content := "error: " + ae.Message
+				if !ae.Recoverable {
+					content += " (unrecoverable — the agent may need /restart)"
+				}
+				e.storeMessage(ae.SessionId, "", "system", content)
+			}
+
 			e.broadcaster.Broadcast(&PipelineEvent{
 				SessionID: ae.SessionId, MessageID: ae.MessageId,
 				Type:  EventError,

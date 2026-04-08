@@ -193,15 +193,20 @@ export function failPendingToolCall(summary: string) {
 // (LLM provider down, agent crash, transport failure). It preserves any
 // partial content the agent already produced, appends a system error line
 // so the user can see what happened, and clears stream state so the input
-// is unblocked. The persisted system message survives a refresh just like
-// any other entry in the chat thread.
-export function failStream(errorMessage: string) {
+// is unblocked. For non-OTR sessions the engine also writes a matching
+// system message to SQLite so the line survives a refresh; for OTR
+// sessions the line lives only in memory.
+export function failStream(errorMessage: string, recoverable: boolean = true) {
   const partial = get(streamingText).trim();
   const steps = get(pendingSteps);
   if (partial || steps.length > 0) {
     finalizeResponse(partial);
   }
-  addSystemMessage('⚠ ' + errorMessage);
+  let line = '⚠ error: ' + errorMessage;
+  if (!recoverable) {
+    line += ' (unrecoverable — the agent may need /restart)';
+  }
+  addSystemMessage(line);
   streaming.set(false);
   streamingText.set('');
   pendingSteps.set([]);
