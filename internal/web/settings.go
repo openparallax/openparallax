@@ -8,26 +8,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openparallax/openparallax/internal/config"
 	"github.com/openparallax/openparallax/internal/types"
 	"github.com/openparallax/openparallax/mcp"
 )
 
-// settingsKeyMap maps the JSON dot-paths accepted by PUT /api/settings
-// to the canonical SettableKeys names. The frontend sends nested JSON;
-// this flattens it into the same key namespace the slash command uses.
-var settingsKeyMap = map[string]string{
-	"agent.name":                "identity.name",
-	"agent.avatar":              "identity.avatar",
-	"chat.provider":             "chat.provider",
-	"chat.model":                "chat.model",
-	"chat.api_key_env":          "chat.api_key_env",
-	"chat.base_url":             "chat.base_url",
-	"shield.evaluator.provider": "shield.provider",
-	"shield.evaluator.model":    "shield.model",
-	"memory.embedding.provider": "embedding.provider",
-	"memory.embedding.model":    "embedding.model",
-}
+// The settings surface is read-only. The web UI displays the current
+// configuration via GET /api/settings; mutations go through the
+// canonical writer (`config.Save`) reachable from the slash command
+// path (`/config set`, `/model`) which is gated to CLI and web chat
+// channels and dispatches through `internal/config.SettableKeys`.
+//
+// Removing PUT /api/settings closes the secret-exfiltration and
+// Shield-disarm vectors documented in the security audit (findings
+// #1–#3) without losing any user-facing capability — slash commands
+// are reachable from the same web UI through the chat input.
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
 	s.log.Debug("api_get_settings")
@@ -73,109 +67,12 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
 		"web": map[string]any{
 			"port": cfg.Web.Port,
 		},
-		"sandbox": s.engine.SandboxStatus(),
+		"sandbox":   s.engine.SandboxStatus(),
+		"read_only": true,
+		"edit_hint": "Settings are read-only from the web UI. Use /config set or /model in the chat input, or edit config.yaml directly and restart.",
 	}
 
 	writeJSON(w, http.StatusOK, resp)
-}
-
-func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
-	var body map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		s.log.Warn("api_settings_update_bad_request", "error", err)
-		writeError(w, http.StatusBadRequest, "invalid JSON")
-		return
-	}
-
-	// Flatten body to dot-paths.
-	flat := flattenJSON("", body)
-	if len(flat) == 0 {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"success":          true,
-			"restart_required": false,
-			"changed":          []string{},
-		})
-		return
-	}
-
-	cfg := s.engine.Config()
-	var changed []string
-	var needsRestart []string
-	var immediate []string
-
-	for jsonPath, value := range flat {
-		strVal, ok := value.(string)
-		if !ok {
-			writeError(w, http.StatusBadRequest, "value for "+jsonPath+" must be a string")
-			return
-		}
-		canonical, mapped := settingsKeyMap[jsonPath]
-		if !mapped {
-			writeError(w, http.StatusBadRequest, "unknown or read-only setting: "+jsonPath)
-			return
-		}
-		key, exists := config.SettableKeys[canonical]
-		if !exists {
-			writeError(w, http.StatusBadRequest, "unknown setting: "+canonical)
-			return
-		}
-		if err := key.Setter(cfg, strVal); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		changed = append(changed, canonical)
-		if key.RequiresRestart {
-			needsRestart = append(needsRestart, canonical)
-		} else {
-			immediate = append(immediate, canonical)
-		}
-	}
-
-	if err := config.Save(s.engine.ConfigPath(), cfg); err != nil {
-		s.log.Error("api_settings_save_failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "save failed: "+err.Error())
-		return
-	}
-
-	// Apply identity changes immediately on the running engine.
-	for _, k := range immediate {
-		switch k {
-		case "identity.name":
-			s.engine.UpdateIdentity(cfg.Identity.Name, "")
-		case "identity.avatar":
-			s.engine.UpdateIdentity("", cfg.Identity.Avatar)
-		}
-	}
-
-	s.log.Info("api_settings_updated", "changed", strings.Join(changed, ","))
-	writeJSON(w, http.StatusOK, map[string]any{
-		"success":          true,
-		"restart_required": len(needsRestart) > 0,
-		"changed":          changed,
-		"immediate":        immediate,
-		"needs_restart":    needsRestart,
-	})
-}
-
-// flattenJSON walks a nested map and produces dot-path → value entries
-// for every leaf. Used to translate the settings PUT body into the
-// canonical key namespace.
-func flattenJSON(prefix string, body map[string]any) map[string]any {
-	out := make(map[string]any)
-	for k, v := range body {
-		path := k
-		if prefix != "" {
-			path = prefix + "." + k
-		}
-		if nested, ok := v.(map[string]any); ok {
-			for nk, nv := range flattenJSON(path, nested) {
-				out[nk] = nv
-			}
-			continue
-		}
-		out[path] = v
-	}
-	return out
 }
 
 func (s *Server) handleTestMCP(w http.ResponseWriter, r *http.Request) {

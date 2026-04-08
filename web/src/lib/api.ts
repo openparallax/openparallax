@@ -81,10 +81,6 @@ export async function getSettings(): Promise<Record<string, any>> {
   return fetchJSON('/settings');
 }
 
-export async function putSettings(data: Record<string, any>): Promise<{ success: boolean; restart_required: boolean; changed: string[]; immediate: string[]; needs_restart: string[] }> {
-  return fetchJSON('/settings', { method: 'PUT', body: JSON.stringify(data) });
-}
-
 export async function testMCPServer(config: { name: string; command: string; args?: string[]; env?: Record<string, string> }): Promise<{ success: boolean; tools?: string[]; error?: string }> {
   return fetchJSON('/settings/test-mcp', { method: 'POST', body: JSON.stringify(config) });
 }
