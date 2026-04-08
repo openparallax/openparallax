@@ -195,12 +195,10 @@ func runInternalEngine(_ *cobra.Command, _ []string) error {
 		agentName = types.DefaultIdentity.Name
 	}
 	chatModel, _ := cfg.ChatModel()
-	am := newAgentManager(grpcAddr, agentName, cfg.Workspace, llm.APIHost(chatModel.LLMConfig()))
+	am := newAgentManager(grpcAddr, agentName, cfg.Workspace, llm.APIHost(chatModel.LLMConfig()), eng.SetAgentAuthToken)
 	if amErr := am.spawnAgent(); amErr != nil {
 		eng.Log().Error("agent_spawn_failed", "error", amErr)
 		// Fall through — the engine still serves the web UI even without the CLI agent.
-	} else {
-		eng.SetAgentAuthToken(am.authToken)
 	}
 
 	// Sandbox status is set from Probe() above. The agent verifies
@@ -245,6 +243,11 @@ type agentManager struct {
 	workspace string
 	llmHost   string
 	authToken string
+	// onTokenChanged is invoked after a successful spawn (initial OR
+	// restart) so the engine can keep its expected token in sync. Without
+	// this, the engine would still expect the very first token after a
+	// crash-and-respawn, and the new agent's fresh token would fail auth.
+	onTokenChanged func(token string)
 
 	mu        sync.Mutex
 	cmd       *exec.Cmd
@@ -253,13 +256,14 @@ type agentManager struct {
 	cleanExit bool // true when agent exited with code 0 (e.g. /quit)
 }
 
-func newAgentManager(grpcAddr, agentName, workspace, llmHost string) *agentManager {
+func newAgentManager(grpcAddr, agentName, workspace, llmHost string, onTokenChanged func(string)) *agentManager {
 	return &agentManager{
-		grpcAddr:  grpcAddr,
-		agentName: agentName,
-		workspace: workspace,
-		llmHost:   llmHost,
-		done:      make(chan struct{}),
+		grpcAddr:       grpcAddr,
+		agentName:      agentName,
+		workspace:      workspace,
+		llmHost:        llmHost,
+		done:           make(chan struct{}),
+		onTokenChanged: onTokenChanged,
 	}
 }
 
@@ -307,6 +311,14 @@ func (am *agentManager) spawnAgent() error {
 
 	if err := am.cmd.Start(); err != nil {
 		return fmt.Errorf("agent spawn: %w", err)
+	}
+
+	// Sync the engine's expected token to the freshly-generated one
+	// before any agent connection attempt can race against it. The
+	// callback is invoked under am.mu so a concurrent monitor restart
+	// cannot interleave a stale token update.
+	if am.onTokenChanged != nil {
+		am.onTokenChanged(token)
 	}
 
 	am.done = make(chan struct{})
