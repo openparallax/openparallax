@@ -15,7 +15,10 @@ import (
 	"github.com/openparallax/openparallax/internal/oauth"
 )
 
-const graphBaseURL = "https://graph.microsoft.com/v1.0"
+const (
+	graphBaseURL         = "https://graph.microsoft.com/v1.0"
+	ms365MaxResponseBody = 4 << 20 // 4 MiB
+)
 
 // ms365CalendarProvider implements CalendarProvider using Microsoft Graph API.
 type ms365CalendarProvider struct {
@@ -29,7 +32,7 @@ func newMS365CalendarProvider(oauthMgr *oauth.Manager, account string) *ms365Cal
 	return &ms365CalendarProvider{
 		oauthMgr: oauthMgr,
 		account:  account,
-		client:   &http.Client{Timeout: 30 * time.Second},
+		client:   SafeHTTPClient(30 * time.Second),
 	}
 }
 
@@ -136,8 +139,11 @@ func (p *ms365CalendarProvider) doRequest(ctx context.Context, method, reqURL st
 			return nil, fmt.Errorf("request failed: %w", err)
 		}
 
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, ms365MaxResponseBody))
 		_ = resp.Body.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("read response body: %w", readErr)
+		}
 
 		switch {
 		case resp.StatusCode >= 200 && resp.StatusCode < 300:

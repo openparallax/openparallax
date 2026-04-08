@@ -96,15 +96,7 @@ func (h *HTTPExecutor) Execute(ctx context.Context, action *types.ActionRequest)
 		}
 	}
 
-	client := &http.Client{
-		Timeout: httpDefaultTimeout,
-		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
-			if len(via) >= 10 {
-				return fmt.Errorf("too many redirects")
-			}
-			return nil
-		},
-	}
+	client := SafeHTTPClient(httpDefaultTimeout)
 
 	resp, err := client.Do(req)
 	if err != nil {

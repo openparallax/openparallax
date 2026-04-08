@@ -1,11 +1,19 @@
 package executors
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
+
+// safeClientMaxRedirects is the cap on redirect hops a SafeHTTPClient will
+// follow. Each hop is re-validated against the private-IP block list, so this
+// is mostly a denial-of-service guard.
+const safeClientMaxRedirects = 5
 
 // privateRanges contains all CIDR ranges considered private or internal.
 var privateRanges []*net.IPNet
@@ -85,4 +93,64 @@ func validateURLNotPrivate(rawURL string) error {
 		return fmt.Errorf("blocked: request targets a private/internal network address")
 	}
 	return nil
+}
+
+// SafeHTTPClient returns an *http.Client that blocks connections to private,
+// loopback, link-local, and unique-local IP addresses at dial time. The dial
+// guard is re-applied on every redirect hop, so a public URL that 302s to an
+// internal address (DNS rebinding, metadata-service redirect) is rejected
+// before the connection completes.
+//
+// timeout applies to the whole request including redirects. A zero or
+// negative value disables the timeout.
+func SafeHTTPClient(timeout time.Duration) *http.Client {
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid address %q: %w", addr, err)
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, fmt.Errorf("DNS resolution failed for %q: %w", host, err)
+			}
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("no addresses for %q", host)
+			}
+			// Fail closed: if any resolved address is private, refuse the
+			// dial entirely rather than picking a "public" one. This
+			// prevents DNS records that mix public and private answers
+			// from sneaking through.
+			for _, ip := range ips {
+				if isPrivateIP(ip.IP) {
+					return nil, fmt.Errorf("blocked: %q resolves to private/internal address %s", host, ip.IP)
+				}
+			}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].IP.String(), port))
+		},
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          10,
+		IdleConnTimeout:       60 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= safeClientMaxRedirects {
+				return fmt.Errorf("stopped after %d redirects", safeClientMaxRedirects)
+			}
+			if err := validateURLNotPrivate(req.URL.String()); err != nil {
+				return fmt.Errorf("redirect blocked: %w", err)
+			}
+			return nil
+		},
+	}
 }
