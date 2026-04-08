@@ -290,7 +290,6 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		types.ActionClipboardRead: "system", types.ActionClipboardWrite: "system",
 		types.ActionOpen: "system", types.ActionNotify: "system",
 		types.ActionSystemInfo: "system", types.ActionScreenshot: "system",
-		types.ActionCalculate:     "utilities",
 		types.ActionArchiveCreate: "utilities", types.ActionArchiveExtract: "utilities",
 		types.ActionPDFRead:         "utilities",
 		types.ActionSpreadsheetRead: "utilities", types.ActionSpreadsheetWrite: "utilities",

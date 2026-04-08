@@ -26,7 +26,7 @@ const (
 	ScopeUnscoped
 
 	// ScopeNoFilesystem means the executor does not write to the local
-	// filesystem at all (e.g. calculate, http, email send).
+	// filesystem at all (e.g. http, email send).
 	ScopeNoFilesystem
 )
 

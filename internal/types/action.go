@@ -124,8 +124,6 @@ const (
 	ActionSystemInfo ActionType = "system_info"
 	// ActionScreenshot captures the desktop screen.
 	ActionScreenshot ActionType = "screenshot"
-	// ActionCalculate evaluates a mathematical expression.
-	ActionCalculate ActionType = "calculate"
 	// ActionArchiveCreate creates a zip or tar.gz archive.
 	ActionArchiveCreate ActionType = "archive_create"
 	// ActionArchiveExtract extracts a zip or tar.gz archive.
@@ -172,7 +170,6 @@ var AllActionTypes = []ActionType{
 	ActionGrepFiles,
 	ActionClipboardRead, ActionClipboardWrite, ActionOpen,
 	ActionNotify, ActionSystemInfo, ActionScreenshot,
-	ActionCalculate,
 	ActionArchiveCreate, ActionArchiveExtract,
 	ActionPDFRead, ActionSpreadsheetRead, ActionSpreadsheetWrite,
 }
