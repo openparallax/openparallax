@@ -214,16 +214,46 @@ allow:
 
 **Path patterns** use glob syntax with `**` for recursive matching and `*` for single-level matching. The `~` prefix expands to the user's home directory.
 
-## File Protection Levels
+## Default Denylist
 
-Different files in the workspace have different protection levels based on the default policy:
+OpenParallax ships with a curated denylist that applies to **any path the agent touches, anywhere on disk** — not just paths inside the workspace. The denylist is fixed in the binary and is not user-extensible. If you want the agent to access something on the list, you relocate the data to a path that is not on the list. Moving the file is the explicit consent action.
+
+The denylist has two protection levels:
+
+**Restricted (no read, no write).** Reading the path is the attack — the content is the secret. The agent cannot `read_file`, `write_file`, `delete_file`, `cat`, `cp`, or any other operation against these paths.
+
+- Credential directories: `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`, `~/.kube`, `~/.password-store`, `~/.azure`, `~/.config/gcloud`, `~/.config/op` (1Password CLI)
+- Linux: `/etc/shadow`, `/etc/sudoers`, `/root`, `/etc/sudoers.d`, `/etc/ssh`
+- macOS: `~/Library/Keychains`, `~/Library/Cookies`, browser credential dirs (Chrome, Firefox, Safari)
+- Windows: `C:\Windows\System32\config`, `%APPDATA%\Microsoft\Credentials`, `%LOCALAPPDATA%\Microsoft\Credentials`
+- Filename patterns matched anywhere on disk:
+  - SSH keys: `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`
+  - Cert/key files: `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.keystore`, `*.jks`, `*.asc`
+  - Env files: `.env`, `.env.local`, `.env.production`
+  - Credential files: `credentials`, `credentials.json`, `secrets.{yaml,yml,json}`, `token.json`, `service-account.json`, `.pgpass`, `.my.cnf`
+
+**Protected (read OK, write/delete blocked).** Reading the file is useful and safe; modifying it is a persistence vector or destabilises the host. The agent can `read_file` and `cat` these freely, but every write is blocked.
+
+- Shell rc files: `.bashrc`, `.bash_profile`, `.zshrc`, `.zprofile`, `.profile`, fish config
+- VCS configs: `.gitconfig`, `.gitignore_global`, `.npmrc`, `.yarnrc`, pip config, cargo config
+- Editor configs: `.vimrc`, nvim init files, `.tmux.conf`, `.inputrc`
+- Linux system reference files: `/etc/hosts`, `/etc/passwd`, `/etc/group`, `/etc/fstab`, `/etc/resolv.conf`, `/etc/crontab`, `/etc/environment`
+- Linux package manager and service dirs: `/etc/cron.{d,daily,weekly,monthly,hourly}`, `/etc/systemd`, `/etc/init.d`, `/etc/apt`, `/etc/yum.repos.d`, `/etc/dnf`, `/etc/pacman.d`
+- macOS: `/etc/hosts`
+- Windows: `C:\Windows\System32\drivers\etc\hosts`
+
+The denylist runs after symlink resolution. A symlink in `/tmp/safe.txt` pointing at `~/.ssh/id_rsa` resolves to `~/.ssh/id_rsa` and is blocked.
+
+## Workspace File Protection Levels
+
+In addition to the cross-platform default denylist, files inside the agent's own workspace have their own protection levels. These apply only to paths inside `cfg.Workspace`:
 
 | Protection Level | Files | What Happens |
 |-----------------|-------|-------------|
-| **FullBlock** | `~/.ssh/**`, `~/.aws/**`, `~/.gnupg/**`, `/etc/shadow` | Always blocked, cannot be read or written |
-| **EscalateTier2** | SOUL.md, IDENTITY.md, AGENTS.md, HEARTBEAT.md | Modifications sent to LLM evaluator for approval |
-| **WriteTier1Min** | USER.md, MEMORY.md, destructive file ops | Must pass heuristic/ONNX check |
-| **ReadOnly** | All workspace reads, git status/diff/log | Allowed immediately |
+| **FullBlock** | `config.yaml`, `canary.token`, `audit.jsonl`, `openparallax.db`, `evaluator-v1.md`, `.openparallax/`, `policies/` | Always blocked, cannot be read or written |
+| **ReadOnly** | SOUL.md, IDENTITY.md, `skills/` | Read OK, write/delete blocked |
+| **EscalateTier2** | AGENTS.md, HEARTBEAT.md | Writes proceed but require Tier 2 LLM evaluation |
+| **WriteTier1Min** | USER.md, MEMORY.md, `memory/` | Writes proceed but require Tier 1 minimum (heuristic/ONNX check) |
 
 ## Kernel Sandboxing
 

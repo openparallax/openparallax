@@ -103,21 +103,36 @@ Returns three values:
 
 ### Processing Steps
 
-1. **Shell commands**: For `execute_command` actions, extract only write targets from the command string using regex patterns. Read-only commands (`cat`, `grep`, `head`) are allowed. Write patterns detected: redirects (`>`), `tee`, `cp`, `mv`, `rm`, and Windows equivalents.
+1. **Shell commands**: For `execute_command` actions, parse an optional `cd <absolute-path> && ` prefix and extract write targets from the rest. Read-only commands (`cat`, `grep`, `head`) are allowed. Write patterns detected: redirects (`>`), `tee`, `cp`, `mv`, `rm`, and Windows equivalents. The cd target establishes the resolution base for write targets in the rest of the command. A relative cd target or relative write target (with no cd anchor) is rejected immediately with an error pointing the LLM at the absolute-path requirement.
 
-2. **Directory operations**: For `copy_dir` or `move_dir`, check if any protected files would be overwritten at the destination.
+2. **Absolute path enforcement**: For non-shell actions, every path field in the payload must be absolute (or `~`-prefixed for home expansion). Relative paths are rejected before any other check, with a clear error so the LLM can re-roll on the next round. Shield evaluates the literal path string and cannot resolve relative paths against an implicit working directory.
 
-3. **Path extraction**: Extract all filesystem paths from the action payload (fields: `path`, `source`, `destination`, `dir`, `file`, `target`).
+3. **Directory operations**: For `copy_dir` or `move_dir`, check if any protected files would be overwritten at the destination.
 
-4. **For each path**:
+4. **Path extraction**: Extract all filesystem paths from the action payload (fields: `path`, `source`, `destination`, `dir`, `file`, `target`).
+
+5. **For each path**:
    - Resolve to absolute path using workspace as base.
    - Resolve symlinks via `filepath.EvalSymlinks` to detect symlink bypass attacks.
-   - Check against hard-blocked files and directories.
-   - Check against read-only directories (if the action is a write).
-   - Check against Tier 1 directories (if the action is a write).
-   - Check the basename against `protectedFiles` map.
+   - **Cross-platform default denylist** (`defaultProtection`) — check the resolved path against the curated denylist tables in the `platform` package. Restricted hits (credential dirs and files anywhere on disk) return `FullBlock` immediately. Protected hits (shell rc files, system reference files) return `ReadOnly` and block writes; reads are allowed.
+   - Check against hard-blocked workspace files and directories (`config.yaml`, `.openparallax/`, etc.).
+   - Check against read-only workspace directories (if the action is a write).
+   - Check against Tier 1 workspace directories (if the action is a write).
+   - Check the basename against the workspace `protectedFiles` map (SOUL.md, IDENTITY.md, AGENTS.md, HEARTBEAT.md, USER.md, MEMORY.md).
 
-5. **Protection escalation**: The function tracks the highest protection level across all paths. If any path is `FullBlock` or `ReadOnly`, the action is immediately blocked. If `EscalateTier2` or `WriteTier1Min` is detected, the action proceeds but with an elevated `MinTier`.
+6. **Protection escalation**: The function tracks the highest protection level across all paths. If any path is `FullBlock` or `ReadOnly`, the action is immediately blocked. If `EscalateTier2` or `WriteTier1Min` is detected, the action proceeds but with an elevated `MinTier`.
+
+### Default Denylist
+
+The default denylist applies to **any path the agent touches, anywhere on disk** — not just paths inside the workspace. The lists are curated, ship in the binary, and are not user-extensible. If a user wants the agent to access something on the denylist, they relocate the data to a path that is not on the list. Moving the file is the explicit consent action.
+
+Two protection levels:
+
+- **Restricted** (`FullBlock` — no read, no write): credential directories (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`, `~/.docker`, `~/.password-store`, `~/.azure`, gcloud and 1Password CLI dirs), Linux `/etc/shadow`, `/etc/sudoers`, `/root`, macOS keychains and browser credential dirs, Windows credential vault and SAM hive. Plus filename patterns matched anywhere on disk: `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519`, `*.pem`/`*.key`/`*.p12`/`*.pfx`/`*.keystore`/`*.jks`/`*.asc`, `.env`/`.env.local`/`.env.production`, `credentials.json`, `secrets.{yaml,yml,json}`, `token.json`, `service-account.json`, `.pgpass`, `.my.cnf`.
+
+- **Protected** (`ReadOnly` — read OK, write/delete blocked): shell rc files (`.bashrc`, `.zshrc`, `.profile`, `.vimrc`, etc.), VCS configs (`.gitconfig`, `.npmrc`, `.yarnrc`, `pip.conf`, cargo config), Linux system reference files (`/etc/hosts`, `/etc/passwd`, `/etc/group`, `/etc/fstab`, `/etc/resolv.conf`, `/etc/crontab`, `/etc/environment`), Linux cron/systemd/init/apt/yum directories, macOS `/etc/hosts`, Windows hosts file.
+
+The data tables live in `platform/denylist_{linux,darwin,windows}.go` behind build-tagged accessors. The engine consumes them via `platform.RestrictedPrefixes()`, `platform.ProtectedFiles()`, etc., and snapshots them at package init. There are no runtime platform decisions in the engine.
 
 ### Shell Command Analysis
 

@@ -33,6 +33,44 @@ Four new event types now reach `audit.jsonl`. Previously these subsystems wrote 
 - **Numeric model index.** The `model` parameter on `create_agent` is now a 1-based integer index into a numbered menu rendered into the tool description from the workspace `models[]` pool. Out-of-range returns a graceful error so the LLM can recover on the next round. Optional `models[].purpose` annotation per pool entry surfaces a hand-written hint ("fast, cheap, scans") into the menu; entries without one are still selectable. The pool snapshot is taken at engine startup so live config edits cannot drift the index mapping mid-session.
 - **Context isolation made explicit.** The `task` parameter description spells out that the sub-agent starts with a blank context — it does NOT see the parent's conversation, files, or prior reasoning. The parent must include all background.
 
+### Tier 1 heuristic redesign
+
+The Tier 1 heuristic engine was binary: any rule match was a hard block. This made it over-aggressive on common dev workflows (`rm -rf node_modules`, `&&` chains, `find -delete`) while still letting truly dangerous patterns through. Three changes:
+
+- **`Escalate` flag on `HeuristicRule`.** When set, the engine returns `VerdictEscalate` instead of `VerdictBlock`. The gateway already routed escalate verdicts to Tier 2, so this is a flag, not new plumbing.
+- **Cross-platform shell rules sorted into block, escalate, or drop.** Hard-block rules (curl-piped-to-shell, base64-piped-to-interpreter, reverse shells, credential dir reads, recursive chmod on system dirs, secret-env echo) stay as `VerdictBlock`. Context-dependent rules (`rm -rf`, `&&` chains, `find -delete`, `git push --force` to main, `crontab` modifications, world-writable chmods, `DROP TABLE`) flip to escalate. Twelve false-positive rules dropped entirely (backticks, `$()`, heredocs, plain `eval`, plain `ssh`, plain `nc`, plain `kill`, etc.) — the dangerous combinations of those primitives stay as their own dedicated rules.
+- **Non-shell rules in `shield/tier1_rules.go`.** `PT-001 dot_dot_traversal`, `DE-003 webhook_exfil`, `SD-003 jwt_token`, `EM-001`, `EM-002` flipped to escalate. `DE-001 base64_in_url` and `DE-002 dns_exfil` deleted (false positives on signed S3 URLs and AWS hostnames).
+- **`HeuristicRule.AlwaysBlock` and `Escalate` are now mutually exclusive.** `NewHeuristicEngine` skips any rule that sets both at construction time.
+
+### Web settings panel made read-only
+
+The `PUT /api/settings` HTTP endpoint is removed entirely. The web settings panel displays the current configuration as labels and values — no editors, no Save button. To change a setting from the web UI, the user types the slash command in the chat input (`/config set chat.model …`). Slash commands work in the web chat the same way they work in the TUI and they go through the same canonical writer.
+
+This closes three security audit findings in one stroke: secret exfiltration via `chat.base_url` + `chat.api_key_env`, Shield evaluator disarm via `roles.shield`, and the localhost-no-auth mutation surface that an HTTP write endpoint would expose. Two more (the in-memory rollback bug in the PUT handler, the parallel-maps drift between `SettableKeys` and `settingsKeyMap`) disappear because the code paths are gone.
+
+### Absolute paths required
+
+Every path argument to a tool must be absolute (or `~`-prefixed). Relative paths are rejected at the engine before Shield evaluation, with a clear error pointing the LLM at the requirement so it can re-roll on the next round. The reason is that Shield evaluates the literal path string and cannot resolve relative paths against an implicit working directory; making path resolution unambiguous is what makes the denylist deterministic.
+
+For shell commands, the one allowed exception is a leading `cd <absolute-path> && <command>` prefix. The cd target establishes an implicit working directory and write targets in the rest of the command are resolved against it. Anything else with relative paths is rejected.
+
+### Default denylist (cross-platform)
+
+A curated, ship-with-the-binary denylist now applies to **any path the agent touches, anywhere on disk**. Two protection levels:
+
+- **Restricted** (no read, no write): credential directories (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.docker`, `~/.kube`, `~/.password-store`, `~/.azure`, gcloud and 1Password CLI dirs), Linux `/etc/shadow`/`/etc/sudoers`/`/root`, macOS keychains and browser credential dirs, Windows credential vault and SAM hive. Plus filename patterns matched anywhere on disk: `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519`, `*.pem`/`*.key`/`*.p12`/`*.pfx`/`*.keystore`/`*.jks`/`*.asc`, `.env`/`.env.local`/`.env.production`, `credentials.json`, `secrets.{yaml,yml,json}`, `token.json`, `service-account.json`, `.pgpass`, `.my.cnf`.
+- **Protected** (read OK, write/delete blocked): shell rc files (`.bashrc`, `.zshrc`, `.profile`, `.vimrc`, etc.), VCS configs (`.gitconfig`, `.npmrc`, `.yarnrc`, pip config, cargo config), Linux system reference files (`/etc/hosts`, `/etc/passwd`, etc.), Linux cron/systemd/init/apt/yum dirs, macOS `/etc/hosts`, Windows hosts file.
+
+The data tables live in `platform/denylist_{linux,darwin,windows}.go` behind build-tagged accessors. Engine code consumes them via cross-platform accessors and snapshots the lists at package init — there are no runtime platform decisions in the engine.
+
+The denylist is curated and ships in the binary. It is not user-extensible. If a user wants the agent to access something on the list, they relocate the data to a path that is not on the list. Moving the file is the explicit consent action.
+
+### Safe-command fast path
+
+A curated allowlist of common dev workflow commands (`git`, `npm`, `make`, `go`, `cargo`, `docker`, `kubectl`, `pwd`, `whoami`, `date`, etc., plus their cmd.exe equivalents on Windows) now bypasses all four Shield tiers. Single-statement commands whose first token is in the allowlist return ALLOW with confidence 1.0. The user wins back the latency and tokens of an LLM call on every routine `git status`, `npm install`, `make build`.
+
+The fast path applies only to single-statement commands; any command containing `;`, `&`, `|`, `>`, `<`, `` ` ``, or `$(...)` falls through to normal evaluation. The allowlist excludes commands that take arbitrary path arguments (`cat`, `ls`, `head`, `tail`, `grep`, `find`, `rm`, `cp`, `mv`) — those go through normal evaluation so the heuristic and Tier 2 layers can evaluate the actual targets. The allowlist is not user-extensible; tables live in `platform/safe_commands_{unix,windows}.go`.
+
 ---
 
 ## v0.1.0 — Initial Release

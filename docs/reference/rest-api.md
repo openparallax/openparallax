@@ -116,6 +116,10 @@ Lists all available tools (across all groups).
 
 ## Settings
 
+The settings surface is **read-only over HTTP**. There is no `PUT /api/settings` endpoint. Configuration changes go through the slash command path (`/config set`, `/model`) which is gated to the CLI and web chat channels and dispatches through the canonical writer. The slash commands work from the same web UI through the chat input.
+
+The decision to remove the HTTP write path closes three security audit findings (secret exfiltration via `chat.base_url` + `chat.api_key_env`, Shield evaluator disarm via `roles.shield`, and the localhost-no-auth mutation surface). See `/guide/configuration#editing-config-at-runtime` for the full write path.
+
 ### `GET /api/settings`
 
 Returns the current configuration (secrets masked).
@@ -132,58 +136,11 @@ Returns the current configuration (secrets masked).
   "email": { "provider": "smtp", "configured": true, "from": "...", "oauth_accounts": [...] },
   "calendar": { "provider": "google", "configured": true, "oauth_accounts": [...] },
   "web": { "port": 3100 },
-  "sandbox": { "active": true, "mode": "landlock" }
+  "sandbox": { "active": true, "mode": "landlock" },
+  "read_only": true,
+  "edit_hint": "Settings are read-only from the web UI. Use /config set or /model in the chat input, or edit config.yaml directly and restart."
 }
 ```
-
-### `PUT /api/settings`
-
-Updates configuration fields. The handler flattens the nested JSON body into dot-paths, dispatches every key through the canonical `SettableKeys` registry, and persists via the same writer used by `/config set` and the CLI init wizard. Atomic across all keys in the body — either every key validates and the file is updated, or nothing changes.
-
-**Request body:** Partial settings object (only include fields to change).
-
-```json
-{
-  "agent": { "name": "NewName" },
-  "chat": { "provider": "openai", "model": "gpt-5.4" }
-}
-```
-
-**Accepted JSON paths** (mapped to canonical keys):
-
-| JSON path | Canonical key | Restart? |
-|---|---|---|
-| `agent.name` | `identity.name` | Immediate |
-| `agent.avatar` | `identity.avatar` | Immediate |
-| `chat.provider` | `chat.provider` | Restart |
-| `chat.model` | `chat.model` | Restart |
-| `chat.api_key_env` | `chat.api_key_env` | Restart |
-| `chat.base_url` | `chat.base_url` | Restart |
-| `shield.evaluator.provider` | `shield.provider` | Restart |
-| `shield.evaluator.model` | `shield.model` | Restart |
-| `memory.embedding.provider` | `embedding.provider` | Restart |
-| `memory.embedding.model` | `embedding.model` | Restart |
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "restart_required": true,
-  "changed": ["chat.provider", "chat.model"],
-  "immediate": [],
-  "needs_restart": ["chat.provider", "chat.model"]
-}
-```
-
-Identity changes take effect immediately on the live engine. Chat, Shield evaluator, and memory embedding changes require a restart.
-
-**Errors:**
-
-- `400 Bad Request` — unknown or read-only key (e.g. `web.port`, `shield.tier2_budget`, anything from the `general.*` block), value of the wrong type, or a model reference that doesn't resolve in the pool.
-- `500 Internal Server Error` — `config.Save` failed (round-trip validation rejected the result; the on-disk file is left untouched).
-
-Every successful save also creates a backup at `<workspace>/.openparallax/backups/config-<timestamp>.yaml` and rotates the directory to the 10 most recent.
 
 ### `POST /api/settings/test-mcp`
 

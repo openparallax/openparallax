@@ -2,6 +2,10 @@
 
 Shield policies are YAML files that define deterministic rules for Tier 0 evaluation. This page extends the [Tier 0 reference](/shield/tier0) with practical guidance on designing, testing, and migrating policies.
 
+::: tip Curated safe-command fast path
+Before any policy rule runs, the gateway checks `execute_command` actions against a curated allowlist of known-safe shell command first-tokens (`git`, `npm`, `make`, `go`, `cargo`, `docker`, `kubectl`, `pwd`, `whoami`, `date`, etc., plus their cmd.exe equivalents on Windows). A single-statement command whose first token is in the allowlist is fast-tracked to ALLOW with confidence 1.0, bypassing all four tiers. Single-statement only — any command containing `;`, `&`, `|`, `>`, `<`, `` ` ``, or `$(...)` falls through to normal evaluation. The allowlist is curated and ships in the binary; it is not user-extensible. See [Safe Command Fast Path](#safe-command-fast-path) below.
+:::
+
 ## How to Think About Policy Design
 
 A Shield policy answers three questions for every tool call:
@@ -587,6 +591,41 @@ Once your custom rules are working, consider switching the base policy to `defau
 7. **Name rules descriptively.** Rule names appear in audit logs. `block_ssh_keys` is better than `rule_1`.
 
 8. **Keep policies under version control.** Treat policy files like code -- track changes, review diffs, and test before deploying.
+
+## Safe Command Fast Path
+
+Before any policy rule runs, the gateway runs a curated allowlist check on `execute_command` actions. The allowlist contains the first-tokens of common dev workflow commands whose safety is determined by the command itself (it does not take arbitrary path arguments) or by its working-directory operation pattern.
+
+A command qualifies for the fast path when:
+
+1. It is a single statement. Any command containing `;`, `&`, `|`, `>`, `<`, `` ` ``, or `$(...)` is rejected from the fast path and falls through to normal Shield evaluation.
+2. After stripping an optional `cd <absolute-path> && ` prefix, the first whitespace-separated token (lowercased and stripped of `.exe` on Windows) is in the platform-appropriate allowlist.
+
+When a command qualifies, the gateway returns ALLOW with confidence 1.0. No Tier 0 policy check, no Tier 1 classifier, no Tier 2 evaluator. The user wins back the latency and tokens of an LLM call on every routine `git status`, `npm install`, `make build`, `go test`, `pwd`, `whoami`.
+
+The allowlist intentionally excludes commands that take arbitrary path arguments (`cat`, `ls`, `head`, `tail`, `grep`, `find`, `rm`, `cp`, `mv` on Unix; `type`, `dir`, `findstr` on Windows). Those commands go through Shield's normal pipeline so the heuristic and Tier 2 layers can evaluate the actual targets.
+
+The allowlist is curated and ships in the binary. It is not user-extensible. Adding to it requires a code change and a release.
+
+A representative subset of the Unix allowlist:
+
+```
+git, hg, svn
+npm, pnpm, yarn, npx, bun, deno, node
+pip, pip3, poetry, python, python3
+cargo, rustc, rustup
+go, gofmt
+make, cmake, ninja, bazel
+mvn, gradle, java, javac
+docker, docker-compose, kubectl, helm, podman
+pwd, whoami, hostname, date, id, uname, echo, printf
+df, du, free, ps, top, lsof, netstat, ss
+which, whereis
+```
+
+Windows includes the same external tools (`git`, `npm`, etc.) plus cmd.exe builtins like `tasklist`, `ipconfig`, `systeminfo`, `where`. PowerShell is not exposed as a separate shell tool — `powershell.exe` as a first token is not in the allowlist and falls through to normal evaluation, which is the correct behavior since PowerShell scripts are arbitrary code.
+
+Caller-imposed `MinTier` overrides take precedence: if a caller has set `MinTier > 0`, the fast path is skipped and the action goes through normal evaluation regardless of whether the command would otherwise qualify.
 
 ## Next Steps
 

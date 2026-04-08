@@ -246,31 +246,31 @@ Detects attempts to override the LLM's instructions:
 
 Detects directory traversal and null byte injection:
 
-| Rule ID | Name | Severity | Pattern |
-|---------|------|----------|---------|
-| PT-001 | `dot_dot_traversal` | high | `../../` |
-| PT-002 | `null_byte` | critical | `%00`, `\x00`, `\0` |
-| PT-003 | `url_encoded_traversal` | high | `%2e%2e/%2e%2e/` |
+| Rule ID | Name | Outcome | Pattern |
+|---------|------|---------|---------|
+| PT-001 | `dot_dot_traversal` | escalate | `../../` (escalates because nested `../` is sometimes legitimate in monorepo relative imports) |
+| PT-002 | `null_byte` | block | `%00`, `\x00`, `\0` |
+| PT-003 | `url_encoded_traversal` | block | `%2e%2e/%2e%2e/` |
 
-#### Data Exfiltration (3 rules)
+#### Data Exfiltration (1 rule)
 
-Detects attempts to send data to external services:
+Detects attempts to send data to known notification destinations:
 
-| Rule ID | Name | Severity | Pattern |
-|---------|------|----------|---------|
-| DE-001 | `base64_in_url` | high | Base64 payload (40+ chars) in URL parameter |
-| DE-002 | `dns_exfil` | medium | Long subdomain (30+ chars) suggesting DNS exfiltration |
-| DE-003 | `webhook_exfil` | high | Known webhook endpoints (Slack, Discord) |
+| Rule ID | Name | Outcome | Pattern |
+|---------|------|---------|---------|
+| DE-003 | `webhook_exfil` | escalate | Known webhook endpoints (Slack, Discord). Escalates because Slack/Discord webhooks are legitimate notification channels. |
+
+The earlier `base64_in_url` and `dns_exfil` rules were dropped: they produced false positives on every signed S3 URL, every JWT-bearing URL, every long cloud-generated subdomain (e.g. AWS internal hostnames). The structural patterns they matched are not specific enough to discriminate exfiltration from normal network traffic.
 
 #### Sensitive Data (3 rules)
 
 Detects credentials and secrets in action payloads:
 
-| Rule ID | Name | Severity | Pattern |
-|---------|------|----------|---------|
-| SD-001 | `private_key_content` | critical | `-----BEGIN (RSA\|EC\|OPENSSH) PRIVATE KEY-----` |
-| SD-002 | `aws_key` | critical | `AKIA[0-9A-Z]{16}` |
-| SD-003 | `jwt_token` | high | JWT format (`eyJ...eyJ...signature`) |
+| Rule ID | Name | Outcome | Pattern |
+|---------|------|---------|---------|
+| SD-001 | `private_key_content` | block | `-----BEGIN (RSA\|EC\|OPENSSH) PRIVATE KEY-----` |
+| SD-002 | `aws_key` | block | `AKIA[0-9A-Z]{16}` |
+| SD-003 | `jwt_token` | escalate | JWT format (`eyJ...eyJ...signature`). Escalates because legitimate JWT-handling code is common. |
 
 #### Encoding Evasion (1 rule)
 
@@ -300,30 +300,38 @@ Detects unsafe content generation requests:
 
 #### Email Safety (2 rules)
 
-Detects destructive email operations:
+Detects destructive email operations. Both escalate rather than hard block because moving an email to trash and bulk flag modification are normal user actions; the Tier 2 evaluator decides whether the specific request fits the conversation.
 
-| Rule ID | Name | Severity | Pattern |
-|---------|------|----------|---------|
-| EM-001 | `email_move_to_trash` | high | Moving emails to trash |
-| EM-002 | `email_bulk_mark` | medium | Bulk email flag modification |
+| Rule ID | Name | Outcome | Pattern |
+|---------|------|---------|---------|
+| EM-001 | `email_move_to_trash` | escalate | Moving emails to trash |
+| EM-002 | `email_bulk_mark` | escalate | Bulk email flag modification |
 
 #### Platform-Specific Shell Injection
 
 Additional rules are loaded based on the host operating system. These detect platform-specific shell injection patterns (e.g., PowerShell-specific attacks on Windows, bash-specific attacks on Linux/macOS).
 
+The shell injection rules are split into two outcome groups:
+
+- **Hard block** — patterns with no legitimate use. Curl-piped-to-shell, base64-decode-piped-to-interpreter, reverse shells, credential directory reads, recursive chmod on system directories, secret-env echo. These return BLOCK with high confidence and never reach Tier 2.
+- **Escalate to Tier 2** — context-dependent patterns. `&&`/`;` chains, `rm -rf`, `find -delete`, `git push --force` to main, `crontab` modifications, world-writable chmods, `DROP TABLE`. The shape alone cannot distinguish a legitimate dev workflow from an attack, so the LLM evaluator at Tier 2 decides on the action shape (with no conversation context — see [Tier 2](/shield/tier2)).
+
+False-positive-prone rules from earlier iterations (backticks, `$()` subshells, plain `eval`/`exec`, plain `crontab`, plain `ssh`, plain `nc`, plain `kill`, redirect-overwrite, heredocs, process substitution) were dropped entirely. The dangerous *combinations* of those primitives (`base64 ... | sh`, `nc -e`, `curl ... | sh`) remain as their own dedicated rules.
+
 ### Severity to Confidence Mapping
 
 Heuristic results map severity levels to confidence scores:
 
-| Severity | Confidence | Decision |
-|----------|-----------|----------|
-| critical | 0.95 | BLOCK |
-| high | 0.85 | BLOCK |
-| medium | 0.70 | BLOCK |
-| low | 0.50 | BLOCK |
-| no match | 0.70 | ALLOW |
+| Severity | Confidence |
+|----------|-----------|
+| critical | 0.95 |
+| high | 0.85 |
+| medium | 0.70 |
+| low | 0.50 |
 
-All matched heuristic rules produce BLOCK decisions. The severity determines the confidence level, which affects how the result is combined with the ONNX result and how it appears in audit logs.
+The decision (BLOCK or ESCALATE) comes from the rule's `Escalate` flag, not from the severity. The severity determines how confident the heuristic is that the pattern matched, which affects how the result is combined with the ONNX result and how it appears in audit logs. A "critical" rule that escalates means "I am confident this pattern matched and the LLM evaluator should look at it"; a "critical" rule that blocks means "I am confident this is a known-bad pattern and there is no legitimate use".
+
+The two flags `AlwaysBlock` and `Escalate` are mutually exclusive. `AlwaysBlock` means "block at the heuristic precheck regardless of tier"; `Escalate` means "do not block, route to Tier 2 instead". The heuristic engine constructor skips any rule that sets both.
 
 ### Scanning Strategy
 
@@ -345,6 +353,8 @@ After the DualClassifier produces a result, the Gateway handles it:
 | ALLOW (and `minTier < 2`) | Return ALLOW verdict |
 | ESCALATE | Continue to Tier 2 |
 | Error (fail-closed mode) | Return BLOCK verdict |
+
+A heuristic-only ESCALATE (no ONNX agreement) routes the action to Tier 2 the same way an ONNX ESCALATE does. The gateway combines the two classifier results: BLOCK beats ESCALATE, ESCALATE beats ALLOW.
 
 ## Next Steps
 

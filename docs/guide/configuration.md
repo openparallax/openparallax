@@ -471,9 +471,9 @@ Identity changes take effect immediately. Model and provider changes write to di
 
 Swaps which named model from your `models[]` pool a role points at. The target name must already exist in the pool. Persisted to disk via the same writer; restart required to bind the new model on the live engine.
 
-### From the web UI settings panel
+### The web UI settings panel is read-only
 
-`PUT /api/settings` accepts a partial JSON body and dispatches every key through the same `SettableKeys` registry. Unknown or read-only keys return `400 Bad Request`. See the [REST API reference](/reference/rest-api#put-api-settings) for the request/response shape.
+The settings panel in the web UI displays the current configuration as labels and values — no editors, no Save button. There is no `PUT /api/settings` HTTP endpoint. To change a setting from the web UI, type the slash command in the chat input (`/config set chat.model …`, `/model chat <pool-entry>`). Slash commands work in the web chat the same way they work in the TUI, and they go through the same canonical writer.
 
 ### After editing the file directly
 

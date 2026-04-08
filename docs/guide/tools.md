@@ -39,7 +39,7 @@ Returns the full tool definitions for the requested groups, making them availabl
 
 ### files
 
-File and directory operations within the workspace.
+File and directory operations. The agent can touch any file on disk subject to the [default denylist](/guide/security#default-denylist) and the per-action Shield evaluation.
 
 | Tool | Description |
 |------|-------------|
@@ -56,6 +56,10 @@ File and directory operations within the workspace.
 | `search_files` | Search for files by name pattern |
 | `grep_files` | Search file contents with regex patterns |
 
+::: warning Absolute paths required
+Every path argument to a file tool must be **absolute** (e.g. `/home/user/Desktop/project/main.go`). The leading `~` is expanded to the user's home directory. Relative paths are rejected at the engine before Shield evaluation. The reason is that Shield evaluates the literal path string the agent sent and cannot resolve relative paths against an implicit working directory; making path resolution unambiguous is what makes the denylist deterministic. The agent's tool descriptions enforce this and the engine returns a clear error pointing the LLM at the absolute-path requirement so it can re-roll on the next round.
+:::
+
 ### shell
 
 Execute commands on the host system.
@@ -64,7 +68,11 @@ Execute commands on the host system.
 |------|-------------|
 | `execute_command` | Run a shell command and return stdout/stderr |
 
-Shell commands are always evaluated by Shield (Tier 1 minimum in the default policy). The command, arguments, and working directory are sent to the evaluator for security review.
+Shell commands go through the full Shield pipeline by default. Two important behaviors:
+
+**Absolute paths required.** Every path inside the command string must be absolute. `rm -rf /home/user/Desktop/project/db` is fine; `rm -rf db` is rejected. The one allowed exception is a leading `cd <absolute-path> && <command>` prefix — the cd target establishes an implicit working directory, and write targets in the rest of the command are resolved against it. Anything more complex (chained cds, env-var targets, command substitution) does not get the cd-prefix exemption and falls into the relative-path rejection path.
+
+**Safe-command fast path.** Common dev workflow commands (`git`, `npm`, `make`, `go`, `cargo`, `docker`, `kubectl`, `pwd`, `whoami`, `date`, etc., plus the cmd.exe equivalents on Windows) bypass all four Shield tiers and return ALLOW with confidence 1.0 — no LLM call, no latency. The fast path applies only to single-statement commands; any command containing `;`, `&`, `|`, `>`, `<`, `` ` ``, or `$(...)` falls through to normal evaluation. The allowlist is curated and ships in the binary; see [Policies → Safe Command Fast Path](/shield/policies#safe-command-fast-path).
 
 ### git
 

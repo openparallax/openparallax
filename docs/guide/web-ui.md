@@ -138,12 +138,26 @@ If the engine restarts (via `/restart` or crash recovery), the WebSocket reconne
 
 ## Settings Panel
 
-The settings panel (gear icon in the sidebar) displays:
+The settings panel (gear icon in the sidebar) is **read-only**. It displays the current configuration as labels and values — no editors, no Save button. A banner at the top points at the slash command path for changes.
 
-- **Agent info** — name, provider, model
-- **Connection status** — WebSocket state, gRPC state
-- **Sandbox status** — kernel sandbox mode and capabilities
-- **Session info** — current session ID, message count, OTR status
+What you see:
+
+- **Agent info** — name, avatar
+- **Chat model** — provider, model, API key configured, base URL
+- **Shield** — policy, evaluator provider/model, Tier 2 budget and usage
+- **Memory** — embedding provider/model
+- **MCP servers** — configured servers
+- **Email and calendar** — configured channels
+- **Web** — port
+- **Sandbox** — kernel sandbox mode and capabilities
+
+To **change** a setting from the web UI, type the slash command in the chat input:
+
+- `/config set chat.model claude-haiku-4-5-20251001` — change a model on the active role
+- `/model chat <pool-entry>` — switch which model from the pool a role points at
+- `/config set identity.name Bear` — change the agent's display name
+
+Slash commands work in the web chat the same way they work in the TUI. There is no HTTP write endpoint for settings — the read-only design closes the secret-exfiltration and Shield-disarm vectors that an HTTP write surface would expose. See [Configuration → Editing Config at Runtime](/guide/configuration#editing-config-at-runtime) for the complete list of settable keys.
 
 ## Next Steps
 
