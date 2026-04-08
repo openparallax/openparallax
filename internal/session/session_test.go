@@ -86,33 +86,6 @@ func TestGetHistory(t *testing.T) {
 	assert.Equal(t, "assistant", history[1].Role)
 }
 
-// TestGetHistoryFiltersSystemRows asserts that system rows in the messages
-// table — used by the engine to record pipeline errors so they survive a
-// chat refresh — are excluded from the history fed to the LLM. system rows
-// are operational metadata, not conversation, and most LLM providers reject
-// or mishandle non-conversational role values mid-stream.
-func TestGetHistoryFiltersSystemRows(t *testing.T) {
-	s := openTestStore(t)
-	sess := s.Create(types.SessionNormal)
-
-	_ = s.db.InsertMessage(&types.Message{
-		ID: "m1", SessionID: sess.ID, Role: "user", Content: "hi", Timestamp: time.Now(),
-	})
-	_ = s.db.InsertMessage(&types.Message{
-		ID: "m2", SessionID: sess.ID, Role: "system", Content: "error: rpc dial failed", Timestamp: time.Now().Add(time.Second),
-	})
-	_ = s.db.InsertMessage(&types.Message{
-		ID: "m3", SessionID: sess.ID, Role: "user", Content: "still there?", Timestamp: time.Now().Add(2 * time.Second),
-	})
-
-	history := s.GetHistory(sess.ID)
-	require.Len(t, history, 2)
-	assert.Equal(t, "user", history[0].Role)
-	assert.Equal(t, "hi", history[0].Content)
-	assert.Equal(t, "user", history[1].Role)
-	assert.Equal(t, "still there?", history[1].Content)
-}
-
 func TestAutoTitle(t *testing.T) {
 	assert.Equal(t, "Hello world", AutoTitle("Hello world"))
 	assert.Equal(t, "New session", AutoTitle(""))

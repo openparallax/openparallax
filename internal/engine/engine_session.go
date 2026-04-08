@@ -96,13 +96,6 @@ func (e *Engine) getHistory(sessionID string) []llm.ChatMessage {
 	}
 	result := make([]llm.ChatMessage, 0, len(messages))
 	for _, m := range messages {
-		// system rows are operational metadata (pipeline errors, OTR
-		// notices written into the transcript) and must not be sent to
-		// the LLM. They are still returned by GetMessages so the chat
-		// reload path can render them.
-		if m.Role == "system" {
-			continue
-		}
 		result = append(result, llm.ChatMessage{Role: m.Role, Content: m.Content})
 	}
 	return result

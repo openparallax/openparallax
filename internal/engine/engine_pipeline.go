@@ -337,25 +337,16 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		case *pb.AgentEvent_AgentError:
 			ae := ev.AgentError
 			e.log.Error("agent_error", "session", ae.SessionId, "code", ae.Code, "message", ae.Message)
+			// The audit log is the canonical persistent record of pipeline
+			// errors; the chat thread renders the error live for the user
+			// but does not store it. After a refresh the user can find the
+			// error via `openparallax audit --type SHIELD_ERROR`.
 			e.auditLog(audit.Entry{
 				EventType:  types.AuditShieldError,
 				SessionID:  ae.SessionId,
 				ActionType: ae.Code,
 				Details:    ae.Message,
 			})
-
-			// Persist a system message into the session transcript so the
-			// error survives a refresh, but only for non-OTR sessions —
-			// OTR explicitly stores nothing on disk and that contract
-			// applies to errors as well.
-			if !e.currentMsgOTR {
-				content := "error: " + ae.Message
-				if !ae.Recoverable {
-					content += " (unrecoverable — the agent may need /restart)"
-				}
-				e.storeMessage(ae.SessionId, "", "system", content)
-			}
-
 			e.broadcaster.Broadcast(&PipelineEvent{
 				SessionID: ae.SessionId, MessageID: ae.MessageId,
 				Type:  EventError,
