@@ -70,6 +70,9 @@ func (s *Store) Rename(id, title string) error {
 }
 
 // GetHistory returns the conversation history for a session as LLM messages.
+// system rows in the messages table carry operational metadata (pipeline
+// errors written into the transcript so they survive a refresh) and must
+// never be forwarded to the LLM, which expects only user/assistant turns.
 func (s *Store) GetHistory(sessionID string) []llm.ChatMessage {
 	messages, err := s.db.GetMessages(sessionID)
 	if err != nil {
@@ -77,6 +80,9 @@ func (s *Store) GetHistory(sessionID string) []llm.ChatMessage {
 	}
 	result := make([]llm.ChatMessage, 0, len(messages))
 	for _, m := range messages {
+		if m.Role == "system" {
+			continue
+		}
 		result = append(result, llm.ChatMessage{Role: m.Role, Content: m.Content})
 	}
 	return result

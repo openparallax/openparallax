@@ -585,6 +585,8 @@ func (m *model) handleSwitchSession(id string) {
 			m.addLine(m.userStyle("You: ") + msg.Content)
 		case "assistant":
 			m.addLine(m.assistantStyle(m.agentName+": ") + msg.Content)
+		case "system":
+			m.addLine(m.errStyle(msg.Content))
 		}
 	}
 	m.addLine(m.dimStyle(fmt.Sprintf("--- Switched to session %s ---", fullID[:8])))
@@ -635,9 +637,14 @@ func (m *model) handleExport() {
 	fmt.Fprintf(&sb, "# Session Export\n*Exported on %s*\n\n---\n\n", now.Format("2006-01-02 15:04"))
 
 	for _, msg := range messages {
-		who := "**You**"
-		if msg.Role == "assistant" {
+		var who string
+		switch msg.Role {
+		case "assistant":
 			who = fmt.Sprintf("**%s**", m.agentName)
+		case "system":
+			who = "**System**"
+		default:
+			who = "**You**"
 		}
 		ts := msg.Timestamp.Format("15:04")
 		fmt.Fprintf(&sb, "%s (%s):\n%s\n\n---\n\n", who, ts, msg.Content)
