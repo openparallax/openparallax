@@ -424,8 +424,11 @@ There are three supported ways to mutate `config.yaml`. All three go through a s
 1. Marshals the config via `yaml.Marshal`.
 2. Writes atomically (`<path>.tmp` + rename).
 3. Re-loads the file through `Load()` to verify the round-trip succeeds.
-4. Backs up the previous file to `<workspace>/.openparallax/backups/config-<timestamp>.yaml`. The backup directory rotates to the 10 most recent.
-5. Rolls back on any failure (the on-disk file is left untouched).
+4. Backs up the previous file to `<workspace>/.openparallax/backups/config-<timestamp>.yaml`. The backup directory rotates to the 100 most recent.
+5. Emits a `ConfigChanged` audit entry containing the source (`slash-config`, `slash-model`, etc.), the changed key list, and the SHA-256 of the previous and new file contents — so the diff is cryptographically attested even if a backup file rotates out of the window.
+6. Rolls back on any failure (the on-disk file is left untouched).
+
+Identity values (`identity.name`, `identity.avatar`) are validated against `^[a-zA-Z0-9 _-]{1,40}$` before they are written: newlines and ANSI escapes are rejected, since both fields are rendered into the LLM system prompt and the TUI status line. The `chat.base_url` setting is constrained to loopback addresses when the chat role's model uses the `ollama` provider — Ollama is local-first and does not require an `api_key_env`, so an unconstrained base URL would be a secret-exfiltration vector.
 
 If the writer drifts from the loader, `openparallax doctor` catches it on the next run via the **Config writer** check, before your next restart turns it into a startup failure.
 

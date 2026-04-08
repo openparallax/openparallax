@@ -1024,7 +1024,7 @@ openparallax audit --lines 20
 
 ## Config Backups
 
-Every successful write to `config.yaml` (via `/config set`, `/model`, the web settings panel, or the init/setup wizard) goes through the canonical writer, which copies the previous file to `<workspace>/.openparallax/backups/config-<timestamp>.yaml` before overwriting. The directory rotates to the 10 most recent backups.
+Every successful write to `config.yaml` (via `/config set`, `/model`, or the init/setup wizard) goes through the canonical writer, which copies the previous file to `<workspace>/.openparallax/backups/config-<timestamp>.yaml` before overwriting. The directory rotates to the 100 most recent backups, and every slash-command-driven save also emits a `ConfigChanged` audit entry with the previous and new file hashes — so even if a backup rotates out you can still attribute the change in the audit chain.
 
 ```bash
 ls <workspace>/.openparallax/backups/
