@@ -179,6 +179,11 @@ func RunLoop(
 	var toolResults []llm.ToolResult
 	var thoughts []types.Thought
 	var reasoningBuf strings.Builder
+	// presentation accumulates the user-facing assistant content: every
+	// reasoning fragment in order, separated by blank lines, with the
+	// final answer appended last. Persisted as the assistant message
+	// content so reload renders the same thing the live stream did.
+	var presentation strings.Builder
 	rounds := 0
 
 	for rounds < maxRounds {
@@ -186,10 +191,12 @@ func RunLoop(
 		if eventErr == io.EOF || event.Type == llm.EventDone {
 			if len(toolResults) > 0 {
 				if reasoningBuf.Len() > 0 {
+					fragment := strings.TrimSpace(reasoningBuf.String())
 					thoughts = append(thoughts, types.Thought{
 						Stage:   "reasoning",
-						Summary: strings.TrimSpace(reasoningBuf.String()),
+						Summary: fragment,
 					})
+					appendPresentation(&presentation, fragment)
 					reasoningBuf.Reset()
 				}
 				if sendErr := toolStream.SendToolResults(toolResults); sendErr != nil {
@@ -213,10 +220,12 @@ func RunLoop(
 
 		case llm.EventToolCallComplete:
 			if reasoningBuf.Len() > 0 {
+				fragment := strings.TrimSpace(reasoningBuf.String())
 				thoughts = append(thoughts, types.Thought{
 					Stage:   "reasoning",
-					Summary: strings.TrimSpace(reasoningBuf.String()),
+					Summary: fragment,
 				})
+				appendPresentation(&presentation, fragment)
 				reasoningBuf.Reset()
 			}
 			tc := event.ToolCall
@@ -310,7 +319,22 @@ func RunLoop(
 		}
 	}
 
-	fullResponse := toolStream.FullText()
+	// Flush any trailing text (the "final answer" — text emitted after the
+	// last tool call, or the entire response if there were no tool calls).
+	// It is appended to presentation but NOT to thoughts: the dropdown
+	// holds tool calls only, the bubble holds reasoning + final answer.
+	if reasoningBuf.Len() > 0 {
+		appendPresentation(&presentation, strings.TrimSpace(reasoningBuf.String()))
+		reasoningBuf.Reset()
+	}
+
+	fullResponse := strings.TrimSpace(presentation.String())
+	if fullResponse == "" {
+		// Fallback for edge cases where presentation never received any
+		// text (e.g. tool-only turns with no LLM narration). Use the raw
+		// stream text so the message body is not empty.
+		fullResponse = toolStream.FullText()
+	}
 	usage := toolStream.Usage()
 
 	emit(LoopEvent{
@@ -319,6 +343,20 @@ func RunLoop(
 		Thoughts: thoughts,
 		Usage:    &usage,
 	})
+}
+
+// appendPresentation writes a reasoning fragment (or the final answer) into
+// the presentation buffer with a blank-line separator between entries.
+// Empty fragments are skipped. Whitespace-only fragments don't get an extra
+// separator added.
+func appendPresentation(b *strings.Builder, fragment string) {
+	if fragment == "" {
+		return
+	}
+	if b.Len() > 0 {
+		b.WriteString("\n\n")
+	}
+	b.WriteString(fragment)
 }
 
 // formatArgsJSON serializes tool call arguments to a JSON string.

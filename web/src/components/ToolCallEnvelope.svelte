@@ -11,9 +11,9 @@
 
   let expanded = false;
 
-  // Unified item type for rendering.
+  // Tool call display item. Reasoning text lives in the assistant
+  // message bubble itself, not in this dropdown.
   interface DisplayItem {
-    kind: 'reasoning' | 'tool_call';
     name: string;
     desc: string;
     blocked: boolean;
@@ -21,25 +21,20 @@
   }
 
   $: items = buildItems(thoughts, steps);
-  $: toolCount = items.filter(t => t.kind === 'tool_call').length;
-  $: reasoningCount = items.filter(t => t.kind === 'reasoning').length;
+  $: toolCount = items.length;
   $: totalSteps = items.length;
   $: hasBlock = items.some(t => t.blocked);
   $: hasFail = items.some(t => t.failed);
-  $: allComplete = !live && items.some(t => t.kind === 'tool_call');
-  $: successCount = items.filter(t => t.kind === 'tool_call' && !t.blocked && !t.failed).length;
+  $: allComplete = !live && items.length > 0;
+  $: successCount = items.filter(t => !t.blocked && !t.failed).length;
 
   function buildItems(th: Thought[], st: PipelineStep[]): DisplayItem[] {
     // Live mode: build from pipeline steps (already in chronological order).
     if (st.length > 0) {
       return st.map(s => {
-        if (s.type === 'reasoning') {
-          return { kind: 'reasoning', name: s.content || '', desc: '', blocked: false, failed: false };
-        }
         const blocked = s.shieldVerdict?.decision === 'BLOCK';
         const failed = !blocked && s.result?.success === false;
         return {
-          kind: 'tool_call',
           name: s.toolName || '',
           desc: s.result?.summary || s.summary || '',
           blocked,
@@ -48,16 +43,16 @@
       });
     }
     // Finalized mode: build from thoughts (already in order from server).
+    // Filter out reasoning entries — they belong in the message bubble.
     if (th.length > 0) {
-      return th.map(t => {
-        if (t.stage === 'reasoning') {
-          return { kind: 'reasoning', name: t.summary || '', desc: '', blocked: false, failed: false };
-        }
-        const blocked = t.detail?.shield === 'BLOCK';
-        const failed = !blocked && t.detail?.success === false;
-        const parsed = parseToolName(t);
-        return { kind: 'tool_call', name: parsed.name, desc: parsed.desc, blocked, failed };
-      });
+      return th
+        .filter(t => t.stage === 'tool_call')
+        .map(t => {
+          const blocked = t.detail?.shield === 'BLOCK';
+          const failed = !blocked && t.detail?.success === false;
+          const parsed = parseToolName(t);
+          return { name: parsed.name, desc: parsed.desc, blocked, failed };
+        });
     }
     return [];
   }
@@ -82,13 +77,9 @@
     return { name: summary, desc: '' };
   }
 
-  $: summaryLabel = (() => {
-    const parts: string[] = [];
-    if (toolCount > 0) parts.push(`${toolCount} tool ${toolCount === 1 ? 'call' : 'calls'}`);
-    if (reasoningCount > 0) parts.push(`${reasoningCount} reasoning ${reasoningCount === 1 ? 'step' : 'steps'}`);
-    if (parts.length === 0) parts.push(`${totalSteps} ${totalSteps === 1 ? 'step' : 'steps'}`);
-    return parts.join(', ');
-  })();
+  $: summaryLabel = toolCount > 0
+    ? `${toolCount} tool ${toolCount === 1 ? 'call' : 'calls'}`
+    : '0 tool calls';
 
   $: statusLabel = (() => {
     if (live) return 'thinking\u2026';
@@ -118,13 +109,9 @@
   <div class="thinking-steps" class:show={expanded}>
     {#each items as item, i (i)}
       <div class="step-row">
-        {#if item.kind === 'reasoning'}
-          <span class="step-reasoning">{item.name}</span>
-        {:else}
-          <span class="step-tool-name" class:failed={item.failed} class:blocked={item.blocked}>{item.name}</span>
-          {#if item.desc}
-            <span class="step-tool-desc" class:failed={item.failed} class:blocked={item.blocked}>{item.desc}</span>
-          {/if}
+        <span class="step-tool-name" class:failed={item.failed} class:blocked={item.blocked}>{item.name}</span>
+        {#if item.desc}
+          <span class="step-tool-desc" class:failed={item.failed} class:blocked={item.blocked}>{item.desc}</span>
         {/if}
       </div>
     {/each}
@@ -208,10 +195,6 @@
     font-size: 11px;
     font-style: italic;
     color: var(--text-tertiary);
-  }
-
-  .step-reasoning {
-    font-family: 'Exo 2', sans-serif;
   }
 
   .step-tool-name {

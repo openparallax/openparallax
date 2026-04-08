@@ -106,11 +106,12 @@ type styledLine struct {
 
 // Bubbletea messages for the update loop.
 type (
-	tokenMsg   string
-	doneMsg    string
-	thoughtMsg string
-	errMsg     struct{ err error }
-	newSession struct{}
+	tokenMsg           string
+	doneMsg            string
+	thoughtMsg         string
+	streamSeparatorMsg struct{}
+	errMsg             struct{ err error }
+	newSession         struct{}
 )
 
 func newModel(ctx context.Context, client pb.ClientServiceClient, db *storage.DB, sessionID, agentName string) *model {
@@ -249,6 +250,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tokenMsg:
 		m.stream += string(msg)
 		m.syncViewport()
+		return m, nil
+
+	case streamSeparatorMsg:
+		// Insert a blank line between reasoning fragments so the next
+		// burst of tokens lands visually below the current text.
+		if m.stream != "" && !strings.HasSuffix(m.stream, "\n\n") {
+			if strings.HasSuffix(m.stream, "\n") {
+				m.stream += "\n"
+			} else {
+				m.stream += "\n\n"
+			}
+			m.syncViewport()
+		}
 		return m, nil
 
 	case thoughtMsg:
@@ -478,6 +492,7 @@ func (m *model) startStreaming(text string) {
 				}
 			case pb.PipelineEventType_ACTION_STARTED:
 				if event.ActionStarted != nil {
+					m.program.Send(streamSeparatorMsg{})
 					m.program.Send(thoughtMsg(fmt.Sprintf("\U0001f527 %s", event.ActionStarted.Summary)))
 				}
 			case pb.PipelineEventType_SHIELD_VERDICT:

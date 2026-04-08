@@ -1,13 +1,13 @@
 import { writable, get } from 'svelte/store';
 import type { Message, ShieldVerdict, Thought } from '../lib/types';
 
-// A single step in the streaming timeline: either reasoning text or a tool call.
+// A single step in the streaming timeline. Reasoning text lives in the
+// streaming bubble itself (`streamingText`), not here — the dropdown
+// holds tool calls only.
 export interface PipelineStep {
-  type: 'reasoning' | 'tool_call';
-  // Reasoning: the text content. Tool call: tool name.
-  toolName?: string;
+  type: 'tool_call';
+  toolName: string;
   summary?: string;
-  content?: string;
   shieldVerdict?: ShieldVerdict;
   result?: { success: boolean; summary: string };
 }
@@ -52,19 +52,21 @@ export function clearStreamingText() {
   streamingText.set('');
 }
 
-// Flush accumulated streaming text into the timeline as a reasoning step,
-// then add the tool call — preserving chronological order.
-export function addToolCallWithFlush(toolName: string, summary: string) {
-  const text = get(streamingText).trim();
-  pendingSteps.update(steps => {
-    const next = [...steps];
-    if (text) {
-      next.push({ type: 'reasoning', content: text });
-    }
-    next.push({ type: 'tool_call', toolName, summary });
-    return next;
+// addToolCall registers a new tool call in the pending steps and inserts
+// a blank-line separator into the streaming bubble so the next reasoning
+// fragment renders below the current one. The streaming text is NOT
+// cleared — reasoning fragments accumulate visibly in the bubble for the
+// duration of the message and are persisted as part of the final assistant
+// content (the engine's loop builds the same separated content for the
+// SQLite row, so a refresh shows the same thing).
+export function addToolCall(toolName: string, summary: string) {
+  streamingText.update(t => {
+    if (t === '') return t;
+    if (t.endsWith('\n\n')) return t;
+    if (t.endsWith('\n')) return t + '\n';
+    return t + '\n\n';
   });
-  streamingText.set('');
+  pendingSteps.update(steps => [...steps, { type: 'tool_call', toolName, summary }]);
 }
 
 export function updateToolCallVerdict(verdict: ShieldVerdict) {
@@ -73,7 +75,7 @@ export function updateToolCallVerdict(verdict: ShieldVerdict) {
     const updated = [...steps];
     for (let i = updated.length - 1; i >= 0; i--) {
       const s = updated[i];
-      if (s.type === 'tool_call' && s.toolName === verdict.toolName && !s.shieldVerdict) {
+      if (s.toolName === verdict.toolName && !s.shieldVerdict) {
         updated[i] = { ...s, shieldVerdict: verdict };
         break;
       }
@@ -87,7 +89,7 @@ export function completeToolCall(result: { tool_name: string; success: boolean; 
     const updated = [...steps];
     for (let i = updated.length - 1; i >= 0; i--) {
       const s = updated[i];
-      if (s.type === 'tool_call' && s.toolName === result.tool_name && !s.result) {
+      if (s.toolName === result.tool_name && !s.result) {
         updated[i] = { ...s, result: { success: result.success, summary: result.summary } };
         break;
       }
@@ -97,32 +99,23 @@ export function completeToolCall(result: { tool_name: string; success: boolean; 
 }
 
 export function finalizeResponse(content: string, thoughts?: Thought[]) {
-  const currentText = get(streamingText);
-  let finalContent = content || currentText;
+  // The engine builds `content` as the merged reasoning + final answer
+  // (see internal/agent/loop.go presentation buffer), so we use it
+  // verbatim. The streaming bubble was already showing the same thing
+  // live; nothing gets stripped.
+  const finalContent = (content || get(streamingText)).trim();
 
   const steps = get(pendingSteps);
-
-  // Strip reasoning text from the final message content so it only
-  // appears in the thinking dropdown, not duplicated in the body.
-  for (const s of steps) {
-    if (s.type === 'reasoning' && s.content) {
-      finalContent = finalContent.replace(s.content, '').trim();
-    }
-  }
-  if (thoughts) {
-    for (const t of thoughts) {
-      if (t.stage === 'reasoning' && t.summary) {
-        finalContent = finalContent.replace(t.summary, '').trim();
-      }
-    }
-  }
-
   let finalThoughts: Thought[] | undefined;
 
+  // The dropdown holds tool calls only. Reasoning entries from the
+  // engine's thoughts list are filtered out at render time (and we
+  // also drop them here so the persisted message stays lean).
   if (thoughts && thoughts.length > 0) {
-    finalThoughts = thoughts.map(t => {
-      if (t.stage !== 'tool_call' || !t.summary) return t;
-      const step = steps.find(s => s.type === 'tool_call' && s.toolName && t.summary.includes(s.toolName));
+    const toolThoughts = thoughts.filter(t => t.stage === 'tool_call');
+    finalThoughts = toolThoughts.map(t => {
+      if (!t.summary) return t;
+      const step = steps.find(s => s.toolName && t.summary.includes(s.toolName));
       if (!step) return t;
       const merged: Record<string, any> = { ...t.detail };
       if (!merged.tool_name) merged.tool_name = step.toolName;
@@ -132,24 +125,20 @@ export function finalizeResponse(content: string, thoughts?: Thought[]) {
       if (!merged.result_summary && step.result) merged.result_summary = step.result.summary;
       return { ...t, detail: merged };
     });
+    if (finalThoughts.length === 0) finalThoughts = undefined;
   } else if (steps.length > 0) {
-    finalThoughts = steps.map(s => {
-      if (s.type === 'reasoning') {
-        return { stage: 'reasoning' as const, summary: s.content || '' };
-      }
-      return {
-        stage: 'tool_call' as const,
-        summary: `${s.toolName} — ${s.summary || ''}`,
-        detail: {
-          tool_name: s.toolName,
-          success: s.result?.success,
-          shield: s.shieldVerdict?.decision,
-          shield_tier: s.shieldVerdict?.tier,
-          shield_reasoning: s.shieldVerdict?.reasoning,
-          result_summary: s.result?.summary,
-        },
-      };
-    });
+    finalThoughts = steps.map(s => ({
+      stage: 'tool_call' as const,
+      summary: `${s.toolName} — ${s.summary || ''}`,
+      detail: {
+        tool_name: s.toolName,
+        success: s.result?.success,
+        shield: s.shieldVerdict?.decision,
+        shield_tier: s.shieldVerdict?.tier,
+        shield_reasoning: s.shieldVerdict?.reasoning,
+        result_summary: s.result?.summary,
+      },
+    }));
   }
 
   messages.update(msgs => [...msgs, {
