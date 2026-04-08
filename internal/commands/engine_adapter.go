@@ -204,7 +204,11 @@ func (a *EngineAdapter) ConfigSet(key, value string) (bool, error) {
 		return false, err
 	}
 
-	if err := config.Save(a.Engine.ConfigPath(), cfg); err != nil {
+	if err := config.Save(
+		a.Engine.ConfigPath(),
+		cfg,
+		config.WithAudit(a.Engine.Audit(), "slash-config", []string{key}),
+	); err != nil {
 		// Roll back the in-memory mutation.
 		if snapshot != nil {
 			*cfg = *snapshot
@@ -422,7 +426,11 @@ func (a *EngineAdapter) SetModelRole(role, modelName string) error {
 		return err
 	}
 
-	if err := config.Save(a.Engine.ConfigPath(), cfg); err != nil {
+	if err := config.Save(
+		a.Engine.ConfigPath(),
+		cfg,
+		config.WithAudit(a.Engine.Audit(), "slash-model", []string{"roles." + role}),
+	); err != nil {
 		// Roll back both layers.
 		_ = reg.SetRole(role, previous)
 		switch role {

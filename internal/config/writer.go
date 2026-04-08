@@ -1,10 +1,13 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/openparallax/openparallax/internal/types"
@@ -12,7 +15,42 @@ import (
 )
 
 // backupRetention is the maximum number of timestamped backups to keep.
-const backupRetention = 10
+// The audit chain (when a SaveOption with auditing is supplied) records
+// the previous-hash and new-hash of every save, so even if a backup file
+// rotates out of the window the diff is still cryptographically attested
+// in the audit log.
+const backupRetention = 100
+
+// AuditEmitter is the minimal contract config.Save needs to record a
+// ConfigChanged entry. Implemented by *audit.Logger but intentionally
+// abstracted so the config package does not import audit (and the
+// dependency edge can stay unidirectional).
+type AuditEmitter interface {
+	EmitConfigChanged(source, details string) error
+}
+
+// saveOptions is the internal accumulator for SaveOption.
+type saveOptions struct {
+	audit       AuditEmitter
+	source      string
+	changedKeys []string
+}
+
+// SaveOption configures a Save call. Optional — Save with no options is
+// equivalent to the previous behaviour (atomic write + round-trip + backup,
+// no audit emission).
+type SaveOption func(*saveOptions)
+
+// WithAudit attaches an audit emitter and metadata. On a successful save
+// Save will call emitter.EmitConfigChanged exactly once with the source,
+// the changed key list, the previous file hash, and the new file hash.
+func WithAudit(emitter AuditEmitter, source string, changedKeys []string) SaveOption {
+	return func(o *saveOptions) {
+		o.audit = emitter
+		o.source = source
+		o.changedKeys = changedKeys
+	}
+}
 
 // Save serializes cfg using yaml.Marshal, writes the file atomically via
 // <path>.tmp + rename, then re-loads through Load() to verify the
@@ -23,17 +61,30 @@ const backupRetention = 10
 // On any failure (marshal, write, validate, round-trip), the on-disk
 // file is left untouched (or restored from backup) and the error is
 // returned to the caller.
-func Save(path string, cfg *types.AgentConfig) error {
+//
+// When called with a WithAudit option, a successful save emits one
+// ConfigChanged audit entry containing the source, the list of keys the
+// caller is mutating, and the SHA-256 of the previous and new file
+// contents. The hash diff makes silent rotation of the backups directory
+// detectable after the fact.
+func Save(path string, cfg *types.AgentConfig, opts ...SaveOption) error {
+	options := &saveOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	previousHash := hashFileIfExists(path)
+
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
 	// Best-effort backup of the previous file. Failure to back up is
-	// not fatal — the round-trip below catches schema breakage anyway.
+	// not fatal — the round-trip below catches schema breakage anyway,
+	// and the audit chain still records the hash diff.
 	if _, statErr := os.Stat(path); statErr == nil {
 		if backupErr := backupConfig(path, cfg.Workspace); backupErr != nil {
-			// Log via stderr; do not block the save.
 			fmt.Fprintf(os.Stderr, "warning: config backup failed: %s\n", backupErr)
 		}
 	}
@@ -54,7 +105,48 @@ func Save(path string, cfg *types.AgentConfig) error {
 		return fmt.Errorf("rename temp config: %w", err)
 	}
 
+	if options.audit != nil {
+		newHash := hashBytes(data)
+		details := formatConfigChangedDetails(options.source, options.changedKeys, previousHash, newHash)
+		if emitErr := options.audit.EmitConfigChanged(options.source, details); emitErr != nil {
+			// Audit emission failure is logged but not propagated — the
+			// config write already succeeded and rolling it back would
+			// create a worse outcome (live cfg in memory diverges from
+			// disk). The caller can read the warning via stderr/log.
+			fmt.Fprintf(os.Stderr, "warning: config audit emit failed: %s\n", emitErr)
+		}
+	}
+
 	return nil
+}
+
+func hashFileIfExists(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return hashBytes(data)
+}
+
+func hashBytes(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func formatConfigChangedDetails(source string, keys []string, prev, next string) string {
+	var b strings.Builder
+	if source == "" {
+		source = "unknown"
+	}
+	fmt.Fprintf(&b, "source=%s", source)
+	if len(keys) > 0 {
+		fmt.Fprintf(&b, " keys=%s", strings.Join(keys, ","))
+	}
+	if prev == "" {
+		prev = "(none)"
+	}
+	fmt.Fprintf(&b, " prev_hash=%s new_hash=%s", prev, next)
+	return b.String()
 }
 
 // backupConfig copies the existing config file into the workspace's

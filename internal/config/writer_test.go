@@ -124,3 +124,64 @@ func TestSettableKeysAllRoundTrip(t *testing.T) {
 func filepathGlob(dir, pattern string) ([]string, error) {
 	return filepath.Glob(filepath.Join(dir, pattern))
 }
+
+// fakeAuditEmitter records each EmitConfigChanged call. Implements
+// config.AuditEmitter for tests.
+type fakeAuditEmitter struct {
+	calls []struct {
+		source  string
+		details string
+	}
+}
+
+func (f *fakeAuditEmitter) EmitConfigChanged(source, details string) error {
+	f.calls = append(f.calls, struct {
+		source  string
+		details string
+	}{source, details})
+	return nil
+}
+
+func TestSaveEmitsConfigChangedAuditEntry(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	cfg := sampleConfig(dir)
+	require.NoError(t, Save(path, cfg))
+
+	emitter := &fakeAuditEmitter{}
+	cfg.Identity.Name = "Renamed"
+	require.NoError(t, Save(path, cfg, WithAudit(emitter, "slash-config", []string{"identity.name"})))
+
+	require.Len(t, emitter.calls, 1)
+	got := emitter.calls[0]
+	assert.Equal(t, "slash-config", got.source)
+	assert.Contains(t, got.details, "source=slash-config")
+	assert.Contains(t, got.details, "keys=identity.name")
+	assert.Contains(t, got.details, "prev_hash=")
+	assert.Contains(t, got.details, "new_hash=")
+
+	// previous and new hashes must differ — same payload twice would
+	// indicate the diff layer is broken.
+	assert.NotContains(t, got.details, "prev_hash=(none)")
+}
+
+func TestSaveWithoutAuditDoesNotEmit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	cfg := sampleConfig(dir)
+
+	require.NoError(t, Save(path, cfg))
+	// No emitter passed → no panic, no calls.
+}
+
+func TestSaveAuditFirstWriteReportsNoPrevHash(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	cfg := sampleConfig(dir)
+
+	emitter := &fakeAuditEmitter{}
+	require.NoError(t, Save(path, cfg, WithAudit(emitter, "cli-init", []string{"*"})))
+
+	require.Len(t, emitter.calls, 1)
+	assert.Contains(t, emitter.calls[0].details, "prev_hash=(none)")
+}

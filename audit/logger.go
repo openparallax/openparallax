@@ -106,6 +106,17 @@ func (l *Logger) Log(entry Entry) error {
 	return nil
 }
 
+// EmitConfigChanged records a successful config.yaml mutation. This
+// satisfies the config.AuditEmitter interface so config.Save can record
+// the diff without taking a direct dependency on the audit package.
+func (l *Logger) EmitConfigChanged(source, details string) error {
+	return l.Log(Entry{
+		EventType: ConfigChanged,
+		Source:    source,
+		Details:   details,
+	})
+}
+
 // Close flushes and closes the audit log.
 func (l *Logger) Close() error {
 	l.mu.Lock()
