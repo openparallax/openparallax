@@ -260,11 +260,6 @@ func TestIndexWorkspace(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte("# Memory\n\nUser prefers dark mode.\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "USER.md"), []byte("# User\n\nName: Alice\n"), 0o644))
 
-	// Create a daily log in the memory subdirectory.
-	memDir := filepath.Join(dir, "memory")
-	require.NoError(t, os.MkdirAll(memDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(memDir, "2026-04-05.md"), []byte("# Daily Log\n\nDiscussed architecture.\n"), 0o644))
-
 	ctx := context.Background()
 	idx.IndexWorkspace(ctx, dir)
 
@@ -278,10 +273,6 @@ func TestIndexWorkspace(t *testing.T) {
 	results, err = store.SearchChunksFTS("Alice", 10)
 	require.NoError(t, err)
 	assert.NotEmpty(t, results, "USER.md content should be searchable")
-
-	results, err = store.SearchChunksFTS("architecture", 10)
-	require.NoError(t, err)
-	assert.NotEmpty(t, results, "daily log content should be searchable")
 }
 
 func TestIndexFileNilEmbedder(t *testing.T) {

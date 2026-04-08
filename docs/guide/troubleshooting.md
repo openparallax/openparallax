@@ -678,7 +678,7 @@ The agent's working memory is stored in `<workspace>/MEMORY.md`. Open this file 
 cat <workspace>/MEMORY.md
 ```
 
-Not everything from conversations is stored in MEMORY.md. The agent selects key facts and decisions to persist. Conversational details are in the session history (SQLite) and daily logs.
+Not everything from conversations is stored in MEMORY.md. The agent selects key facts and decisions to persist. Conversational details are in the session history (SQLite).
 
 **Step 4: Check embedding provider**
 
@@ -695,14 +695,6 @@ memory:
   embedding:
     provider: openai
     model: text-embedding-3-small
-```
-
-**Step 5: Check daily logs**
-
-Daily logs capture a summary of each day's conversations. Search them:
-
-```bash
-openparallax memory search "your query" --scope logs
 ```
 
 ---
@@ -789,7 +781,6 @@ OTR (Off-The-Record) mode is designed to leave no persistent trace. The followin
 | Feature | Normal | OTR |
 |---|---|---|
 | Session stored in SQLite | Yes | No (in-memory only) |
-| Messages logged to daily log | Yes | No |
 | Memory persistence | Yes | No |
 | Filesystem write tools | Yes | Blocked |
 | Memory write tools | Yes | Blocked |

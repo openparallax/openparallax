@@ -41,7 +41,7 @@ OTR (Off-the-Record) mode creates a temporary session designed for sensitive or 
 
 - **Ephemeral** — session data is stored in a Go `sync.Map` in memory, never written to SQLite
 - **Read-only tools** — write operations are filtered out at the tool definition level
-- **No memory persistence** — the conversation is not logged to memory files or daily logs
+- **No memory persistence** — the conversation is not logged to memory files
 - **Visual indicator** — UI accent colors change from cyan to amber
 - **Lost on restart** — since data lives only in memory, restarting the engine discards OTR sessions
 

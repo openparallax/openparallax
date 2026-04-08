@@ -23,7 +23,6 @@ func StartWatcher(ctx context.Context, workspacePath string, indexer *Indexer, l
 		filepath.Join(workspacePath, "MEMORY.md"),
 		filepath.Join(workspacePath, "USER.md"),
 		filepath.Join(workspacePath, "HEARTBEAT.md"),
-		filepath.Join(workspacePath, "memory"),
 	}
 
 	for _, p := range watchPaths {

@@ -471,7 +471,6 @@ Watched paths:
 - `MEMORY.md` -- accumulated knowledge
 - `USER.md` -- user preferences
 - `HEARTBEAT.md` -- scheduled task definitions
-- `memory/` directory -- daily log files
 
 When a watched file changes, the watcher triggers `indexer.IndexWorkspace()` after a 1.5-second debounce window.
 

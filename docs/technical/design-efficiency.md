@@ -144,13 +144,13 @@ The threshold is configurable via `agents.compaction_threshold` in `config.yaml`
 
 ## Semantic Memory Retrieval
 
-OpenParallax indexes workspace memory files and daily logs into a chunked vector store. Every conversation turn, the agent runs a similarity search against the current user message and **injects only the top-k matching chunks into the system prompt**. The full memory store never enters the LLM context.
+OpenParallax indexes workspace memory files into a chunked vector store. Every conversation turn, the agent runs a similarity search against the current user message and **injects only the top-k matching chunks into the system prompt**. The full memory store never enters the LLM context.
 
-This is the third pillar of the token economy alongside Dynamic Tool Surface Reduction and markdown stripping. A user with 18 months of daily logs (~10,000 entries) pays the same per-turn token cost as a user with 10 entries — only the most similar 5 chunks reach the LLM.
+This is the third pillar of the token economy alongside Dynamic Tool Surface Reduction and markdown stripping. A user with thousands of memory entries pays the same per-turn token cost as a user with 10 entries — only the most similar 5 chunks reach the LLM.
 
 The pipeline:
 
-1. **Index.** `MEMORY.md`, `USER.md`, `AGENTS.md`, `HEARTBEAT.md`, and daily logs (`memory/YYYY-MM-DD.md`) are split by `memory/chunker.go` into overlapping markdown-aware chunks. The chunker splits on line boundaries, targets ~512 tokens per chunk (estimated as ~4 chars/token), and preserves a configurable character overlap between adjacent chunks so semantic boundaries are not destroyed by the split.
+1. **Index.** `MEMORY.md`, `USER.md`, `AGENTS.md`, and `HEARTBEAT.md` are split by `memory/chunker.go` into overlapping markdown-aware chunks. The chunker splits on line boundaries, targets ~512 tokens per chunk (estimated as ~4 chars/token), and preserves a configurable character overlap between adjacent chunks so semantic boundaries are not destroyed by the split.
 
 2. **Embed.** Each chunk is embedded via the configured provider (`memory.embedding`) — OpenAI `text-embedding-3-small`, Google `text-embedding-004`, or local Ollama `nomic-embed-text`. Content hashes are cached so unchanged chunks are never re-embedded across reindex runs (see [Embedding Cache](#embedding-cache-and-content-hashing) below).
 

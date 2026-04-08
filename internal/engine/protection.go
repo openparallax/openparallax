@@ -62,12 +62,6 @@ var readOnlyDirs = []string{
 	"skills",
 }
 
-// tier1Dirs are directories the agent can read and write, but writes
-// require Tier 1 minimum evaluation (same protection as MEMORY.md).
-var tier1Dirs = []string{
-	"memory",
-}
-
 // CheckProtection is the FIRST check in processToolCall. It runs before OTR,
 // before Shield, before audit, before everything. Returns whether the action
 // is allowed, the protection level, and a reason if blocked.
@@ -128,13 +122,6 @@ func CheckProtection(action *types.ActionRequest, workspacePath string) (bool, P
 		// Check read-only directories (write blocked, read allowed).
 		if isWrite && isInReadOnlyDir(resolved, workspacePath) {
 			return false, ReadOnly, "skills directory is read-only — create or edit skills manually"
-		}
-
-		// Check Tier 1 directories (writes require Tier 1 minimum).
-		if isWrite && isInTier1Dir(resolved, workspacePath) {
-			if WriteTier1Min > highestProtection {
-				highestProtection = WriteTier1Min
-			}
 		}
 
 		// Check protected workspace files.
@@ -233,12 +220,6 @@ func checkShellProtection(action *types.ActionRequest, workspacePath string) (bo
 
 		if isInReadOnlyDir(resolved, workspacePath) {
 			return false, ReadOnly, "skills directory is read-only — cannot modify via shell command"
-		}
-
-		if isInTier1Dir(resolved, workspacePath) {
-			if WriteTier1Min > highestProtection {
-				highestProtection = WriteTier1Min
-			}
 		}
 
 		basename := strings.ToLower(filepath.Base(resolved))
@@ -384,17 +365,6 @@ func isInReadOnlyDir(resolved, workspacePath string) bool {
 // isInWorkspace checks if a resolved path is inside the workspace.
 func isInWorkspace(resolved, workspacePath string) bool {
 	return strings.HasPrefix(resolved, workspacePath+string(filepath.Separator)) || resolved == workspacePath
-}
-
-// isInTier1Dir checks if a resolved path is inside a Tier 1 protected directory.
-func isInTier1Dir(resolved, workspacePath string) bool {
-	for _, dir := range tier1Dirs {
-		t1Dir := filepath.Join(workspacePath, dir)
-		if strings.HasPrefix(resolved, t1Dir+string(filepath.Separator)) || resolved == t1Dir {
-			return true
-		}
-	}
-	return false
 }
 
 // resolveProtectionPath resolves a raw path to an absolute path using workspace as base.

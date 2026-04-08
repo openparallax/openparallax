@@ -93,18 +93,6 @@ func (idx *Indexer) IndexWorkspace(ctx context.Context, workspacePath string) {
 			}
 		}
 	}
-
-	// Index daily logs.
-	logDir := filepath.Join(workspacePath, "memory")
-	entries, _ := os.ReadDir(logDir)
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
-			path := filepath.Join(logDir, e.Name())
-			if err := idx.IndexFile(ctx, path); err != nil && idx.log != nil {
-				idx.log.Warn("index_file_failed", "path", path, "error", err)
-			}
-		}
-	}
 }
 
 // IndexSessions indexes past session transcripts.

@@ -100,16 +100,6 @@ Six markdown files form the agent's persistent knowledge:
 
 These files are chunked, embedded, and indexed on startup. A filesystem watcher re-indexes them when they change. The agent reads these files to assemble its system prompt and searches them for relevant context when answering questions.
 
-### Daily Logs
-
-Every action the agent takes is logged to `memory/YYYY-MM-DD.md`. These daily logs are indexed for search, giving the agent the ability to recall what it did on any given day:
-
-```
-- 14:23:05 > file_write: Created src/utils/parser.go > OK
-- 14:23:18 > shell_exec: Ran go test ./... > OK
-- 14:25:01 > git_commit: Committed "feat: add parser utility" > OK
-```
-
 ### Session Summarization
 
 When a session ends, Memory uses the LLM to generate a 2-3 bullet summary and appends it to `MEMORY.md`. Over time, this builds up a chronological knowledge base that the agent can search to recall past conversations.

@@ -82,14 +82,6 @@ All files within these directories are blocked from agent access.
 
 The agent can read skills (it does so to load skill bodies) but cannot modify them. Skills are created and maintained by the user.
 
-### Tier1 Directories
-
-| Directory | Purpose |
-|---|---|
-| `memory/` | Memory sub-files (daily logs, embeddings) |
-
-Files in the memory directory follow the same protection as `MEMORY.md` -- writes require Tier 1 minimum.
-
 ## How CheckProtection Works
 
 ```go

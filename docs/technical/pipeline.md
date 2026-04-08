@@ -237,9 +237,6 @@ Audit: log EXECUTED or FAILED entry
 Broadcast ActionCompleted event
     |
     v
-Log to daily action log (memory)
-    |
-    v
 Return ToolResultDelivery to Agent
 ```
 

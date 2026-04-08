@@ -152,20 +152,16 @@ openparallax memory show
 openparallax memory search "python fastapi deployment"
 ```
 
-### Daily Logs
-
-The memory system maintains daily logs that record session activity by date. These provide a chronological view of what the agent has done, making it easy to review past work.
-
 ## Memory in Context Assembly
 
 When the agent processes a new message, it assembles context from multiple sources:
 
 1. **Identity files** — `SOUL.md`, `IDENTITY.md`, and `USER.md` are loaded **whole** every turn. They are short and define the agent's invariants.
-2. **Semantic memory retrieval** — `MEMORY.md`, `AGENTS.md`, `HEARTBEAT.md`, and daily logs are **not** loaded whole. They are chunked and embedded at index time, then queried per turn. The top-k most relevant chunks (default 5) for the current user message are injected into the system prompt as a "Your Memory" section.
+2. **Semantic memory retrieval** — `MEMORY.md`, `AGENTS.md`, and `HEARTBEAT.md` are **not** loaded whole. They are chunked and embedded at index time, then queried per turn. The top-k most relevant chunks (default 5) for the current user message are injected into the system prompt as a "Your Memory" section.
 3. **Session history** — the current session's message history (subject to compaction below).
 4. **Loaded skills** — any custom skills activated for this session.
 
-The retrieval step is what makes memory scale. A user with 18 months of daily logs pays the same per-turn token cost as a user with 10 entries — only the most similar 5 chunks reach the LLM. The full pipeline (chunking → embedding → store → retrieve → inject) is documented in [Token Economy → Semantic Memory Retrieval](/technical/design-efficiency#semantic-memory-retrieval).
+The retrieval step is what makes memory scale. A user with thousands of memory entries pays the same per-turn token cost as a user with 10 entries — only the most similar 5 chunks reach the LLM. The full pipeline (chunking → embedding → store → retrieve → inject) is documented in [Token Economy → Semantic Memory Retrieval](/technical/design-efficiency#semantic-memory-retrieval).
 
 Retrieved chunks are wrapped in `[MEMORY]` boundary tags so the LLM treats them as **reference data, not directives**. This prevents indirect prompt injection through poisoned memory entries — an attacker who manages to insert malicious text into MEMORY.md cannot trick the agent into obeying it.
 
@@ -175,7 +171,7 @@ When session history grows too long for the LLM context window, the engine autom
 
 ## Memory and OTR
 
-OTR sessions do not write to memory. No session summaries, no MEMORY.md updates, no daily log entries. This is by design — OTR mode guarantees that the conversation leaves no trace in the agent's long-term memory.
+OTR sessions do not write to memory. No session summaries, no MEMORY.md updates. This is by design — OTR mode guarantees that the conversation leaves no trace in the agent's long-term memory.
 
 The agent can still read memory during OTR sessions. It has access to all previously stored knowledge for answering questions, but it will not remember anything from the OTR conversation afterward.
 

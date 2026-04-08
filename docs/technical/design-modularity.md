@@ -158,7 +158,7 @@ OTR (Off-The-Record) mode is privacy as a first-class feature:
 
 - **Storage**: `sync.Map` in memory. Never touches SQLite. Destroyed on process shutdown.
 - **Tools**: Write-capable groups (`files`, `shell`, `git`) are disabled at the definition level via `DisableGroups`. The tools are not filtered from responses — they are never loaded.
-- **Memory**: No memory logging, no embedding indexing, no daily log entries.
+- **Memory**: No memory logging, no embedding indexing.
 - **Audit**: OTR sessions are recorded in the audit trail (the fact that they happened) but message content is not logged.
 - **Visual**: The web UI switches all `--accent-*` CSS tokens from cyan to amber via the `.otr` class on the root element. The color change is persistent and unmissable — the user always knows they are in ephemeral mode.
 
