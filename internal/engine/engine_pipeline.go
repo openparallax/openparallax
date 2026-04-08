@@ -43,9 +43,16 @@ func (e *Engine) SendMessage(req *pb.ClientMessageRequest, stream pb.ClientServi
 		return e.sendErrorEvent(sender, sid, mid, "AGENT_UNAVAILABLE", err.Error())
 	}
 
-	// Wait for ResponseComplete or context cancellation. The broadcaster
-	// delivers events to this client as they arrive from the Agent.
-	<-stream.Context().Done()
+	// Return as soon as the response completes (or errors out). The
+	// sender's Done channel closes after EventResponseComplete or
+	// EventError is forwarded. Returning closes the gRPC stream from
+	// the server side, so the client receives io.EOF and its receive
+	// loop exits cleanly. Falls back to client-driven close on
+	// stream.Context().Done() if the response never completes.
+	select {
+	case <-sender.Done():
+	case <-stream.Context().Done():
+	}
 	return nil
 }
 

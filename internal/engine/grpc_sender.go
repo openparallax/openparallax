@@ -1,17 +1,29 @@
 package engine
 
 import (
+	"sync"
+
 	pb "github.com/openparallax/openparallax/internal/types/pb"
 )
 
-// grpcEventSender adapts the gRPC stream to the EventSender interface.
+// grpcEventSender adapts the gRPC stream to the EventSender interface and
+// exposes a Done channel that fires when a terminal pipeline event for the
+// current message has been forwarded. The SendMessage handler waits on
+// Done so it can return as soon as the response is complete, releasing
+// the gRPC stream so the client receives io.EOF cleanly.
 type grpcEventSender struct {
 	stream pb.ClientService_SendMessageServer
+	done   chan struct{}
+	once   sync.Once
 }
 
-func newGRPCEventSender(stream pb.ClientService_SendMessageServer) EventSender {
-	return &grpcEventSender{stream: stream}
+func newGRPCEventSender(stream pb.ClientService_SendMessageServer) *grpcEventSender {
+	return &grpcEventSender{stream: stream, done: make(chan struct{})}
 }
+
+// Done returns a channel that is closed once a terminal pipeline event for
+// this message (EventResponseComplete or EventError) has been forwarded.
+func (g *grpcEventSender) Done() <-chan struct{} { return g.done }
 
 func (g *grpcEventSender) SendEvent(event *PipelineEvent) error {
 	pbEvent := &pb.PipelineEvent{
@@ -60,7 +72,12 @@ func (g *grpcEventSender) SendEvent(event *PipelineEvent) error {
 		}
 	}
 
-	return g.stream.Send(pbEvent)
+	err := g.stream.Send(pbEvent)
+	switch event.Type {
+	case EventResponseComplete, EventError:
+		g.once.Do(func() { close(g.done) })
+	}
+	return err
 }
 
 func verdictStringToProto(d string) pb.VerdictDecision {
