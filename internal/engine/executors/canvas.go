@@ -3,18 +3,15 @@ package executors
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/openparallax/openparallax/internal/types"
 )
 
-// CanvasExecutor handles creative file generation, multi-file projects,
-// and live preview serving.
+// CanvasExecutor handles creative file generation and multi-file project
+// scaffolding.
 type CanvasExecutor struct {
 	workspacePath string
 }
@@ -27,7 +24,7 @@ func NewCanvasExecutor(workspace string) *CanvasExecutor {
 func (c *CanvasExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{
 		types.ActionCanvasCreate, types.ActionCanvasUpdate,
-		types.ActionCanvasProject, types.ActionCanvasPreview,
+		types.ActionCanvasProject,
 	}
 }
 
@@ -86,18 +83,6 @@ func (c *CanvasExecutor) ToolSchemas() []ToolSchema {
 				"required": []string{"path", "files"},
 			},
 		},
-		{
-			ActionType:  types.ActionCanvasPreview,
-			Name:        "canvas_preview",
-			Description: "Start a local preview server for HTML/CSS/JS files. Opens in the browser if available. Auto-closes after 30 minutes.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"path": map[string]any{"type": "string", "description": "File or directory to serve."},
-				},
-				"required": []string{"path"},
-			},
-		},
 	}
 }
 
@@ -109,8 +94,6 @@ func (c *CanvasExecutor) Execute(_ context.Context, action *types.ActionRequest)
 		return c.updateFile(action)
 	case types.ActionCanvasProject:
 		return c.createProject(action)
-	case types.ActionCanvasPreview:
-		return c.startPreview(action)
 	default:
 		return ErrorResult(action.RequestID, "unknown canvas action", "unknown action")
 	}
@@ -213,42 +196,6 @@ func (c *CanvasExecutor) createProject(action *types.ActionRequest) *types.Actio
 	return SuccessResult(action.RequestID,
 		fmt.Sprintf("Created project with %d files:\n%s", len(created), strings.Join(created, "\n")),
 		fmt.Sprintf("created project %s (%d files)", filepath.Base(dir), len(created)))
-}
-
-func (c *CanvasExecutor) startPreview(action *types.ActionRequest) *types.ActionResult {
-	servePath := ResolvePath(action.Payload["path"], c.workspacePath)
-
-	info, err := os.Stat(servePath)
-	if err != nil {
-		return ErrorResult(action.RequestID, "path not found: "+err.Error(), "preview failed")
-	}
-
-	if !info.IsDir() {
-		servePath = filepath.Dir(servePath)
-	}
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return ErrorResult(action.RequestID, "failed to find free port: "+err.Error(), "preview failed")
-	}
-	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-	if !ok {
-		return ErrorResult(action.RequestID, "failed to get port", "preview failed")
-	}
-	port := tcpAddr.Port
-
-	server := &http.Server{Handler: http.FileServer(http.Dir(servePath))}
-	go func() { _ = server.Serve(listener) }()
-
-	go func() {
-		time.Sleep(30 * time.Minute)
-		_ = server.Close()
-	}()
-
-	url := fmt.Sprintf("http://127.0.0.1:%d", port)
-	return SuccessResult(action.RequestID,
-		fmt.Sprintf("Preview server running at %s (auto-closes in 30 minutes)", url),
-		fmt.Sprintf("preview at %s", url))
 }
 
 func inferTypeFromExt(path string) string {

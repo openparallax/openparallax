@@ -72,13 +72,13 @@ func TestOpenRejectsJavascriptScheme(t *testing.T) {
 	assert.Contains(t, result.Error, "unsupported scheme")
 }
 
-func TestOpenRejectsPathOutsideWorkspace(t *testing.T) {
+func TestOpenRejectsRelativePath(t *testing.T) {
 	exec := NewSystemExecutor(t.TempDir())
 	result := exec.Execute(context.Background(), &types.ActionRequest{
-		Type: types.ActionOpen, Payload: map[string]any{"target": "/etc/passwd"},
+		Type: types.ActionOpen, Payload: map[string]any{"target": "relative/file.txt"},
 	})
 	assert.False(t, result.Success)
-	assert.Contains(t, result.Error, "outside the workspace")
+	assert.Contains(t, result.Error, "absolute")
 }
 
 func TestOpenEmptyTarget(t *testing.T) {
@@ -163,13 +163,6 @@ func TestSystemInfoUnknownCategory(t *testing.T) {
 	})
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Error, "unknown category")
-}
-
-func TestIsWithinWorkspace(t *testing.T) {
-	assert.True(t, isWithinWorkspace("/workspace/file.txt", "/workspace"))
-	assert.True(t, isWithinWorkspace("/workspace/sub/file.txt", "/workspace"))
-	assert.False(t, isWithinWorkspace("/etc/passwd", "/workspace"))
-	assert.False(t, isWithinWorkspace("/workspace/../etc/passwd", "/workspace"))
 }
 
 func TestFormatFileSize(t *testing.T) {

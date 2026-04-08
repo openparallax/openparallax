@@ -175,6 +175,31 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("send ready: %w", sendErr)
 	}
 
+	// Wait for the engine to push the initial tool set. The agent
+	// holds nothing tool-related of its own — the engine is the
+	// authoritative source for the load_tools menu (it knows which
+	// conditional groups are registered for this workspace, which
+	// MCP groups are mounted, and which groups the user disabled in
+	// config). The agent must receive InitialToolDefs before it can
+	// process any user message; if the directive does not arrive
+	// within the deadline below, the agent fails the session
+	// fail-closed rather than starting with a stale or hardcoded
+	// tool list.
+	const initialToolDeadline = 10 * time.Second
+	initialDirective, err := recvWithDeadline(stream, initialToolDeadline)
+	if err != nil {
+		return fmt.Errorf("wait for initial tool defs: %w", err)
+	}
+	initialPayload := initialDirective.GetInitialToolDefs()
+	if initialPayload == nil {
+		return fmt.Errorf("expected InitialToolDefs as first directive after AgentReady, got %T", initialDirective.Directive)
+	}
+	initialTools := agent.ToolDefsToLLM(initialPayload.Tools)
+	if len(initialTools) == 0 {
+		return fmt.Errorf("engine sent empty InitialToolDefs — agent has no entry-point tool to call")
+	}
+	agentLog("info", "initial_tool_defs_received", "tool_count", len(initialTools))
+
 	maxRounds := cfg.Agents.MaxToolRounds
 	if maxRounds <= 0 {
 		maxRounds = 25
@@ -232,7 +257,7 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 			if !ok {
 				return nil
 			}
-			processMessage(ctx, stream, directiveCh, loopCfg, req, db)
+			processMessage(ctx, stream, directiveCh, loopCfg, initialTools, req, db)
 
 		case <-doneCh:
 			return nil
@@ -243,14 +268,44 @@ func runInternalAgent(_ *cobra.Command, _ []string) error {
 	}
 }
 
+// recvWithDeadline reads one directive from the agent stream with a
+// hard timeout. Used during the AgentReady → InitialToolDefs handshake
+// so the agent fails the session fail-closed if the engine never sends
+// the initial tool set, rather than blocking forever or starting with
+// a stale list.
+func recvWithDeadline(stream pb.AgentService_RunSessionClient, deadline time.Duration) (*pb.EngineDirective, error) {
+	type recvResult struct {
+		directive *pb.EngineDirective
+		err       error
+	}
+	resultCh := make(chan recvResult, 1)
+	go func() {
+		d, err := stream.Recv()
+		resultCh <- recvResult{directive: d, err: err}
+	}()
+	select {
+	case r := <-resultCh:
+		return r.directive, r.err
+	case <-time.After(deadline):
+		return nil, fmt.Errorf("timeout waiting for engine directive after %s", deadline)
+	}
+}
+
 // processMessage runs the LLM reasoning loop for a single message.
 // directiveCh receives ToolResult/ToolDefs directives from the outer stream
 // reader goroutine; processMessage does not read from the gRPC stream directly.
+//
+// initialTools is the engine-pushed startup tool set delivered via
+// InitialToolDefs at session start. The agent never constructs tool
+// definitions itself; this slice is the only source for the LLM's
+// starting tool list. New tools loaded mid-session via load_tools
+// arrive over directiveCh.
 func processMessage(
 	ctx context.Context,
 	stream pb.AgentService_RunSessionClient,
 	directiveCh <-chan *pb.EngineDirective,
 	cfg agent.LoopConfig,
+	initialTools []llm.ToolDefinition,
 	req *pb.ProcessRequest,
 	db *storage.DB,
 ) {
@@ -315,22 +370,12 @@ func processMessage(
 		}
 	}()
 
-	// Initial tools: just load_tools (sent by Engine or hardcoded).
-	tools := []llm.ToolDefinition{{
-		Name:        "load_tools",
-		Description: "Request additional tool groups. Call with {\"groups\": [\"files\", \"shell\", ...]} to load tools.",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"groups": map[string]any{
-					"type":        "array",
-					"items":       map[string]any{"type": "string"},
-					"description": "Tool group names to load (e.g. files, shell, git, browser, memory).",
-				},
-			},
-			"required": []string{"groups"},
-		},
-	}}
+	// The starting tool set comes from the engine's InitialToolDefs
+	// directive received at session start. We copy the slice so that
+	// tools loaded mid-session via load_tools (which the reasoning
+	// loop appends to its own working slice) do not leak into the
+	// next message.
+	tools := append([]llm.ToolDefinition(nil), initialTools...)
 
 	agentLog("info", "run_loop_start", "session", sid, "tool_count", len(tools), "provider", cfg.Provider.Name(), "max_rounds", cfg.MaxRounds)
 

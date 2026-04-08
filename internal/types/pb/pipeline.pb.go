@@ -125,6 +125,7 @@ type EngineDirective struct {
 	//	*EngineDirective_ToolResult
 	//	*EngineDirective_ToolDefs
 	//	*EngineDirective_Shutdown
+	//	*EngineDirective_InitialToolDefs
 	Directive     isEngineDirective_Directive `protobuf_oneof:"directive"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -203,6 +204,15 @@ func (x *EngineDirective) GetShutdown() *ShutdownDirective {
 	return nil
 }
 
+func (x *EngineDirective) GetInitialToolDefs() *InitialToolDefs {
+	if x != nil {
+		if x, ok := x.Directive.(*EngineDirective_InitialToolDefs); ok {
+			return x.InitialToolDefs
+		}
+	}
+	return nil
+}
+
 type isEngineDirective_Directive interface {
 	isEngineDirective_Directive()
 }
@@ -223,6 +233,10 @@ type EngineDirective_Shutdown struct {
 	Shutdown *ShutdownDirective `protobuf:"bytes,4,opt,name=shutdown,proto3,oneof"`
 }
 
+type EngineDirective_InitialToolDefs struct {
+	InitialToolDefs *InitialToolDefs `protobuf:"bytes,5,opt,name=initial_tool_defs,json=initialToolDefs,proto3,oneof"`
+}
+
 func (*EngineDirective_Process) isEngineDirective_Directive() {}
 
 func (*EngineDirective_ToolResult) isEngineDirective_Directive() {}
@@ -230,6 +244,62 @@ func (*EngineDirective_ToolResult) isEngineDirective_Directive() {}
 func (*EngineDirective_ToolDefs) isEngineDirective_Directive() {}
 
 func (*EngineDirective_Shutdown) isEngineDirective_Directive() {}
+
+func (*EngineDirective_InitialToolDefs) isEngineDirective_Directive() {}
+
+// InitialToolDefs is the engine-pushed startup snapshot of the agent's
+// tool set. Sent once per session, immediately after the engine
+// validates the agent's AgentReady event. Carries the dynamically
+// built load_tools meta-tool definition (and any other always-on
+// tools) so the agent does not have to hardcode anything tool-related.
+//
+// The agent must wait for this directive before entering its main
+// reasoning loop. If it does not arrive within the agent's startup
+// deadline, the agent fails the session — fail-closed, no quiet
+// fallback to a stale or hardcoded list.
+type InitialToolDefs struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tools         []*ToolDef             `protobuf:"bytes,1,rep,name=tools,proto3" json:"tools,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InitialToolDefs) Reset() {
+	*x = InitialToolDefs{}
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InitialToolDefs) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InitialToolDefs) ProtoMessage() {}
+
+func (x *InitialToolDefs) ProtoReflect() protoreflect.Message {
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InitialToolDefs.ProtoReflect.Descriptor instead.
+func (*InitialToolDefs) Descriptor() ([]byte, []int) {
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *InitialToolDefs) GetTools() []*ToolDef {
+	if x != nil {
+		return x.Tools
+	}
+	return nil
+}
 
 // ProcessRequest tells the Agent to process a user message.
 type ProcessRequest struct {
@@ -245,7 +315,7 @@ type ProcessRequest struct {
 
 func (x *ProcessRequest) Reset() {
 	*x = ProcessRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[1]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -257,7 +327,7 @@ func (x *ProcessRequest) String() string {
 func (*ProcessRequest) ProtoMessage() {}
 
 func (x *ProcessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[1]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -270,7 +340,7 @@ func (x *ProcessRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessRequest.ProtoReflect.Descriptor instead.
 func (*ProcessRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{1}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ProcessRequest) GetSessionId() string {
@@ -320,7 +390,7 @@ type ToolResultDelivery struct {
 
 func (x *ToolResultDelivery) Reset() {
 	*x = ToolResultDelivery{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[2]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -332,7 +402,7 @@ func (x *ToolResultDelivery) String() string {
 func (*ToolResultDelivery) ProtoMessage() {}
 
 func (x *ToolResultDelivery) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[2]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -345,7 +415,7 @@ func (x *ToolResultDelivery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolResultDelivery.ProtoReflect.Descriptor instead.
 func (*ToolResultDelivery) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{2}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ToolResultDelivery) GetCallId() string {
@@ -379,7 +449,7 @@ type ToolDefsDelivery struct {
 
 func (x *ToolDefsDelivery) Reset() {
 	*x = ToolDefsDelivery{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[3]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -391,7 +461,7 @@ func (x *ToolDefsDelivery) String() string {
 func (*ToolDefsDelivery) ProtoMessage() {}
 
 func (x *ToolDefsDelivery) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[3]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -404,7 +474,7 @@ func (x *ToolDefsDelivery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolDefsDelivery.ProtoReflect.Descriptor instead.
 func (*ToolDefsDelivery) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{3}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ToolDefsDelivery) GetTools() []*ToolDef {
@@ -427,7 +497,7 @@ type ToolDef struct {
 
 func (x *ToolDef) Reset() {
 	*x = ToolDef{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[4]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -439,7 +509,7 @@ func (x *ToolDef) String() string {
 func (*ToolDef) ProtoMessage() {}
 
 func (x *ToolDef) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[4]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -452,7 +522,7 @@ func (x *ToolDef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolDef.ProtoReflect.Descriptor instead.
 func (*ToolDef) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{4}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ToolDef) GetName() string {
@@ -493,7 +563,7 @@ type ShutdownDirective struct {
 
 func (x *ShutdownDirective) Reset() {
 	*x = ShutdownDirective{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[5]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -505,7 +575,7 @@ func (x *ShutdownDirective) String() string {
 func (*ShutdownDirective) ProtoMessage() {}
 
 func (x *ShutdownDirective) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[5]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -518,7 +588,7 @@ func (x *ShutdownDirective) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShutdownDirective.ProtoReflect.Descriptor instead.
 func (*ShutdownDirective) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{5}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ShutdownDirective) GetReason() string {
@@ -547,7 +617,7 @@ type AgentEvent struct {
 
 func (x *AgentEvent) Reset() {
 	*x = AgentEvent{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[6]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -559,7 +629,7 @@ func (x *AgentEvent) String() string {
 func (*AgentEvent) ProtoMessage() {}
 
 func (x *AgentEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[6]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -572,7 +642,7 @@ func (x *AgentEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentEvent.ProtoReflect.Descriptor instead.
 func (*AgentEvent) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{6}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AgentEvent) GetEvent() isAgentEvent_Event {
@@ -706,7 +776,7 @@ type AgentReady struct {
 
 func (x *AgentReady) Reset() {
 	*x = AgentReady{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[7]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -718,7 +788,7 @@ func (x *AgentReady) String() string {
 func (*AgentReady) ProtoMessage() {}
 
 func (x *AgentReady) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[7]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -731,7 +801,7 @@ func (x *AgentReady) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentReady.ProtoReflect.Descriptor instead.
 func (*AgentReady) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{7}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *AgentReady) GetAgentId() string {
@@ -760,7 +830,7 @@ type LLMTokenEmitted struct {
 
 func (x *LLMTokenEmitted) Reset() {
 	*x = LLMTokenEmitted{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[8]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -772,7 +842,7 @@ func (x *LLMTokenEmitted) String() string {
 func (*LLMTokenEmitted) ProtoMessage() {}
 
 func (x *LLMTokenEmitted) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[8]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -785,7 +855,7 @@ func (x *LLMTokenEmitted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMTokenEmitted.ProtoReflect.Descriptor instead.
 func (*LLMTokenEmitted) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{8}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *LLMTokenEmitted) GetSessionId() string {
@@ -823,7 +893,7 @@ type ToolCallProposed struct {
 
 func (x *ToolCallProposed) Reset() {
 	*x = ToolCallProposed{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[9]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -835,7 +905,7 @@ func (x *ToolCallProposed) String() string {
 func (*ToolCallProposed) ProtoMessage() {}
 
 func (x *ToolCallProposed) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[9]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -848,7 +918,7 @@ func (x *ToolCallProposed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolCallProposed.ProtoReflect.Descriptor instead.
 func (*ToolCallProposed) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{9}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ToolCallProposed) GetSessionId() string {
@@ -896,7 +966,7 @@ type ToolDefsRequest struct {
 
 func (x *ToolDefsRequest) Reset() {
 	*x = ToolDefsRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[10]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -908,7 +978,7 @@ func (x *ToolDefsRequest) String() string {
 func (*ToolDefsRequest) ProtoMessage() {}
 
 func (x *ToolDefsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[10]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -921,7 +991,7 @@ func (x *ToolDefsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolDefsRequest.ProtoReflect.Descriptor instead.
 func (*ToolDefsRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{10}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ToolDefsRequest) GetGroups() []string {
@@ -941,7 +1011,7 @@ type MemoryFlush struct {
 
 func (x *MemoryFlush) Reset() {
 	*x = MemoryFlush{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[11]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -953,7 +1023,7 @@ func (x *MemoryFlush) String() string {
 func (*MemoryFlush) ProtoMessage() {}
 
 func (x *MemoryFlush) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[11]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -966,7 +1036,7 @@ func (x *MemoryFlush) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemoryFlush.ProtoReflect.Descriptor instead.
 func (*MemoryFlush) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{11}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *MemoryFlush) GetContent() string {
@@ -990,7 +1060,7 @@ type AgentResponseComplete struct {
 
 func (x *AgentResponseComplete) Reset() {
 	*x = AgentResponseComplete{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[12]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1002,7 +1072,7 @@ func (x *AgentResponseComplete) String() string {
 func (*AgentResponseComplete) ProtoMessage() {}
 
 func (x *AgentResponseComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[12]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1015,7 +1085,7 @@ func (x *AgentResponseComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentResponseComplete.ProtoReflect.Descriptor instead.
 func (*AgentResponseComplete) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{12}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AgentResponseComplete) GetSessionId() string {
@@ -1065,7 +1135,7 @@ type Thought struct {
 
 func (x *Thought) Reset() {
 	*x = Thought{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[13]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1077,7 +1147,7 @@ func (x *Thought) String() string {
 func (*Thought) ProtoMessage() {}
 
 func (x *Thought) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[13]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1090,7 +1160,7 @@ func (x *Thought) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Thought.ProtoReflect.Descriptor instead.
 func (*Thought) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{13}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Thought) GetStage() string {
@@ -1127,7 +1197,7 @@ type TokenUsage struct {
 
 func (x *TokenUsage) Reset() {
 	*x = TokenUsage{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[14]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1139,7 +1209,7 @@ func (x *TokenUsage) String() string {
 func (*TokenUsage) ProtoMessage() {}
 
 func (x *TokenUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[14]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1152,7 +1222,7 @@ func (x *TokenUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TokenUsage.ProtoReflect.Descriptor instead.
 func (*TokenUsage) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{14}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TokenUsage) GetInputTokens() int32 {
@@ -1197,7 +1267,7 @@ type AgentError struct {
 
 func (x *AgentError) Reset() {
 	*x = AgentError{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[15]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1209,7 +1279,7 @@ func (x *AgentError) String() string {
 func (*AgentError) ProtoMessage() {}
 
 func (x *AgentError) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[15]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1222,7 +1292,7 @@ func (x *AgentError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentError.ProtoReflect.Descriptor instead.
 func (*AgentError) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{15}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *AgentError) GetSessionId() string {
@@ -1273,7 +1343,7 @@ type ClientMessageRequest struct {
 
 func (x *ClientMessageRequest) Reset() {
 	*x = ClientMessageRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[16]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1285,7 +1355,7 @@ func (x *ClientMessageRequest) String() string {
 func (*ClientMessageRequest) ProtoMessage() {}
 
 func (x *ClientMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[16]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1298,7 +1368,7 @@ func (x *ClientMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientMessageRequest.ProtoReflect.Descriptor instead.
 func (*ClientMessageRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{16}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ClientMessageRequest) GetContent() string {
@@ -1340,7 +1410,7 @@ type ListSessionsRequest struct {
 
 func (x *ListSessionsRequest) Reset() {
 	*x = ListSessionsRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[17]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1352,7 +1422,7 @@ func (x *ListSessionsRequest) String() string {
 func (*ListSessionsRequest) ProtoMessage() {}
 
 func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[17]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1365,7 +1435,7 @@ func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{17}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListSessionsRequest) GetLimit() int32 {
@@ -1392,7 +1462,7 @@ type ListSessionsResponse struct {
 
 func (x *ListSessionsResponse) Reset() {
 	*x = ListSessionsResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[18]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1404,7 +1474,7 @@ func (x *ListSessionsResponse) String() string {
 func (*ListSessionsResponse) ProtoMessage() {}
 
 func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[18]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1417,7 +1487,7 @@ func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{18}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListSessionsResponse) GetSessions() []*SessionInfo {
@@ -1442,7 +1512,7 @@ type SessionInfo struct {
 
 func (x *SessionInfo) Reset() {
 	*x = SessionInfo{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[19]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1454,7 +1524,7 @@ func (x *SessionInfo) String() string {
 func (*SessionInfo) ProtoMessage() {}
 
 func (x *SessionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[19]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1467,7 +1537,7 @@ func (x *SessionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionInfo.ProtoReflect.Descriptor instead.
 func (*SessionInfo) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{19}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SessionInfo) GetId() string {
@@ -1523,7 +1593,7 @@ type GetHistoryRequest struct {
 
 func (x *GetHistoryRequest) Reset() {
 	*x = GetHistoryRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[20]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1535,7 +1605,7 @@ func (x *GetHistoryRequest) String() string {
 func (*GetHistoryRequest) ProtoMessage() {}
 
 func (x *GetHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[20]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1548,7 +1618,7 @@ func (x *GetHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHistoryRequest.ProtoReflect.Descriptor instead.
 func (*GetHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{20}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetHistoryRequest) GetSessionId() string {
@@ -1575,7 +1645,7 @@ type GetHistoryResponse struct {
 
 func (x *GetHistoryResponse) Reset() {
 	*x = GetHistoryResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[21]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1587,7 +1657,7 @@ func (x *GetHistoryResponse) String() string {
 func (*GetHistoryResponse) ProtoMessage() {}
 
 func (x *GetHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[21]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1600,7 +1670,7 @@ func (x *GetHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHistoryResponse.ProtoReflect.Descriptor instead.
 func (*GetHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{21}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetHistoryResponse) GetMessages() []*ChatMessage {
@@ -1624,7 +1694,7 @@ type ChatMessage struct {
 
 func (x *ChatMessage) Reset() {
 	*x = ChatMessage{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[22]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1636,7 +1706,7 @@ func (x *ChatMessage) String() string {
 func (*ChatMessage) ProtoMessage() {}
 
 func (x *ChatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[22]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1649,7 +1719,7 @@ func (x *ChatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
 func (*ChatMessage) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{22}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ChatMessage) GetId() string {
@@ -1701,7 +1771,7 @@ type ProcessMessageRequest struct {
 
 func (x *ProcessMessageRequest) Reset() {
 	*x = ProcessMessageRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[23]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1713,7 +1783,7 @@ func (x *ProcessMessageRequest) String() string {
 func (*ProcessMessageRequest) ProtoMessage() {}
 
 func (x *ProcessMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[23]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1726,7 +1796,7 @@ func (x *ProcessMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProcessMessageRequest.ProtoReflect.Descriptor instead.
 func (*ProcessMessageRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{23}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ProcessMessageRequest) GetContent() string {
@@ -1787,7 +1857,7 @@ type PipelineEvent struct {
 
 func (x *PipelineEvent) Reset() {
 	*x = PipelineEvent{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[24]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1799,7 +1869,7 @@ func (x *PipelineEvent) String() string {
 func (*PipelineEvent) ProtoMessage() {}
 
 func (x *PipelineEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[24]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1812,7 +1882,7 @@ func (x *PipelineEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PipelineEvent.ProtoReflect.Descriptor instead.
 func (*PipelineEvent) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{24}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *PipelineEvent) GetSessionId() string {
@@ -1926,7 +1996,7 @@ type IntentParsed struct {
 
 func (x *IntentParsed) Reset() {
 	*x = IntentParsed{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[25]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1938,7 +2008,7 @@ func (x *IntentParsed) String() string {
 func (*IntentParsed) ProtoMessage() {}
 
 func (x *IntentParsed) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[25]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1951,7 +2021,7 @@ func (x *IntentParsed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IntentParsed.ProtoReflect.Descriptor instead.
 func (*IntentParsed) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{25}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *IntentParsed) GetGoal() GoalType {
@@ -1993,7 +2063,7 @@ type ActionsPlanned struct {
 
 func (x *ActionsPlanned) Reset() {
 	*x = ActionsPlanned{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[26]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2005,7 +2075,7 @@ func (x *ActionsPlanned) String() string {
 func (*ActionsPlanned) ProtoMessage() {}
 
 func (x *ActionsPlanned) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[26]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2018,7 +2088,7 @@ func (x *ActionsPlanned) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionsPlanned.ProtoReflect.Descriptor instead.
 func (*ActionsPlanned) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{26}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ActionsPlanned) GetActions() []ActionType {
@@ -2046,7 +2116,7 @@ type SelfEvalResult struct {
 
 func (x *SelfEvalResult) Reset() {
 	*x = SelfEvalResult{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[27]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2058,7 +2128,7 @@ func (x *SelfEvalResult) String() string {
 func (*SelfEvalResult) ProtoMessage() {}
 
 func (x *SelfEvalResult) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[27]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2071,7 +2141,7 @@ func (x *SelfEvalResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SelfEvalResult.ProtoReflect.Descriptor instead.
 func (*SelfEvalResult) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{27}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *SelfEvalResult) GetPassed() bool {
@@ -2102,7 +2172,7 @@ type ShieldVerdict struct {
 
 func (x *ShieldVerdict) Reset() {
 	*x = ShieldVerdict{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[28]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2114,7 +2184,7 @@ func (x *ShieldVerdict) String() string {
 func (*ShieldVerdict) ProtoMessage() {}
 
 func (x *ShieldVerdict) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[28]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2127,7 +2197,7 @@ func (x *ShieldVerdict) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShieldVerdict.ProtoReflect.Descriptor instead.
 func (*ShieldVerdict) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{28}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ShieldVerdict) GetDecision() VerdictDecision {
@@ -2176,7 +2246,7 @@ type ActionStarted struct {
 
 func (x *ActionStarted) Reset() {
 	*x = ActionStarted{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[29]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2188,7 +2258,7 @@ func (x *ActionStarted) String() string {
 func (*ActionStarted) ProtoMessage() {}
 
 func (x *ActionStarted) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[29]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2201,7 +2271,7 @@ func (x *ActionStarted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionStarted.ProtoReflect.Descriptor instead.
 func (*ActionStarted) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{29}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ActionStarted) GetActionType() ActionType {
@@ -2230,7 +2300,7 @@ type ActionCompleted struct {
 
 func (x *ActionCompleted) Reset() {
 	*x = ActionCompleted{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[30]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2242,7 +2312,7 @@ func (x *ActionCompleted) String() string {
 func (*ActionCompleted) ProtoMessage() {}
 
 func (x *ActionCompleted) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[30]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2255,7 +2325,7 @@ func (x *ActionCompleted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActionCompleted.ProtoReflect.Descriptor instead.
 func (*ActionCompleted) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{30}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ActionCompleted) GetActionType() ActionType {
@@ -2289,7 +2359,7 @@ type LLMToken struct {
 
 func (x *LLMToken) Reset() {
 	*x = LLMToken{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[31]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2301,7 +2371,7 @@ func (x *LLMToken) String() string {
 func (*LLMToken) ProtoMessage() {}
 
 func (x *LLMToken) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[31]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2314,7 +2384,7 @@ func (x *LLMToken) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMToken.ProtoReflect.Descriptor instead.
 func (*LLMToken) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{31}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *LLMToken) GetText() string {
@@ -2334,7 +2404,7 @@ type ResponseComplete struct {
 
 func (x *ResponseComplete) Reset() {
 	*x = ResponseComplete{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[32]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2346,7 +2416,7 @@ func (x *ResponseComplete) String() string {
 func (*ResponseComplete) ProtoMessage() {}
 
 func (x *ResponseComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[32]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2359,7 +2429,7 @@ func (x *ResponseComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResponseComplete.ProtoReflect.Descriptor instead.
 func (*ResponseComplete) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{32}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ResponseComplete) GetContent() string {
@@ -2383,7 +2453,7 @@ type ApprovalNeeded struct {
 
 func (x *ApprovalNeeded) Reset() {
 	*x = ApprovalNeeded{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[33]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2395,7 +2465,7 @@ func (x *ApprovalNeeded) String() string {
 func (*ApprovalNeeded) ProtoMessage() {}
 
 func (x *ApprovalNeeded) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[33]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2408,7 +2478,7 @@ func (x *ApprovalNeeded) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApprovalNeeded.ProtoReflect.Descriptor instead.
 func (*ApprovalNeeded) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{33}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ApprovalNeeded) GetApprovalId() string {
@@ -2457,7 +2527,7 @@ type OTRBlocked struct {
 
 func (x *OTRBlocked) Reset() {
 	*x = OTRBlocked{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[34]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2469,7 +2539,7 @@ func (x *OTRBlocked) String() string {
 func (*OTRBlocked) ProtoMessage() {}
 
 func (x *OTRBlocked) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[34]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2482,7 +2552,7 @@ func (x *OTRBlocked) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OTRBlocked.ProtoReflect.Descriptor instead.
 func (*OTRBlocked) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{34}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *OTRBlocked) GetActionType() ActionType {
@@ -2511,7 +2581,7 @@ type PipelineError struct {
 
 func (x *PipelineError) Reset() {
 	*x = PipelineError{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[35]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2523,7 +2593,7 @@ func (x *PipelineError) String() string {
 func (*PipelineError) ProtoMessage() {}
 
 func (x *PipelineError) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[35]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2536,7 +2606,7 @@ func (x *PipelineError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PipelineError.ProtoReflect.Descriptor instead.
 func (*PipelineError) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{35}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *PipelineError) GetCode() string {
@@ -2572,7 +2642,7 @@ type ApprovalResponse struct {
 
 func (x *ApprovalResponse) Reset() {
 	*x = ApprovalResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[36]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2584,7 +2654,7 @@ func (x *ApprovalResponse) String() string {
 func (*ApprovalResponse) ProtoMessage() {}
 
 func (x *ApprovalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[36]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2597,7 +2667,7 @@ func (x *ApprovalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApprovalResponse.ProtoReflect.Descriptor instead.
 func (*ApprovalResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{36}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ApprovalResponse) GetApprovalId() string {
@@ -2631,7 +2701,7 @@ type ApprovalAck struct {
 
 func (x *ApprovalAck) Reset() {
 	*x = ApprovalAck{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[37]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2643,7 +2713,7 @@ func (x *ApprovalAck) String() string {
 func (*ApprovalAck) ProtoMessage() {}
 
 func (x *ApprovalAck) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[37]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2656,7 +2726,7 @@ func (x *ApprovalAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApprovalAck.ProtoReflect.Descriptor instead.
 func (*ApprovalAck) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{37}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ApprovalAck) GetReceived() bool {
@@ -2676,7 +2746,7 @@ type MemoryReadRequest struct {
 
 func (x *MemoryReadRequest) Reset() {
 	*x = MemoryReadRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[38]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2688,7 +2758,7 @@ func (x *MemoryReadRequest) String() string {
 func (*MemoryReadRequest) ProtoMessage() {}
 
 func (x *MemoryReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[38]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2701,7 +2771,7 @@ func (x *MemoryReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemoryReadRequest.ProtoReflect.Descriptor instead.
 func (*MemoryReadRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{38}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *MemoryReadRequest) GetFileType() string {
@@ -2722,7 +2792,7 @@ type MemoryReadResponse struct {
 
 func (x *MemoryReadResponse) Reset() {
 	*x = MemoryReadResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[39]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2734,7 +2804,7 @@ func (x *MemoryReadResponse) String() string {
 func (*MemoryReadResponse) ProtoMessage() {}
 
 func (x *MemoryReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[39]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2747,7 +2817,7 @@ func (x *MemoryReadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemoryReadResponse.ProtoReflect.Descriptor instead.
 func (*MemoryReadResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{39}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *MemoryReadResponse) GetContent() string {
@@ -2775,7 +2845,7 @@ type MemorySearchRequest struct {
 
 func (x *MemorySearchRequest) Reset() {
 	*x = MemorySearchRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[40]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2787,7 +2857,7 @@ func (x *MemorySearchRequest) String() string {
 func (*MemorySearchRequest) ProtoMessage() {}
 
 func (x *MemorySearchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[40]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2800,7 +2870,7 @@ func (x *MemorySearchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemorySearchRequest.ProtoReflect.Descriptor instead.
 func (*MemorySearchRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{40}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *MemorySearchRequest) GetQuery() string {
@@ -2827,7 +2897,7 @@ type MemorySearchResponse struct {
 
 func (x *MemorySearchResponse) Reset() {
 	*x = MemorySearchResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[41]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2839,7 +2909,7 @@ func (x *MemorySearchResponse) String() string {
 func (*MemorySearchResponse) ProtoMessage() {}
 
 func (x *MemorySearchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[41]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2852,7 +2922,7 @@ func (x *MemorySearchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemorySearchResponse.ProtoReflect.Descriptor instead.
 func (*MemorySearchResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{41}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *MemorySearchResponse) GetResults() []*MemorySearchResult {
@@ -2875,7 +2945,7 @@ type MemorySearchResult struct {
 
 func (x *MemorySearchResult) Reset() {
 	*x = MemorySearchResult{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[42]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2887,7 +2957,7 @@ func (x *MemorySearchResult) String() string {
 func (*MemorySearchResult) ProtoMessage() {}
 
 func (x *MemorySearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[42]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2900,7 +2970,7 @@ func (x *MemorySearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemorySearchResult.ProtoReflect.Descriptor instead.
 func (*MemorySearchResult) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{42}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *MemorySearchResult) GetPath() string {
@@ -2940,7 +3010,7 @@ type StatusRequest struct {
 
 func (x *StatusRequest) Reset() {
 	*x = StatusRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[43]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2952,7 +3022,7 @@ func (x *StatusRequest) String() string {
 func (*StatusRequest) ProtoMessage() {}
 
 func (x *StatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[43]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2965,7 +3035,7 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{43}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{44}
 }
 
 // StatusResponse returns agent status.
@@ -2984,7 +3054,7 @@ type StatusResponse struct {
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[44]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2996,7 +3066,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[44]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3009,7 +3079,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{44}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *StatusResponse) GetAgentName() string {
@@ -3070,7 +3140,7 @@ type ShutdownRequest struct {
 
 func (x *ShutdownRequest) Reset() {
 	*x = ShutdownRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[45]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3082,7 +3152,7 @@ func (x *ShutdownRequest) String() string {
 func (*ShutdownRequest) ProtoMessage() {}
 
 func (x *ShutdownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[45]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3095,7 +3165,7 @@ func (x *ShutdownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShutdownRequest.ProtoReflect.Descriptor instead.
 func (*ShutdownRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{45}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{46}
 }
 
 // ShutdownResponse confirms shutdown status.
@@ -3108,7 +3178,7 @@ type ShutdownResponse struct {
 
 func (x *ShutdownResponse) Reset() {
 	*x = ShutdownResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[46]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3120,7 +3190,7 @@ func (x *ShutdownResponse) String() string {
 func (*ShutdownResponse) ProtoMessage() {}
 
 func (x *ShutdownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[46]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3133,7 +3203,7 @@ func (x *ShutdownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShutdownResponse.ProtoReflect.Descriptor instead.
 func (*ShutdownResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{46}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ShutdownResponse) GetClean() bool {
@@ -3153,7 +3223,7 @@ type SubAgentRegisterRequest struct {
 
 func (x *SubAgentRegisterRequest) Reset() {
 	*x = SubAgentRegisterRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[47]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3165,7 +3235,7 @@ func (x *SubAgentRegisterRequest) String() string {
 func (*SubAgentRegisterRequest) ProtoMessage() {}
 
 func (x *SubAgentRegisterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[47]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3178,7 +3248,7 @@ func (x *SubAgentRegisterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentRegisterRequest.ProtoReflect.Descriptor instead.
 func (*SubAgentRegisterRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{47}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *SubAgentRegisterRequest) GetToken() string {
@@ -3200,7 +3270,7 @@ type SubAgentToolDef struct {
 
 func (x *SubAgentToolDef) Reset() {
 	*x = SubAgentToolDef{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[48]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3212,7 +3282,7 @@ func (x *SubAgentToolDef) String() string {
 func (*SubAgentToolDef) ProtoMessage() {}
 
 func (x *SubAgentToolDef) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[48]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3225,7 +3295,7 @@ func (x *SubAgentToolDef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentToolDef.ProtoReflect.Descriptor instead.
 func (*SubAgentToolDef) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{48}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *SubAgentToolDef) GetName() string {
@@ -3267,7 +3337,7 @@ type SubAgentRegisterResponse struct {
 
 func (x *SubAgentRegisterResponse) Reset() {
 	*x = SubAgentRegisterResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[49]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3279,7 +3349,7 @@ func (x *SubAgentRegisterResponse) String() string {
 func (*SubAgentRegisterResponse) ProtoMessage() {}
 
 func (x *SubAgentRegisterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[49]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3292,7 +3362,7 @@ func (x *SubAgentRegisterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentRegisterResponse.ProtoReflect.Descriptor instead.
 func (*SubAgentRegisterResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{49}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *SubAgentRegisterResponse) GetName() string {
@@ -3372,7 +3442,7 @@ type SubAgentToolRequest struct {
 
 func (x *SubAgentToolRequest) Reset() {
 	*x = SubAgentToolRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[50]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3384,7 +3454,7 @@ func (x *SubAgentToolRequest) String() string {
 func (*SubAgentToolRequest) ProtoMessage() {}
 
 func (x *SubAgentToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[50]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3397,7 +3467,7 @@ func (x *SubAgentToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentToolRequest.ProtoReflect.Descriptor instead.
 func (*SubAgentToolRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{50}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *SubAgentToolRequest) GetName() string {
@@ -3446,7 +3516,7 @@ type SubAgentToolResponse struct {
 
 func (x *SubAgentToolResponse) Reset() {
 	*x = SubAgentToolResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[51]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3458,7 +3528,7 @@ func (x *SubAgentToolResponse) String() string {
 func (*SubAgentToolResponse) ProtoMessage() {}
 
 func (x *SubAgentToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[51]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3471,7 +3541,7 @@ func (x *SubAgentToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentToolResponse.ProtoReflect.Descriptor instead.
 func (*SubAgentToolResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{51}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *SubAgentToolResponse) GetContent() string {
@@ -3499,7 +3569,7 @@ type SubAgentCompleteRequest struct {
 
 func (x *SubAgentCompleteRequest) Reset() {
 	*x = SubAgentCompleteRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[52]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3511,7 +3581,7 @@ func (x *SubAgentCompleteRequest) String() string {
 func (*SubAgentCompleteRequest) ProtoMessage() {}
 
 func (x *SubAgentCompleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[52]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3524,7 +3594,7 @@ func (x *SubAgentCompleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentCompleteRequest.ProtoReflect.Descriptor instead.
 func (*SubAgentCompleteRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{52}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *SubAgentCompleteRequest) GetName() string {
@@ -3550,7 +3620,7 @@ type SubAgentCompleteResponse struct {
 
 func (x *SubAgentCompleteResponse) Reset() {
 	*x = SubAgentCompleteResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[53]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3562,7 +3632,7 @@ func (x *SubAgentCompleteResponse) String() string {
 func (*SubAgentCompleteResponse) ProtoMessage() {}
 
 func (x *SubAgentCompleteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[53]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3575,7 +3645,7 @@ func (x *SubAgentCompleteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentCompleteResponse.ProtoReflect.Descriptor instead.
 func (*SubAgentCompleteResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{53}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{54}
 }
 
 // SubAgentFailedRequest reports task failure.
@@ -3589,7 +3659,7 @@ type SubAgentFailedRequest struct {
 
 func (x *SubAgentFailedRequest) Reset() {
 	*x = SubAgentFailedRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[54]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3601,7 +3671,7 @@ func (x *SubAgentFailedRequest) String() string {
 func (*SubAgentFailedRequest) ProtoMessage() {}
 
 func (x *SubAgentFailedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[54]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3614,7 +3684,7 @@ func (x *SubAgentFailedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentFailedRequest.ProtoReflect.Descriptor instead.
 func (*SubAgentFailedRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{54}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *SubAgentFailedRequest) GetName() string {
@@ -3640,7 +3710,7 @@ type SubAgentFailedResponse struct {
 
 func (x *SubAgentFailedResponse) Reset() {
 	*x = SubAgentFailedResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[55]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3652,7 +3722,7 @@ func (x *SubAgentFailedResponse) String() string {
 func (*SubAgentFailedResponse) ProtoMessage() {}
 
 func (x *SubAgentFailedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[55]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3665,7 +3735,7 @@ func (x *SubAgentFailedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentFailedResponse.ProtoReflect.Descriptor instead.
 func (*SubAgentFailedResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{55}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{56}
 }
 
 // SubAgentPollRequest asks whether the main agent has sent a follow-up message.
@@ -3678,7 +3748,7 @@ type SubAgentPollRequest struct {
 
 func (x *SubAgentPollRequest) Reset() {
 	*x = SubAgentPollRequest{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[56]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3690,7 +3760,7 @@ func (x *SubAgentPollRequest) String() string {
 func (*SubAgentPollRequest) ProtoMessage() {}
 
 func (x *SubAgentPollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[56]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3703,7 +3773,7 @@ func (x *SubAgentPollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentPollRequest.ProtoReflect.Descriptor instead.
 func (*SubAgentPollRequest) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{56}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *SubAgentPollRequest) GetName() string {
@@ -3724,7 +3794,7 @@ type SubAgentPollResponse struct {
 
 func (x *SubAgentPollResponse) Reset() {
 	*x = SubAgentPollResponse{}
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[57]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3736,7 +3806,7 @@ func (x *SubAgentPollResponse) String() string {
 func (*SubAgentPollResponse) ProtoMessage() {}
 
 func (x *SubAgentPollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_openparallax_v1_pipeline_proto_msgTypes[57]
+	mi := &file_openparallax_v1_pipeline_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3749,7 +3819,7 @@ func (x *SubAgentPollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubAgentPollResponse.ProtoReflect.Descriptor instead.
 func (*SubAgentPollResponse) Descriptor() ([]byte, []int) {
-	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{57}
+	return file_openparallax_v1_pipeline_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *SubAgentPollResponse) GetHasMessage() bool {
@@ -3770,14 +3840,17 @@ var File_openparallax_v1_pipeline_proto protoreflect.FileDescriptor
 
 const file_openparallax_v1_pipeline_proto_rawDesc = "" +
 	"\n" +
-	"\x1eopenparallax/v1/pipeline.proto\x12\x0fopenparallax.v1\x1a\x1bopenparallax/v1/types.proto\"\xa7\x02\n" +
+	"\x1eopenparallax/v1/pipeline.proto\x12\x0fopenparallax.v1\x1a\x1bopenparallax/v1/types.proto\"\xf7\x02\n" +
 	"\x0fEngineDirective\x12;\n" +
 	"\aprocess\x18\x01 \x01(\v2\x1f.openparallax.v1.ProcessRequestH\x00R\aprocess\x12F\n" +
 	"\vtool_result\x18\x02 \x01(\v2#.openparallax.v1.ToolResultDeliveryH\x00R\n" +
 	"toolResult\x12@\n" +
 	"\ttool_defs\x18\x03 \x01(\v2!.openparallax.v1.ToolDefsDeliveryH\x00R\btoolDefs\x12@\n" +
-	"\bshutdown\x18\x04 \x01(\v2\".openparallax.v1.ShutdownDirectiveH\x00R\bshutdownB\v\n" +
-	"\tdirective\"\xb2\x01\n" +
+	"\bshutdown\x18\x04 \x01(\v2\".openparallax.v1.ShutdownDirectiveH\x00R\bshutdown\x12N\n" +
+	"\x11initial_tool_defs\x18\x05 \x01(\v2 .openparallax.v1.InitialToolDefsH\x00R\x0finitialToolDefsB\v\n" +
+	"\tdirective\"A\n" +
+	"\x0fInitialToolDefs\x12.\n" +
+	"\x05tools\x18\x01 \x03(\v2\x18.openparallax.v1.ToolDefR\x05tools\"\xb2\x01\n" +
 	"\x0eProcessRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
@@ -4100,148 +4173,151 @@ func file_openparallax_v1_pipeline_proto_rawDescGZIP() []byte {
 }
 
 var file_openparallax_v1_pipeline_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_openparallax_v1_pipeline_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
+var file_openparallax_v1_pipeline_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
 var file_openparallax_v1_pipeline_proto_goTypes = []any{
 	(PipelineEventType)(0),           // 0: openparallax.v1.PipelineEventType
 	(*EngineDirective)(nil),          // 1: openparallax.v1.EngineDirective
-	(*ProcessRequest)(nil),           // 2: openparallax.v1.ProcessRequest
-	(*ToolResultDelivery)(nil),       // 3: openparallax.v1.ToolResultDelivery
-	(*ToolDefsDelivery)(nil),         // 4: openparallax.v1.ToolDefsDelivery
-	(*ToolDef)(nil),                  // 5: openparallax.v1.ToolDef
-	(*ShutdownDirective)(nil),        // 6: openparallax.v1.ShutdownDirective
-	(*AgentEvent)(nil),               // 7: openparallax.v1.AgentEvent
-	(*AgentReady)(nil),               // 8: openparallax.v1.AgentReady
-	(*LLMTokenEmitted)(nil),          // 9: openparallax.v1.LLMTokenEmitted
-	(*ToolCallProposed)(nil),         // 10: openparallax.v1.ToolCallProposed
-	(*ToolDefsRequest)(nil),          // 11: openparallax.v1.ToolDefsRequest
-	(*MemoryFlush)(nil),              // 12: openparallax.v1.MemoryFlush
-	(*AgentResponseComplete)(nil),    // 13: openparallax.v1.AgentResponseComplete
-	(*Thought)(nil),                  // 14: openparallax.v1.Thought
-	(*TokenUsage)(nil),               // 15: openparallax.v1.TokenUsage
-	(*AgentError)(nil),               // 16: openparallax.v1.AgentError
-	(*ClientMessageRequest)(nil),     // 17: openparallax.v1.ClientMessageRequest
-	(*ListSessionsRequest)(nil),      // 18: openparallax.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),     // 19: openparallax.v1.ListSessionsResponse
-	(*SessionInfo)(nil),              // 20: openparallax.v1.SessionInfo
-	(*GetHistoryRequest)(nil),        // 21: openparallax.v1.GetHistoryRequest
-	(*GetHistoryResponse)(nil),       // 22: openparallax.v1.GetHistoryResponse
-	(*ChatMessage)(nil),              // 23: openparallax.v1.ChatMessage
-	(*ProcessMessageRequest)(nil),    // 24: openparallax.v1.ProcessMessageRequest
-	(*PipelineEvent)(nil),            // 25: openparallax.v1.PipelineEvent
-	(*IntentParsed)(nil),             // 26: openparallax.v1.IntentParsed
-	(*ActionsPlanned)(nil),           // 27: openparallax.v1.ActionsPlanned
-	(*SelfEvalResult)(nil),           // 28: openparallax.v1.SelfEvalResult
-	(*ShieldVerdict)(nil),            // 29: openparallax.v1.ShieldVerdict
-	(*ActionStarted)(nil),            // 30: openparallax.v1.ActionStarted
-	(*ActionCompleted)(nil),          // 31: openparallax.v1.ActionCompleted
-	(*LLMToken)(nil),                 // 32: openparallax.v1.LLMToken
-	(*ResponseComplete)(nil),         // 33: openparallax.v1.ResponseComplete
-	(*ApprovalNeeded)(nil),           // 34: openparallax.v1.ApprovalNeeded
-	(*OTRBlocked)(nil),               // 35: openparallax.v1.OTRBlocked
-	(*PipelineError)(nil),            // 36: openparallax.v1.PipelineError
-	(*ApprovalResponse)(nil),         // 37: openparallax.v1.ApprovalResponse
-	(*ApprovalAck)(nil),              // 38: openparallax.v1.ApprovalAck
-	(*MemoryReadRequest)(nil),        // 39: openparallax.v1.MemoryReadRequest
-	(*MemoryReadResponse)(nil),       // 40: openparallax.v1.MemoryReadResponse
-	(*MemorySearchRequest)(nil),      // 41: openparallax.v1.MemorySearchRequest
-	(*MemorySearchResponse)(nil),     // 42: openparallax.v1.MemorySearchResponse
-	(*MemorySearchResult)(nil),       // 43: openparallax.v1.MemorySearchResult
-	(*StatusRequest)(nil),            // 44: openparallax.v1.StatusRequest
-	(*StatusResponse)(nil),           // 45: openparallax.v1.StatusResponse
-	(*ShutdownRequest)(nil),          // 46: openparallax.v1.ShutdownRequest
-	(*ShutdownResponse)(nil),         // 47: openparallax.v1.ShutdownResponse
-	(*SubAgentRegisterRequest)(nil),  // 48: openparallax.v1.SubAgentRegisterRequest
-	(*SubAgentToolDef)(nil),          // 49: openparallax.v1.SubAgentToolDef
-	(*SubAgentRegisterResponse)(nil), // 50: openparallax.v1.SubAgentRegisterResponse
-	(*SubAgentToolRequest)(nil),      // 51: openparallax.v1.SubAgentToolRequest
-	(*SubAgentToolResponse)(nil),     // 52: openparallax.v1.SubAgentToolResponse
-	(*SubAgentCompleteRequest)(nil),  // 53: openparallax.v1.SubAgentCompleteRequest
-	(*SubAgentCompleteResponse)(nil), // 54: openparallax.v1.SubAgentCompleteResponse
-	(*SubAgentFailedRequest)(nil),    // 55: openparallax.v1.SubAgentFailedRequest
-	(*SubAgentFailedResponse)(nil),   // 56: openparallax.v1.SubAgentFailedResponse
-	(*SubAgentPollRequest)(nil),      // 57: openparallax.v1.SubAgentPollRequest
-	(*SubAgentPollResponse)(nil),     // 58: openparallax.v1.SubAgentPollResponse
-	(SessionMode)(0),                 // 59: openparallax.v1.SessionMode
-	(GoalType)(0),                    // 60: openparallax.v1.GoalType
-	(ActionType)(0),                  // 61: openparallax.v1.ActionType
-	(VerdictDecision)(0),             // 62: openparallax.v1.VerdictDecision
-	(*ActionRequest)(nil),            // 63: openparallax.v1.ActionRequest
-	(*Verdict)(nil),                  // 64: openparallax.v1.Verdict
+	(*InitialToolDefs)(nil),          // 2: openparallax.v1.InitialToolDefs
+	(*ProcessRequest)(nil),           // 3: openparallax.v1.ProcessRequest
+	(*ToolResultDelivery)(nil),       // 4: openparallax.v1.ToolResultDelivery
+	(*ToolDefsDelivery)(nil),         // 5: openparallax.v1.ToolDefsDelivery
+	(*ToolDef)(nil),                  // 6: openparallax.v1.ToolDef
+	(*ShutdownDirective)(nil),        // 7: openparallax.v1.ShutdownDirective
+	(*AgentEvent)(nil),               // 8: openparallax.v1.AgentEvent
+	(*AgentReady)(nil),               // 9: openparallax.v1.AgentReady
+	(*LLMTokenEmitted)(nil),          // 10: openparallax.v1.LLMTokenEmitted
+	(*ToolCallProposed)(nil),         // 11: openparallax.v1.ToolCallProposed
+	(*ToolDefsRequest)(nil),          // 12: openparallax.v1.ToolDefsRequest
+	(*MemoryFlush)(nil),              // 13: openparallax.v1.MemoryFlush
+	(*AgentResponseComplete)(nil),    // 14: openparallax.v1.AgentResponseComplete
+	(*Thought)(nil),                  // 15: openparallax.v1.Thought
+	(*TokenUsage)(nil),               // 16: openparallax.v1.TokenUsage
+	(*AgentError)(nil),               // 17: openparallax.v1.AgentError
+	(*ClientMessageRequest)(nil),     // 18: openparallax.v1.ClientMessageRequest
+	(*ListSessionsRequest)(nil),      // 19: openparallax.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),     // 20: openparallax.v1.ListSessionsResponse
+	(*SessionInfo)(nil),              // 21: openparallax.v1.SessionInfo
+	(*GetHistoryRequest)(nil),        // 22: openparallax.v1.GetHistoryRequest
+	(*GetHistoryResponse)(nil),       // 23: openparallax.v1.GetHistoryResponse
+	(*ChatMessage)(nil),              // 24: openparallax.v1.ChatMessage
+	(*ProcessMessageRequest)(nil),    // 25: openparallax.v1.ProcessMessageRequest
+	(*PipelineEvent)(nil),            // 26: openparallax.v1.PipelineEvent
+	(*IntentParsed)(nil),             // 27: openparallax.v1.IntentParsed
+	(*ActionsPlanned)(nil),           // 28: openparallax.v1.ActionsPlanned
+	(*SelfEvalResult)(nil),           // 29: openparallax.v1.SelfEvalResult
+	(*ShieldVerdict)(nil),            // 30: openparallax.v1.ShieldVerdict
+	(*ActionStarted)(nil),            // 31: openparallax.v1.ActionStarted
+	(*ActionCompleted)(nil),          // 32: openparallax.v1.ActionCompleted
+	(*LLMToken)(nil),                 // 33: openparallax.v1.LLMToken
+	(*ResponseComplete)(nil),         // 34: openparallax.v1.ResponseComplete
+	(*ApprovalNeeded)(nil),           // 35: openparallax.v1.ApprovalNeeded
+	(*OTRBlocked)(nil),               // 36: openparallax.v1.OTRBlocked
+	(*PipelineError)(nil),            // 37: openparallax.v1.PipelineError
+	(*ApprovalResponse)(nil),         // 38: openparallax.v1.ApprovalResponse
+	(*ApprovalAck)(nil),              // 39: openparallax.v1.ApprovalAck
+	(*MemoryReadRequest)(nil),        // 40: openparallax.v1.MemoryReadRequest
+	(*MemoryReadResponse)(nil),       // 41: openparallax.v1.MemoryReadResponse
+	(*MemorySearchRequest)(nil),      // 42: openparallax.v1.MemorySearchRequest
+	(*MemorySearchResponse)(nil),     // 43: openparallax.v1.MemorySearchResponse
+	(*MemorySearchResult)(nil),       // 44: openparallax.v1.MemorySearchResult
+	(*StatusRequest)(nil),            // 45: openparallax.v1.StatusRequest
+	(*StatusResponse)(nil),           // 46: openparallax.v1.StatusResponse
+	(*ShutdownRequest)(nil),          // 47: openparallax.v1.ShutdownRequest
+	(*ShutdownResponse)(nil),         // 48: openparallax.v1.ShutdownResponse
+	(*SubAgentRegisterRequest)(nil),  // 49: openparallax.v1.SubAgentRegisterRequest
+	(*SubAgentToolDef)(nil),          // 50: openparallax.v1.SubAgentToolDef
+	(*SubAgentRegisterResponse)(nil), // 51: openparallax.v1.SubAgentRegisterResponse
+	(*SubAgentToolRequest)(nil),      // 52: openparallax.v1.SubAgentToolRequest
+	(*SubAgentToolResponse)(nil),     // 53: openparallax.v1.SubAgentToolResponse
+	(*SubAgentCompleteRequest)(nil),  // 54: openparallax.v1.SubAgentCompleteRequest
+	(*SubAgentCompleteResponse)(nil), // 55: openparallax.v1.SubAgentCompleteResponse
+	(*SubAgentFailedRequest)(nil),    // 56: openparallax.v1.SubAgentFailedRequest
+	(*SubAgentFailedResponse)(nil),   // 57: openparallax.v1.SubAgentFailedResponse
+	(*SubAgentPollRequest)(nil),      // 58: openparallax.v1.SubAgentPollRequest
+	(*SubAgentPollResponse)(nil),     // 59: openparallax.v1.SubAgentPollResponse
+	(SessionMode)(0),                 // 60: openparallax.v1.SessionMode
+	(GoalType)(0),                    // 61: openparallax.v1.GoalType
+	(ActionType)(0),                  // 62: openparallax.v1.ActionType
+	(VerdictDecision)(0),             // 63: openparallax.v1.VerdictDecision
+	(*ActionRequest)(nil),            // 64: openparallax.v1.ActionRequest
+	(*Verdict)(nil),                  // 65: openparallax.v1.Verdict
 }
 var file_openparallax_v1_pipeline_proto_depIdxs = []int32{
-	2,  // 0: openparallax.v1.EngineDirective.process:type_name -> openparallax.v1.ProcessRequest
-	3,  // 1: openparallax.v1.EngineDirective.tool_result:type_name -> openparallax.v1.ToolResultDelivery
-	4,  // 2: openparallax.v1.EngineDirective.tool_defs:type_name -> openparallax.v1.ToolDefsDelivery
-	6,  // 3: openparallax.v1.EngineDirective.shutdown:type_name -> openparallax.v1.ShutdownDirective
-	59, // 4: openparallax.v1.ProcessRequest.mode:type_name -> openparallax.v1.SessionMode
-	5,  // 5: openparallax.v1.ToolDefsDelivery.tools:type_name -> openparallax.v1.ToolDef
-	8,  // 6: openparallax.v1.AgentEvent.ready:type_name -> openparallax.v1.AgentReady
-	9,  // 7: openparallax.v1.AgentEvent.llm_token_emitted:type_name -> openparallax.v1.LLMTokenEmitted
-	10, // 8: openparallax.v1.AgentEvent.tool_proposal:type_name -> openparallax.v1.ToolCallProposed
-	11, // 9: openparallax.v1.AgentEvent.tool_defs_request:type_name -> openparallax.v1.ToolDefsRequest
-	12, // 10: openparallax.v1.AgentEvent.memory_flush:type_name -> openparallax.v1.MemoryFlush
-	13, // 11: openparallax.v1.AgentEvent.response_complete:type_name -> openparallax.v1.AgentResponseComplete
-	16, // 12: openparallax.v1.AgentEvent.agent_error:type_name -> openparallax.v1.AgentError
-	14, // 13: openparallax.v1.AgentResponseComplete.thoughts:type_name -> openparallax.v1.Thought
-	15, // 14: openparallax.v1.AgentResponseComplete.usage:type_name -> openparallax.v1.TokenUsage
-	59, // 15: openparallax.v1.ClientMessageRequest.mode:type_name -> openparallax.v1.SessionMode
-	20, // 16: openparallax.v1.ListSessionsResponse.sessions:type_name -> openparallax.v1.SessionInfo
-	59, // 17: openparallax.v1.SessionInfo.mode:type_name -> openparallax.v1.SessionMode
-	23, // 18: openparallax.v1.GetHistoryResponse.messages:type_name -> openparallax.v1.ChatMessage
-	59, // 19: openparallax.v1.ProcessMessageRequest.mode:type_name -> openparallax.v1.SessionMode
-	0,  // 20: openparallax.v1.PipelineEvent.event_type:type_name -> openparallax.v1.PipelineEventType
-	26, // 21: openparallax.v1.PipelineEvent.intent_parsed:type_name -> openparallax.v1.IntentParsed
-	27, // 22: openparallax.v1.PipelineEvent.actions_planned:type_name -> openparallax.v1.ActionsPlanned
-	28, // 23: openparallax.v1.PipelineEvent.self_eval_result:type_name -> openparallax.v1.SelfEvalResult
-	29, // 24: openparallax.v1.PipelineEvent.shield_verdict:type_name -> openparallax.v1.ShieldVerdict
-	30, // 25: openparallax.v1.PipelineEvent.action_started:type_name -> openparallax.v1.ActionStarted
-	31, // 26: openparallax.v1.PipelineEvent.action_completed:type_name -> openparallax.v1.ActionCompleted
-	32, // 27: openparallax.v1.PipelineEvent.llm_token:type_name -> openparallax.v1.LLMToken
-	33, // 28: openparallax.v1.PipelineEvent.response_complete:type_name -> openparallax.v1.ResponseComplete
-	34, // 29: openparallax.v1.PipelineEvent.approval_needed:type_name -> openparallax.v1.ApprovalNeeded
-	35, // 30: openparallax.v1.PipelineEvent.otr_blocked:type_name -> openparallax.v1.OTRBlocked
-	36, // 31: openparallax.v1.PipelineEvent.pipeline_error:type_name -> openparallax.v1.PipelineError
-	60, // 32: openparallax.v1.IntentParsed.goal:type_name -> openparallax.v1.GoalType
-	61, // 33: openparallax.v1.IntentParsed.primary_action:type_name -> openparallax.v1.ActionType
-	61, // 34: openparallax.v1.ActionsPlanned.actions:type_name -> openparallax.v1.ActionType
-	62, // 35: openparallax.v1.ShieldVerdict.decision:type_name -> openparallax.v1.VerdictDecision
-	61, // 36: openparallax.v1.ShieldVerdict.action_type:type_name -> openparallax.v1.ActionType
-	61, // 37: openparallax.v1.ActionStarted.action_type:type_name -> openparallax.v1.ActionType
-	61, // 38: openparallax.v1.ActionCompleted.action_type:type_name -> openparallax.v1.ActionType
-	63, // 39: openparallax.v1.ApprovalNeeded.action:type_name -> openparallax.v1.ActionRequest
-	64, // 40: openparallax.v1.ApprovalNeeded.shield_assessment:type_name -> openparallax.v1.Verdict
-	61, // 41: openparallax.v1.OTRBlocked.action_type:type_name -> openparallax.v1.ActionType
-	43, // 42: openparallax.v1.MemorySearchResponse.results:type_name -> openparallax.v1.MemorySearchResult
-	49, // 43: openparallax.v1.SubAgentRegisterResponse.tools:type_name -> openparallax.v1.SubAgentToolDef
-	7,  // 44: openparallax.v1.AgentService.RunSession:input_type -> openparallax.v1.AgentEvent
-	17, // 45: openparallax.v1.ClientService.SendMessage:input_type -> openparallax.v1.ClientMessageRequest
-	37, // 46: openparallax.v1.ClientService.ResolveApproval:input_type -> openparallax.v1.ApprovalResponse
-	44, // 47: openparallax.v1.ClientService.GetStatus:input_type -> openparallax.v1.StatusRequest
-	18, // 48: openparallax.v1.ClientService.ListSessions:input_type -> openparallax.v1.ListSessionsRequest
-	21, // 49: openparallax.v1.ClientService.GetHistory:input_type -> openparallax.v1.GetHistoryRequest
-	46, // 50: openparallax.v1.ClientService.Shutdown:input_type -> openparallax.v1.ShutdownRequest
-	48, // 51: openparallax.v1.SubAgentService.RegisterSubAgent:input_type -> openparallax.v1.SubAgentRegisterRequest
-	51, // 52: openparallax.v1.SubAgentService.SubAgentExecuteTool:input_type -> openparallax.v1.SubAgentToolRequest
-	53, // 53: openparallax.v1.SubAgentService.SubAgentComplete:input_type -> openparallax.v1.SubAgentCompleteRequest
-	55, // 54: openparallax.v1.SubAgentService.SubAgentFailed:input_type -> openparallax.v1.SubAgentFailedRequest
-	57, // 55: openparallax.v1.SubAgentService.SubAgentPollMessage:input_type -> openparallax.v1.SubAgentPollRequest
-	1,  // 56: openparallax.v1.AgentService.RunSession:output_type -> openparallax.v1.EngineDirective
-	25, // 57: openparallax.v1.ClientService.SendMessage:output_type -> openparallax.v1.PipelineEvent
-	38, // 58: openparallax.v1.ClientService.ResolveApproval:output_type -> openparallax.v1.ApprovalAck
-	45, // 59: openparallax.v1.ClientService.GetStatus:output_type -> openparallax.v1.StatusResponse
-	19, // 60: openparallax.v1.ClientService.ListSessions:output_type -> openparallax.v1.ListSessionsResponse
-	22, // 61: openparallax.v1.ClientService.GetHistory:output_type -> openparallax.v1.GetHistoryResponse
-	47, // 62: openparallax.v1.ClientService.Shutdown:output_type -> openparallax.v1.ShutdownResponse
-	50, // 63: openparallax.v1.SubAgentService.RegisterSubAgent:output_type -> openparallax.v1.SubAgentRegisterResponse
-	52, // 64: openparallax.v1.SubAgentService.SubAgentExecuteTool:output_type -> openparallax.v1.SubAgentToolResponse
-	54, // 65: openparallax.v1.SubAgentService.SubAgentComplete:output_type -> openparallax.v1.SubAgentCompleteResponse
-	56, // 66: openparallax.v1.SubAgentService.SubAgentFailed:output_type -> openparallax.v1.SubAgentFailedResponse
-	58, // 67: openparallax.v1.SubAgentService.SubAgentPollMessage:output_type -> openparallax.v1.SubAgentPollResponse
-	56, // [56:68] is the sub-list for method output_type
-	44, // [44:56] is the sub-list for method input_type
-	44, // [44:44] is the sub-list for extension type_name
-	44, // [44:44] is the sub-list for extension extendee
-	0,  // [0:44] is the sub-list for field type_name
+	3,  // 0: openparallax.v1.EngineDirective.process:type_name -> openparallax.v1.ProcessRequest
+	4,  // 1: openparallax.v1.EngineDirective.tool_result:type_name -> openparallax.v1.ToolResultDelivery
+	5,  // 2: openparallax.v1.EngineDirective.tool_defs:type_name -> openparallax.v1.ToolDefsDelivery
+	7,  // 3: openparallax.v1.EngineDirective.shutdown:type_name -> openparallax.v1.ShutdownDirective
+	2,  // 4: openparallax.v1.EngineDirective.initial_tool_defs:type_name -> openparallax.v1.InitialToolDefs
+	6,  // 5: openparallax.v1.InitialToolDefs.tools:type_name -> openparallax.v1.ToolDef
+	60, // 6: openparallax.v1.ProcessRequest.mode:type_name -> openparallax.v1.SessionMode
+	6,  // 7: openparallax.v1.ToolDefsDelivery.tools:type_name -> openparallax.v1.ToolDef
+	9,  // 8: openparallax.v1.AgentEvent.ready:type_name -> openparallax.v1.AgentReady
+	10, // 9: openparallax.v1.AgentEvent.llm_token_emitted:type_name -> openparallax.v1.LLMTokenEmitted
+	11, // 10: openparallax.v1.AgentEvent.tool_proposal:type_name -> openparallax.v1.ToolCallProposed
+	12, // 11: openparallax.v1.AgentEvent.tool_defs_request:type_name -> openparallax.v1.ToolDefsRequest
+	13, // 12: openparallax.v1.AgentEvent.memory_flush:type_name -> openparallax.v1.MemoryFlush
+	14, // 13: openparallax.v1.AgentEvent.response_complete:type_name -> openparallax.v1.AgentResponseComplete
+	17, // 14: openparallax.v1.AgentEvent.agent_error:type_name -> openparallax.v1.AgentError
+	15, // 15: openparallax.v1.AgentResponseComplete.thoughts:type_name -> openparallax.v1.Thought
+	16, // 16: openparallax.v1.AgentResponseComplete.usage:type_name -> openparallax.v1.TokenUsage
+	60, // 17: openparallax.v1.ClientMessageRequest.mode:type_name -> openparallax.v1.SessionMode
+	21, // 18: openparallax.v1.ListSessionsResponse.sessions:type_name -> openparallax.v1.SessionInfo
+	60, // 19: openparallax.v1.SessionInfo.mode:type_name -> openparallax.v1.SessionMode
+	24, // 20: openparallax.v1.GetHistoryResponse.messages:type_name -> openparallax.v1.ChatMessage
+	60, // 21: openparallax.v1.ProcessMessageRequest.mode:type_name -> openparallax.v1.SessionMode
+	0,  // 22: openparallax.v1.PipelineEvent.event_type:type_name -> openparallax.v1.PipelineEventType
+	27, // 23: openparallax.v1.PipelineEvent.intent_parsed:type_name -> openparallax.v1.IntentParsed
+	28, // 24: openparallax.v1.PipelineEvent.actions_planned:type_name -> openparallax.v1.ActionsPlanned
+	29, // 25: openparallax.v1.PipelineEvent.self_eval_result:type_name -> openparallax.v1.SelfEvalResult
+	30, // 26: openparallax.v1.PipelineEvent.shield_verdict:type_name -> openparallax.v1.ShieldVerdict
+	31, // 27: openparallax.v1.PipelineEvent.action_started:type_name -> openparallax.v1.ActionStarted
+	32, // 28: openparallax.v1.PipelineEvent.action_completed:type_name -> openparallax.v1.ActionCompleted
+	33, // 29: openparallax.v1.PipelineEvent.llm_token:type_name -> openparallax.v1.LLMToken
+	34, // 30: openparallax.v1.PipelineEvent.response_complete:type_name -> openparallax.v1.ResponseComplete
+	35, // 31: openparallax.v1.PipelineEvent.approval_needed:type_name -> openparallax.v1.ApprovalNeeded
+	36, // 32: openparallax.v1.PipelineEvent.otr_blocked:type_name -> openparallax.v1.OTRBlocked
+	37, // 33: openparallax.v1.PipelineEvent.pipeline_error:type_name -> openparallax.v1.PipelineError
+	61, // 34: openparallax.v1.IntentParsed.goal:type_name -> openparallax.v1.GoalType
+	62, // 35: openparallax.v1.IntentParsed.primary_action:type_name -> openparallax.v1.ActionType
+	62, // 36: openparallax.v1.ActionsPlanned.actions:type_name -> openparallax.v1.ActionType
+	63, // 37: openparallax.v1.ShieldVerdict.decision:type_name -> openparallax.v1.VerdictDecision
+	62, // 38: openparallax.v1.ShieldVerdict.action_type:type_name -> openparallax.v1.ActionType
+	62, // 39: openparallax.v1.ActionStarted.action_type:type_name -> openparallax.v1.ActionType
+	62, // 40: openparallax.v1.ActionCompleted.action_type:type_name -> openparallax.v1.ActionType
+	64, // 41: openparallax.v1.ApprovalNeeded.action:type_name -> openparallax.v1.ActionRequest
+	65, // 42: openparallax.v1.ApprovalNeeded.shield_assessment:type_name -> openparallax.v1.Verdict
+	62, // 43: openparallax.v1.OTRBlocked.action_type:type_name -> openparallax.v1.ActionType
+	44, // 44: openparallax.v1.MemorySearchResponse.results:type_name -> openparallax.v1.MemorySearchResult
+	50, // 45: openparallax.v1.SubAgentRegisterResponse.tools:type_name -> openparallax.v1.SubAgentToolDef
+	8,  // 46: openparallax.v1.AgentService.RunSession:input_type -> openparallax.v1.AgentEvent
+	18, // 47: openparallax.v1.ClientService.SendMessage:input_type -> openparallax.v1.ClientMessageRequest
+	38, // 48: openparallax.v1.ClientService.ResolveApproval:input_type -> openparallax.v1.ApprovalResponse
+	45, // 49: openparallax.v1.ClientService.GetStatus:input_type -> openparallax.v1.StatusRequest
+	19, // 50: openparallax.v1.ClientService.ListSessions:input_type -> openparallax.v1.ListSessionsRequest
+	22, // 51: openparallax.v1.ClientService.GetHistory:input_type -> openparallax.v1.GetHistoryRequest
+	47, // 52: openparallax.v1.ClientService.Shutdown:input_type -> openparallax.v1.ShutdownRequest
+	49, // 53: openparallax.v1.SubAgentService.RegisterSubAgent:input_type -> openparallax.v1.SubAgentRegisterRequest
+	52, // 54: openparallax.v1.SubAgentService.SubAgentExecuteTool:input_type -> openparallax.v1.SubAgentToolRequest
+	54, // 55: openparallax.v1.SubAgentService.SubAgentComplete:input_type -> openparallax.v1.SubAgentCompleteRequest
+	56, // 56: openparallax.v1.SubAgentService.SubAgentFailed:input_type -> openparallax.v1.SubAgentFailedRequest
+	58, // 57: openparallax.v1.SubAgentService.SubAgentPollMessage:input_type -> openparallax.v1.SubAgentPollRequest
+	1,  // 58: openparallax.v1.AgentService.RunSession:output_type -> openparallax.v1.EngineDirective
+	26, // 59: openparallax.v1.ClientService.SendMessage:output_type -> openparallax.v1.PipelineEvent
+	39, // 60: openparallax.v1.ClientService.ResolveApproval:output_type -> openparallax.v1.ApprovalAck
+	46, // 61: openparallax.v1.ClientService.GetStatus:output_type -> openparallax.v1.StatusResponse
+	20, // 62: openparallax.v1.ClientService.ListSessions:output_type -> openparallax.v1.ListSessionsResponse
+	23, // 63: openparallax.v1.ClientService.GetHistory:output_type -> openparallax.v1.GetHistoryResponse
+	48, // 64: openparallax.v1.ClientService.Shutdown:output_type -> openparallax.v1.ShutdownResponse
+	51, // 65: openparallax.v1.SubAgentService.RegisterSubAgent:output_type -> openparallax.v1.SubAgentRegisterResponse
+	53, // 66: openparallax.v1.SubAgentService.SubAgentExecuteTool:output_type -> openparallax.v1.SubAgentToolResponse
+	55, // 67: openparallax.v1.SubAgentService.SubAgentComplete:output_type -> openparallax.v1.SubAgentCompleteResponse
+	57, // 68: openparallax.v1.SubAgentService.SubAgentFailed:output_type -> openparallax.v1.SubAgentFailedResponse
+	59, // 69: openparallax.v1.SubAgentService.SubAgentPollMessage:output_type -> openparallax.v1.SubAgentPollResponse
+	58, // [58:70] is the sub-list for method output_type
+	46, // [46:58] is the sub-list for method input_type
+	46, // [46:46] is the sub-list for extension type_name
+	46, // [46:46] is the sub-list for extension extendee
+	0,  // [0:46] is the sub-list for field type_name
 }
 
 func init() { file_openparallax_v1_pipeline_proto_init() }
@@ -4255,8 +4331,9 @@ func file_openparallax_v1_pipeline_proto_init() {
 		(*EngineDirective_ToolResult)(nil),
 		(*EngineDirective_ToolDefs)(nil),
 		(*EngineDirective_Shutdown)(nil),
+		(*EngineDirective_InitialToolDefs)(nil),
 	}
-	file_openparallax_v1_pipeline_proto_msgTypes[6].OneofWrappers = []any{
+	file_openparallax_v1_pipeline_proto_msgTypes[7].OneofWrappers = []any{
 		(*AgentEvent_Ready)(nil),
 		(*AgentEvent_LlmTokenEmitted)(nil),
 		(*AgentEvent_ToolProposal)(nil),
@@ -4271,7 +4348,7 @@ func file_openparallax_v1_pipeline_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_openparallax_v1_pipeline_proto_rawDesc), len(file_openparallax_v1_pipeline_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   58,
+			NumMessages:   59,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

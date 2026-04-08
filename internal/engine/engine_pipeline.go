@@ -14,6 +14,7 @@ import (
 	"github.com/openparallax/openparallax/internal/storage"
 	"github.com/openparallax/openparallax/internal/types"
 	pb "github.com/openparallax/openparallax/internal/types/pb"
+	"github.com/openparallax/openparallax/llm"
 	"github.com/openparallax/openparallax/memory"
 )
 
@@ -121,6 +122,26 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 		})
 	}
 
+	// Push the initial tool set to the agent. The engine is the
+	// authoritative source for what tools the agent can see, because
+	// the registry lives here and conditional groups (browser, email,
+	// calendar, image/video generation, MCP-discovered groups) are
+	// only registered when their dependencies are present in this
+	// workspace. The agent process holds nothing tool-related of its
+	// own — it waits for this directive before entering the main
+	// reasoning loop. See InitialToolDefs in proto/openparallax/v1
+	// /pipeline.proto for the contract.
+	initialTools := []llm.ToolDefinition{e.executors.Groups.LoadToolsDefinition()}
+	if sendErr := stream.Send(&pb.EngineDirective{
+		Directive: &pb.EngineDirective_InitialToolDefs{
+			InitialToolDefs: &pb.InitialToolDefs{Tools: llmToolsToProto(initialTools)},
+		},
+	}); sendErr != nil {
+		e.log.Error("initial_tool_defs_send_failed", "error", sendErr)
+		return fmt.Errorf("send initial tool defs: %w", sendErr)
+	}
+	e.log.Info("initial_tool_defs_sent", "id", agentID, "tool_count", len(initialTools))
+
 	// Store the agent stream for forwarding messages.
 	e.mu.Lock()
 	e.agentStream = stream
@@ -201,19 +222,8 @@ func (e *Engine) RunSession(stream pb.AgentService_RunSessionServer) error {
 			isOTR := e.currentMsgOTR
 			e.mu.Unlock()
 			newTools, summary := e.executors.Groups.ResolveGroups(groups, isOTR)
-			_ = newTools
 
-			// Send tool definitions back as a ToolResult (the Agent
-			// is waiting on resultCh for load_tools response).
-			var defs []*pb.ToolDef
-			for _, t := range newTools {
-				paramJSON, _ := json.Marshal(t.Parameters)
-				defs = append(defs, &pb.ToolDef{
-					Name:           t.Name,
-					Description:    t.Description,
-					ParametersJson: string(paramJSON),
-				})
-			}
+			defs := llmToolsToProto(newTools)
 			if sendErr := stream.Send(&pb.EngineDirective{
 				Directive: &pb.EngineDirective_ToolDefs{
 					ToolDefs: &pb.ToolDefsDelivery{Tools: defs},
@@ -556,4 +566,22 @@ func truncateForLog(s string) string {
 		return s[:120] + "..."
 	}
 	return s
+}
+
+// llmToolsToProto converts an LLM-side tool definition slice into the
+// proto wire form used by ToolDefsDelivery and InitialToolDefs.
+// Marshals each tool's parameter schema into the JSON-encoded
+// parameters_json field. Used wherever the engine ships tool
+// definitions to the agent over gRPC.
+func llmToolsToProto(tools []llm.ToolDefinition) []*pb.ToolDef {
+	defs := make([]*pb.ToolDef, 0, len(tools))
+	for _, t := range tools {
+		paramJSON, _ := json.Marshal(t.Parameters)
+		defs = append(defs, &pb.ToolDef{
+			Name:           t.Name,
+			Description:    t.Description,
+			ParametersJson: string(paramJSON),
+		})
+	}
+	return defs
 }

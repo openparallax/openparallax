@@ -8,12 +8,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/openparallax/openparallax/internal/types"
+	"github.com/openparallax/openparallax/platform"
 )
 
 const (
@@ -22,6 +24,8 @@ const (
 	notifyRateLimit   = 5
 	notifyRateWindow  = 60 * time.Second
 )
+
+var schemeRegexp = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.\-]*:`)
 
 // SystemExecutor provides clipboard, open, notify, system_info, and screenshot tools.
 type SystemExecutor struct {
@@ -49,7 +53,7 @@ func (s *SystemExecutor) ToolSchemas() []ToolSchema {
 	return []ToolSchema{
 		{ActionType: types.ActionClipboardRead, Name: "clipboard_read", Description: "Read the current contents of the system clipboard. Returns text content only.", Parameters: map[string]any{"type": "object", "properties": map[string]any{}}},
 		{ActionType: types.ActionClipboardWrite, Name: "clipboard_write", Description: "Write text to the system clipboard. Overwrites current clipboard contents.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"content": map[string]any{"type": "string", "description": "Text to write to the clipboard."}}, "required": []string{"content"}}},
-		{ActionType: types.ActionOpen, Name: "open", Description: "Open a file or URL in the system's default application.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"target": map[string]any{"type": "string", "description": "File path or URL to open."}}, "required": []string{"target"}}},
+		{ActionType: types.ActionOpen, Name: "open", Description: "Open a file or URL in the system's default application.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"target": map[string]any{"type": "string", "description": "Absolute file path or http(s) URL to open. Relative paths are rejected — Shield evaluates the literal target."}}, "required": []string{"target"}}},
 		{ActionType: types.ActionNotify, Name: "notify", Description: "Send an OS notification with a title and message.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"title": map[string]any{"type": "string", "description": "Notification title."}, "message": map[string]any{"type": "string", "description": "Notification body text."}}, "required": []string{"title", "message"}}},
 		{ActionType: types.ActionSystemInfo, Name: "system_info", Description: "Get system information: disk usage, memory, CPU, processes, or network.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"category": map[string]any{"type": "string", "enum": []string{"disk", "memory", "cpu", "processes", "network", "all"}, "description": "Category of information. Default: all"}}}},
 		{ActionType: types.ActionScreenshot, Name: "screenshot", Description: "Capture a screenshot of the desktop for visual analysis.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"display": map[string]any{"type": "integer", "description": "Display number for multi-monitor. Default: 0 (primary)."}}}},
@@ -79,7 +83,7 @@ func (s *SystemExecutor) Execute(ctx context.Context, action *types.ActionReques
 // --- Clipboard ---
 
 func (s *SystemExecutor) clipboardRead(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
-	cmd, err := clipboardReadCmd()
+	cmd, err := platform.ClipboardReadCmd()
 	if err != nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error()}
 	}
@@ -111,7 +115,7 @@ func (s *SystemExecutor) clipboardWrite(ctx context.Context, action *types.Actio
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: fmt.Sprintf("content too large: %d bytes (max %d)", len(content), clipboardMaxWrite)}
 	}
 
-	cmd, err := clipboardWriteCmd()
+	cmd, err := platform.ClipboardWriteCmd()
 	if err != nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error()}
 	}
@@ -125,50 +129,6 @@ func (s *SystemExecutor) clipboardWrite(ctx context.Context, action *types.Actio
 	return &types.ActionResult{RequestID: action.RequestID, Success: true, Output: fmt.Sprintf("Copied %d characters to clipboard.", len(content)), Summary: "copied to clipboard"}
 }
 
-func clipboardReadCmd() ([]string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		return []string{"pbpaste"}, nil
-	case "linux":
-		if _, err := exec.LookPath("wl-paste"); err == nil {
-			return []string{"wl-paste", "--no-newline"}, nil
-		}
-		if _, err := exec.LookPath("xclip"); err == nil {
-			return []string{"xclip", "-selection", "clipboard", "-o"}, nil
-		}
-		if _, err := exec.LookPath("xsel"); err == nil {
-			return []string{"xsel", "--clipboard", "--output"}, nil
-		}
-		return nil, fmt.Errorf("clipboard not available — no display server detected (install xclip, xsel, or wl-paste)")
-	case "windows":
-		return []string{"powershell.exe", "-Command", "Get-Clipboard"}, nil
-	default:
-		return nil, fmt.Errorf("clipboard not supported on %s", runtime.GOOS)
-	}
-}
-
-func clipboardWriteCmd() ([]string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		return []string{"pbcopy"}, nil
-	case "linux":
-		if _, err := exec.LookPath("wl-copy"); err == nil {
-			return []string{"wl-copy"}, nil
-		}
-		if _, err := exec.LookPath("xclip"); err == nil {
-			return []string{"xclip", "-selection", "clipboard", "-i"}, nil
-		}
-		if _, err := exec.LookPath("xsel"); err == nil {
-			return []string{"xsel", "--clipboard", "--input"}, nil
-		}
-		return nil, fmt.Errorf("clipboard not available — no display server detected (install xclip, xsel, or wl-copy)")
-	case "windows":
-		return []string{"powershell.exe", "-Command", "Set-Clipboard", "-Value"}, nil
-	default:
-		return nil, fmt.Errorf("clipboard not supported on %s", runtime.GOOS)
-	}
-}
-
 // --- Open ---
 
 func (s *SystemExecutor) open(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
@@ -177,22 +137,24 @@ func (s *SystemExecutor) open(ctx context.Context, action *types.ActionRequest) 
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "target is required"}
 	}
 
-	// Validate target.
+	// Validate target. URLs must be http(s); file paths must be
+	// absolute. The cross-platform denylist enforced upstream by
+	// CheckProtection blocks any path on the restricted set, so this
+	// executor only needs to confirm the target is well-formed and
+	// not a foreign URL scheme.
 	switch {
 	case strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://"):
 		// URL — allowed.
-	case strings.Contains(target, "://") || (strings.Contains(target, ":") && !filepath.IsAbs(target) && !strings.Contains(target, string(filepath.Separator))):
+	case schemeRegexp.MatchString(target):
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: fmt.Sprintf("unsupported scheme in %q — only http:// and https:// URLs are allowed", target)}
 	default:
-		// File path — resolve and validate.
-		resolved := ResolvePath(target, s.workspacePath)
-		if !isWithinWorkspace(resolved, s.workspacePath) {
-			return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "path is outside the workspace"}
+		if !platform.IsAbsolutePathSpec(target) {
+			return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: fmt.Sprintf("path %q is relative — open requires an absolute path or an http(s) URL", target)}
 		}
-		target = resolved
+		target = platform.NormalizePath(target)
 	}
 
-	cmd := openCmd(target)
+	cmd := platform.OpenCmd(target)
 	if cmd == nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: fmt.Sprintf("open not supported on %s", runtime.GOOS)}
 	}
@@ -205,27 +167,6 @@ func (s *SystemExecutor) open(ctx context.Context, action *types.ActionRequest) 
 		name = "..." + name[len(name)-57:]
 	}
 	return &types.ActionResult{RequestID: action.RequestID, Success: true, Output: fmt.Sprintf("Opened %s", name), Summary: "opened"}
-}
-
-func openCmd(target string) []string {
-	switch runtime.GOOS {
-	case "darwin":
-		return []string{"open", target}
-	case "linux":
-		return []string{"xdg-open", target}
-	case "windows":
-		return []string{"cmd", "/c", "start", "", target}
-	default:
-		return nil
-	}
-}
-
-func isWithinWorkspace(path, workspace string) bool {
-	rel, err := filepath.Rel(workspace, path)
-	if err != nil {
-		return false
-	}
-	return !strings.HasPrefix(rel, "..")
 }
 
 // --- Notify ---
@@ -255,7 +196,7 @@ func (s *SystemExecutor) notify(ctx context.Context, action *types.ActionRequest
 	s.notifyTimes = recent
 	s.notifyMu.Unlock()
 
-	cmd := notifyCmd(title, message)
+	cmd := platform.NotifyCmd(title, message)
 	if cmd == nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: fmt.Sprintf("notifications not supported on %s", runtime.GOOS)}
 	}
@@ -266,24 +207,6 @@ func (s *SystemExecutor) notify(ctx context.Context, action *types.ActionRequest
 	}
 
 	return &types.ActionResult{RequestID: action.RequestID, Success: true, Output: fmt.Sprintf("Notification sent: %s", title), Summary: "notified"}
-}
-
-func notifyCmd(title, message string) []string {
-	switch runtime.GOOS {
-	case "linux":
-		if _, err := exec.LookPath("notify-send"); err == nil {
-			return []string{"notify-send", title, message}
-		}
-		return nil
-	case "darwin":
-		script := fmt.Sprintf(`display notification %q with title %q`, message, title)
-		return []string{"osascript", "-e", script}
-	case "windows":
-		return []string{"powershell.exe", "-Command",
-			fmt.Sprintf(`[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; $n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true; $n.ShowBalloonTip(5000, '%s', '%s', 'Info')`, title, message)}
-	default:
-		return nil
-	}
 }
 
 // --- System Info ---
@@ -324,7 +247,6 @@ func (s *SystemExecutor) systemInfo(action *types.ActionRequest) *types.ActionRe
 func diskInfo() string {
 	var sb strings.Builder
 	sb.WriteString("Disk:\n")
-	// Use df command for simplicity and cross-platform compatibility.
 	out, err := exec.Command("df", "-h").Output()
 	if err != nil {
 		sb.WriteString("  (unavailable)\n")
@@ -347,7 +269,6 @@ func memoryInfo() string {
 	fmt.Fprintf(&sb, "  Go Heap: %.1f MB alloc, %.1f MB sys\n",
 		float64(m.Alloc)/(1<<20), float64(m.Sys)/(1<<20))
 
-	// Try /proc/meminfo on Linux.
 	if data, err := os.ReadFile("/proc/meminfo"); err == nil {
 		lines := strings.Split(string(data), "\n")
 		for _, line := range lines[:min(5, len(lines))] {
@@ -365,7 +286,6 @@ func cpuInfo() string {
 	fmt.Fprintf(&sb, "  Cores: %d\n", runtime.NumCPU())
 	fmt.Fprintf(&sb, "  GOARCH: %s\n", runtime.GOARCH)
 
-	// Try /proc/cpuinfo for model name on Linux.
 	if data, err := os.ReadFile("/proc/cpuinfo"); err == nil {
 		for _, line := range strings.Split(string(data), "\n") {
 			if strings.HasPrefix(line, "model name") {
@@ -410,7 +330,7 @@ func (s *SystemExecutor) screenshot(ctx context.Context, action *types.ActionReq
 	_ = os.MkdirAll(tmpDir, 0o755)
 	screenshotPath := filepath.Join(tmpDir, fmt.Sprintf("screenshot-%d.png", time.Now().UnixMilli()))
 
-	cmd := screenshotCmd(screenshotPath)
+	cmd := platform.ScreenshotCmd(screenshotPath)
 	if cmd == nil {
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "screenshot not available — no display server detected"}
 	}
@@ -429,32 +349,6 @@ func (s *SystemExecutor) screenshot(ctx context.Context, action *types.ActionReq
 		RequestID: action.RequestID, Success: true,
 		Output:  fmt.Sprintf("Screenshot saved to %s (%s)", screenshotPath, formatFileSize(info.Size())),
 		Summary: "screenshot captured",
-	}
-}
-
-func screenshotCmd(outputPath string) []string {
-	switch runtime.GOOS {
-	case "darwin":
-		return []string{"screencapture", "-x", outputPath}
-	case "linux":
-		if _, err := exec.LookPath("grim"); err == nil {
-			return []string{"grim", outputPath}
-		}
-		if _, err := exec.LookPath("scrot"); err == nil {
-			return []string{"scrot", outputPath}
-		}
-		if _, err := exec.LookPath("gnome-screenshot"); err == nil {
-			return []string{"gnome-screenshot", "-f", outputPath}
-		}
-		if _, err := exec.LookPath("import"); err == nil {
-			return []string{"import", "-window", "root", outputPath}
-		}
-		return nil
-	case "windows":
-		return []string{"powershell.exe", "-Command",
-			fmt.Sprintf(`Add-Type -AssemblyName System.Windows.Forms; $bmp = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen(0,0,0,0,$bmp.Size); $bmp.Save('%s')`, outputPath)}
-	default:
-		return nil
 	}
 }
 

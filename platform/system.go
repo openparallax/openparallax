@@ -1,0 +1,36 @@
+package platform
+
+// SystemTools exposes the cross-platform command builders used by the
+// SystemExecutor (clipboard read/write, open in default app, OS
+// notifications, desktop screenshot). Per-platform implementations
+// live in system_{linux,darwin,windows}.go and select the
+// appropriate native binary for the host OS at build time.
+//
+// Each builder returns a command-line argv slice ready to feed into
+// exec.Command, or nil when the operation is not supported on the
+// current platform.
+
+// ClipboardReadCmd returns the command that reads the system
+// clipboard as text on stdout. Returns nil + error when the platform
+// has no available clipboard provider.
+func ClipboardReadCmd() ([]string, error) { return clipboardReadCmd() }
+
+// ClipboardWriteCmd returns the command that writes stdin to the
+// system clipboard. Returns nil + error when the platform has no
+// available clipboard provider.
+func ClipboardWriteCmd() ([]string, error) { return clipboardWriteCmd() }
+
+// OpenCmd returns the command that opens the given target (file path
+// or URL) in the system's default application. Returns nil when the
+// platform has no recognized open command.
+func OpenCmd(target string) []string { return openCmd(target) }
+
+// NotifyCmd returns the command that emits an OS notification with
+// the given title and body. Returns nil when the platform has no
+// recognized notification provider.
+func NotifyCmd(title, message string) []string { return notifyCmd(title, message) }
+
+// ScreenshotCmd returns the command that captures the desktop and
+// writes the result to outputPath as a PNG. Returns nil when the
+// platform has no recognized screenshot provider.
+func ScreenshotCmd(outputPath string) []string { return screenshotCmd(outputPath) }

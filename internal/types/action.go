@@ -89,8 +89,6 @@ const (
 	ActionCanvasUpdate ActionType = "canvas_update"
 	// ActionCanvasProject creates a multi-file project in a directory.
 	ActionCanvasProject ActionType = "canvas_project"
-	// ActionCanvasPreview starts a local preview server.
-	ActionCanvasPreview ActionType = "canvas_preview"
 	// ActionGitClone clones a git repository.
 	ActionGitClone ActionType = "git_clone"
 
@@ -165,7 +163,7 @@ var AllActionTypes = []ActionType{
 	ActionGitStatus, ActionGitDiff, ActionGitCommit, ActionGitPush,
 	ActionGitPull, ActionGitLog, ActionGitBranch, ActionGitCheckout,
 	ActionMemoryWrite, ActionMemorySearch, ActionCanvasCreate, ActionCanvasUpdate,
-	ActionCanvasProject, ActionCanvasPreview, ActionGitClone,
+	ActionCanvasProject, ActionGitClone,
 	ActionGenerateImage, ActionEditImage, ActionGenerateVideo,
 	ActionEmailList, ActionEmailRead, ActionEmailSearch,
 	ActionEmailMove, ActionEmailMark,

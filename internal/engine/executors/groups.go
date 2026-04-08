@@ -2,6 +2,7 @@ package executors
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -95,19 +96,40 @@ func (r *GroupRegistry) RegisterMCPTools(serverTools map[string][]llm.ToolDefini
 	}
 }
 
-// LoadToolsDefinition generates the load_tools tool definition with all
-// available groups listed in the description. Groups whose underlying
-// executors aren't registered are excluded.
+// LoadToolsDefinition generates the load_tools meta-tool definition
+// with every currently-registered group enumerated in the description.
+// Groups whose underlying executors are not registered (e.g. browser
+// when no Chromium binary is detected, email/calendar when not
+// configured, image/video generation when no model is bound) are
+// absent from r.groups and so do not appear here. Groups in
+// r.disabled (driven by tools.disabled_groups in config.yaml) are
+// filtered out.
+//
+// Group names are sorted alphabetically so the description is stable
+// across sessions and across processes — this matters for prompt
+// caching and for any test that compares the rendered text.
+//
+// This function is the single source of truth for what the agent's
+// load_tools menu looks like. The engine calls it once per session
+// when the agent connects (see InitialToolDefs in the gRPC
+// pipeline) and ships the result over the wire. The agent never
+// constructs a load_tools definition of its own.
 func (r *GroupRegistry) LoadToolsDefinition() llm.ToolDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var lines []string
-	for name, g := range r.groups {
+	names := make([]string, 0, len(r.groups))
+	for name := range r.groups {
 		if r.disabled[name] {
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("- %s: %s", name, g.Description))
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	lines := make([]string, 0, len(names))
+	for _, name := range names {
+		lines = append(lines, fmt.Sprintf("- %s: %s", name, r.groups[name].Description))
 	}
 
 	desc := fmt.Sprintf(
@@ -125,7 +147,7 @@ func (r *GroupRegistry) LoadToolsDefinition() llm.ToolDefinition {
 				"groups": map[string]any{
 					"type":        "array",
 					"items":       map[string]any{"type": "string"},
-					"description": "List of tool group names to load.",
+					"description": "List of tool group names to load. Pick from the Available groups list above.",
 				},
 			},
 			"required": []string{"groups"},
@@ -218,14 +240,14 @@ func filterOTRTools(tools []llm.ToolDefinition) []llm.ToolDefinition {
 func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 	groupMap := map[string]*ToolGroup{
 		"files":            {Name: "files", Description: "Read, write, list, search, and delete files in the workspace"},
-		"shell":            {Name: "shell", Description: "Execute shell commands on the system"},
+		"shell":            {Name: "shell", Description: "Run commands on the system. Use only for tasks that other tool groups cannot handle."},
 		"git":              {Name: "git", Description: "Git version control — status, diff, log, commit, push, pull, branch, clone"},
 		"browser":          {Name: "browser", Description: "Browse the web — navigate, click, type, extract, screenshot"},
 		"email":            {Name: "email", Description: "Send and read emails — list inbox, search, read, move, mark, and send"},
-		"calendar":         {Name: "calendar", Description: "Manage calendar events — list, create, update, delete"},
+		"calendar":         {Name: "calendar", Description: "Manage the user's calendar events — list, create, update, delete"},
 		"memory":           {Name: "memory", Description: "Write structured memories and search past conversations"},
 		"schedule":         {Name: "schedule", Description: "Manage recurring tasks via HEARTBEAT.md cron entries"},
-		"canvas":           {Name: "canvas", Description: "Create files, multi-file projects, and live-preview websites"},
+		"canvas":           {Name: "canvas", Description: "Create files and multi-file projects"},
 		"image_generation": {Name: "image_generation", Description: "Generate images using AI if supported by model"},
 		"video_generation": {Name: "video_generation", Description: "Generate videos using AI if supported by model"},
 		"agents":           {Name: "agents", Description: "Sub-agents — default for 2+ independent subtasks. Run them in parallel for speed, cost, and clean context. Each gets its own window."},
@@ -258,7 +280,7 @@ func DefaultGroups(schemas []ToolSchema) []*ToolGroup {
 		types.ActionCreateSchedule: "schedule", types.ActionDeleteSchedule: "schedule",
 		types.ActionListSchedules: "schedule",
 		types.ActionCanvasCreate:  "canvas", types.ActionCanvasUpdate: "canvas",
-		types.ActionCanvasProject: "canvas", types.ActionCanvasPreview: "canvas",
+		types.ActionCanvasProject: "canvas",
 		types.ActionGenerateImage: "image_generation", types.ActionEditImage: "image_generation",
 		types.ActionGenerateVideo: "video_generation",
 		types.ActionCreateAgent:   "agents", types.ActionAgentStatus: "agents",

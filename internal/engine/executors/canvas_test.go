@@ -95,33 +95,6 @@ func TestCanvasProjectEmptyFiles(t *testing.T) {
 	assert.False(t, result.Success)
 }
 
-func TestCanvasPreview(t *testing.T) {
-	dir := t.TempDir()
-	c := NewCanvasExecutor(dir)
-
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>Preview</h1>"), 0o644))
-
-	result := c.Execute(context.Background(), &types.ActionRequest{
-		RequestID: "r1", Type: types.ActionCanvasPreview,
-		Payload: map[string]any{"path": "index.html"},
-	})
-
-	assert.True(t, result.Success)
-	assert.Contains(t, result.Output, "127.0.0.1")
-}
-
-func TestCanvasPreviewNonexistent(t *testing.T) {
-	dir := t.TempDir()
-	c := NewCanvasExecutor(dir)
-
-	result := c.Execute(context.Background(), &types.ActionRequest{
-		RequestID: "r1", Type: types.ActionCanvasPreview,
-		Payload: map[string]any{"path": "nonexistent"},
-	})
-
-	assert.False(t, result.Success)
-}
-
 func TestCanvasSupportedActions(t *testing.T) {
 	c := NewCanvasExecutor(t.TempDir())
 	assert.NotEmpty(t, c.SupportedActions())

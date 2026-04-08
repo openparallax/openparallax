@@ -65,7 +65,22 @@ message EngineDirective {
     ToolResultDelivery tool_result = 2;
     ToolDefsDelivery tool_defs = 3;
     ShutdownDirective shutdown = 4;
+    InitialToolDefs initial_tool_defs = 5;
   }
+}
+
+// InitialToolDefs is the engine-pushed startup snapshot of the agent's
+// tool set. Sent once per session, immediately after the engine
+// validates the agent's AgentReady event. Carries the dynamically
+// built load_tools meta-tool definition (and any other always-on
+// tools) so the agent does not have to hardcode anything tool-related.
+//
+// The agent must wait for this directive before entering its main
+// reasoning loop. If it does not arrive within the agent's startup
+// deadline, the agent fails the session — fail-closed, no quiet
+// fallback to a stale or hardcoded list.
+message InitialToolDefs {
+  repeated ToolDef tools = 1;
 }
 
 // ProcessRequest tells the Agent to process a user message.
