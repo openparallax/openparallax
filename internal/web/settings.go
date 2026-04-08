@@ -67,9 +67,10 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, _ *http.Request) {
 		"web": map[string]any{
 			"port": cfg.Web.Port,
 		},
-		"sandbox":   s.engine.SandboxStatus(),
-		"read_only": true,
-		"edit_hint": "Settings are read-only from the web UI. Use /config set or /model in the chat input, or edit config.yaml directly and restart.",
+		"sandbox":     s.engine.SandboxStatus(),
+		"read_only":   true,
+		"config_path": s.engine.ConfigPath(),
+		"edit_hint":   "Settings are read-only from the web UI. Use /config set or /model in the chat input, or edit config.yaml directly and restart.",
 	}
 
 	writeJSON(w, http.StatusOK, resp)

@@ -392,6 +392,17 @@ func parseAndValidateRecipients(s string) ([]string, error) {
 
 type smtpProvider struct {
 	cfg types.SMTPConfig
+	// tlsConfigOverride is set by tests that need to talk to a self-signed
+	// in-process server. Production callers leave it nil and get a config
+	// that verifies against the system trust store.
+	tlsConfigOverride *tls.Config
+}
+
+func (p *smtpProvider) tlsConfig() *tls.Config {
+	if p.tlsConfigOverride != nil {
+		return p.tlsConfigOverride
+	}
+	return p.tlsConfig()
 }
 
 // resolveSMTPCredentials expands env-var references in the SMTP config and
@@ -467,7 +478,7 @@ func (p *smtpProvider) Send(_ context.Context, msg *Email) error {
 	var client *smtp.Client
 	if p.cfg.TLS && p.cfg.Port == 465 {
 		// Implicit TLS (smtps).
-		conn, dialErr := tls.Dial("tcp", addr, &tls.Config{ServerName: p.cfg.Host})
+		conn, dialErr := tls.Dial("tcp", addr, p.tlsConfig())
 		if dialErr != nil {
 			return fmt.Errorf("dial TLS %s: %w", addr, dialErr)
 		}
@@ -484,7 +495,7 @@ func (p *smtpProvider) Send(_ context.Context, msg *Email) error {
 		}
 		client = c
 		if p.cfg.TLS {
-			if err := client.StartTLS(&tls.Config{ServerName: p.cfg.Host}); err != nil {
+			if err := client.StartTLS(p.tlsConfig()); err != nil {
 				_ = client.Close()
 				return fmt.Errorf("STARTTLS: %w", err)
 			}

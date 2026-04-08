@@ -110,12 +110,19 @@ func newIMAPProvider(cfg types.IMAPConfig, oauthMgr *oauth.Manager) *imapProvide
 func (p *imapProvider) connect(ctx context.Context) (*imapclient.Client, error) {
 	addr := net.JoinHostPort(p.host, fmt.Sprintf("%d", p.port))
 
-	var opts imapclient.Options
+	var (
+		client *imapclient.Client
+		err    error
+	)
 	if p.useTLS {
-		opts.TLSConfig = &tls.Config{ServerName: p.host}
+		opts := &imapclient.Options{TLSConfig: &tls.Config{ServerName: p.host}}
+		client, err = imapclient.DialTLS(addr, opts)
+	} else {
+		// Plain dial — only used in test setups and against loopback
+		// relays. Production configs should always set TLS=true or use
+		// port 993, which the constructor force-enables TLS for.
+		client, err = imapclient.DialInsecure(addr, nil)
 	}
-
-	client, err := imapclient.DialTLS(addr, &opts)
 	if err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", addr, err)
 	}

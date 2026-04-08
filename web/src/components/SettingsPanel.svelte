@@ -56,7 +56,11 @@
 
       <div class="readonly-banner">
         <Lock size={12} />
-        <span>Read-only. Use <code>/config set</code> or <code>/model</code> in chat to edit.</span>
+        <span>
+          Read-only. Edit via <code>/config set</code> or <code>/model</code> in chat,
+          or open <code class="config-path" title={settings.config_path || ''}>{settings.config_path || 'config.yaml'}</code>
+          directly and restart the engine.
+        </span>
       </div>
 
       <div class="settings-body">
@@ -258,6 +262,15 @@
     background: rgba(12, 16, 28, 0.5);
     border-radius: 3px;
     color: var(--accent);
+  }
+  .readonly-banner .config-path {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+    user-select: all;
   }
 
   .loading {
