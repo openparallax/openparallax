@@ -194,6 +194,12 @@ func (a *EngineAdapter) ConfigSet(key, value string) (bool, error) {
 	// Snapshot the current value so we can roll back if Save fails.
 	snapshot, _ := yamlClone(cfg)
 
+	if settable.Validator != nil {
+		if err := settable.Validator(cfg, value); err != nil {
+			return false, err
+		}
+	}
+
 	if err := settable.Setter(cfg, value); err != nil {
 		return false, err
 	}

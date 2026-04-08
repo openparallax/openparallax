@@ -44,6 +44,7 @@ func TestTestProviderRejectsEmptyBody(t *testing.T) {
 
 func TestSetupCompleteCreatesWorkspace(t *testing.T) {
 	tmpDir := t.TempDir()
+	t.Setenv("OP_DATA_DIR", tmpDir)
 	workspace := filepath.Join(tmpDir, "test-agent")
 
 	s := NewSetupServer(0)
@@ -78,6 +79,7 @@ func TestSetupCompleteCreatesWorkspace(t *testing.T) {
 
 func TestSetupCompleteDefaultsAgentName(t *testing.T) {
 	tmpDir := t.TempDir()
+	t.Setenv("OP_DATA_DIR", tmpDir)
 	workspace := filepath.Join(tmpDir, "default-agent")
 
 	s := NewSetupServer(0)
@@ -98,6 +100,55 @@ func TestSetupCompleteDefaultsAgentName(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(workspace, "config.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "name: Atlas")
+}
+
+func TestSetupCompleteRejectsWorkspaceOutsideAllowedRoots(t *testing.T) {
+	t.Setenv("OP_DATA_DIR", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+
+	s := NewSetupServer(0)
+	reqBody := `{
+		"agent": {"name": "TestBot"},
+		"llm": {"provider": "anthropic", "api_key": "test", "model": "claude-sonnet-4-6"},
+		"embedding": {},
+		"workspace": "/etc/openparallax-attack"
+	}`
+	req := httptest.NewRequest("POST", "/api/setup/complete", strings.NewReader(reqBody))
+	w := httptest.NewRecorder()
+	s.handleSetupComplete(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "$HOME")
+
+	// And the directory must not have been created.
+	_, err := os.Stat("/etc/openparallax-attack")
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestValidateSetupWorkspace(t *testing.T) {
+	home := t.TempDir()
+	dataDir := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("OP_DATA_DIR", dataDir)
+
+	t.Run("under home", func(t *testing.T) {
+		assert.NoError(t, validateSetupWorkspace(filepath.Join(home, "atlas")))
+	})
+	t.Run("under op_data_dir", func(t *testing.T) {
+		assert.NoError(t, validateSetupWorkspace(filepath.Join(dataDir, "atlas")))
+	})
+	t.Run("escapes via parent", func(t *testing.T) {
+		assert.Error(t, validateSetupWorkspace(filepath.Join(home, "..", "etc")))
+	})
+	t.Run("absolute outside both", func(t *testing.T) {
+		assert.Error(t, validateSetupWorkspace("/etc/passwd"))
+	})
+	t.Run("relative path", func(t *testing.T) {
+		assert.Error(t, validateSetupWorkspace("relative/path"))
+	})
+	t.Run("empty", func(t *testing.T) {
+		assert.Error(t, validateSetupWorkspace(""))
+	})
 }
 
 func TestSetupEndpointsAreOnlyForSetup(t *testing.T) {

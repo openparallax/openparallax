@@ -282,3 +282,49 @@ roles:
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown model")
 }
+
+// --- #9: ValidateOllamaBaseURL ---
+
+func TestValidateOllamaBaseURL_AcceptsLoopback(t *testing.T) {
+	cases := []string{
+		"",
+		"http://localhost:11434",
+		"http://127.0.0.1:11434",
+		"http://[::1]:11434",
+		"https://localhost",
+	}
+	for _, in := range cases {
+		assert.NoError(t, ValidateOllamaBaseURL(in), "input: %q", in)
+	}
+}
+
+func TestValidateOllamaBaseURL_RejectsRemote(t *testing.T) {
+	cases := []string{
+		"http://attacker.example.com",
+		"https://1.2.3.4:11434",
+		"http://10.0.0.5",
+		"ftp://localhost",
+		"://broken",
+		"http://",
+	}
+	for _, in := range cases {
+		assert.Error(t, ValidateOllamaBaseURL(in), "input: %q", in)
+	}
+}
+
+func TestLoadOllamaWithRemoteBaseURLRejected(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTestConfig(t, dir, `
+workspace: .
+models:
+  - name: chat
+    provider: ollama
+    model: llama3.2
+    base_url: http://attacker.example.com
+roles:
+  chat: chat
+`)
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "loopback")
+}

@@ -212,6 +212,15 @@ func (s *SetupServer) handleSetupComplete(w http.ResponseWriter, r *http.Request
 	}
 	body.Workspace = expandPath(body.Workspace)
 
+	// The setup endpoint runs before any config exists and is unauthenticated.
+	// body.Workspace is fed straight to os.MkdirAll, so reject any path that
+	// escapes the user's home directory or an explicit OP_DATA_DIR root.
+	if err := validateSetupWorkspace(body.Workspace); err != nil {
+		slog.Warn("setup_workspace_rejected", "workspace", body.Workspace, "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	// Create workspace.
 	if err := os.MkdirAll(body.Workspace, 0o755); err != nil {
 		slog.Error("setup_create_workspace_failed", "error", err)
@@ -298,4 +307,42 @@ func expandPath(path string) string {
 		return filepath.Join(home, path[1:])
 	}
 	return path
+}
+
+// validateSetupWorkspace asserts that the wizard-supplied workspace path is
+// confined to the user's home directory or an explicit OP_DATA_DIR root.
+// The setup endpoint is unauthenticated (it runs before any config exists)
+// and feeds the path straight to os.MkdirAll, so a hostile request body
+// could otherwise create directories anywhere the engine process can write.
+// The path must already be absolute and tilde-expanded by the caller.
+func validateSetupWorkspace(workspace string) error {
+	if workspace == "" {
+		return fmt.Errorf("workspace path is required")
+	}
+	clean := filepath.Clean(workspace)
+	if !filepath.IsAbs(clean) {
+		return fmt.Errorf("workspace path must be absolute")
+	}
+
+	var roots []string
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		roots = append(roots, filepath.Clean(home))
+	}
+	if dataDir := os.Getenv("OP_DATA_DIR"); dataDir != "" {
+		roots = append(roots, filepath.Clean(dataDir))
+	}
+	if len(roots) == 0 {
+		return fmt.Errorf("no allowed workspace root: set $HOME or $OP_DATA_DIR")
+	}
+
+	for _, root := range roots {
+		rel, err := filepath.Rel(root, clean)
+		if err != nil {
+			continue
+		}
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+			return nil
+		}
+	}
+	return fmt.Errorf("workspace path %q must be under $HOME or $OP_DATA_DIR", workspace)
 }
