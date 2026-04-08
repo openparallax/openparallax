@@ -91,7 +91,7 @@ func (c *HTTPOnnxClient) Classify(ctx context.Context, action *ActionRequest) (*
 	return &ClassifierResult{
 		Decision:   decision,
 		Confidence: result.Confidence,
-		Reason:     fmt.Sprintf("ONNX: %s (%.2f)", result.Label, result.Confidence),
+		Reason:     fmt.Sprintf("classifier [%s, conf %.2f]: prompt-injection ONNX model flagged this input — paraphrasing the request will not bypass it", result.Label, result.Confidence),
 		Source:     "onnx",
 	}, nil
 }

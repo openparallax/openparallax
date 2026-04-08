@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// formatPolicyReason renders a Tier 0 policy result for the LLM. The format
+// is `<verb> [<rule>]: <action> on <path> matches a <verb>ed pattern` so the
+// LLM can read which rule fired and which payload field tripped it. For
+// action-only rules (no path criterion) the path clause is dropped.
+func formatPolicyReason(verb string, actionType ActionType, r PolicyResult) string {
+	if r.MatchedPath != "" {
+		return fmt.Sprintf("%s [%s]: %s on %q matched a denied policy pattern", verb, r.Reason, actionType, r.MatchedPath)
+	}
+	return fmt.Sprintf("%s [%s]: %s matched a denied policy rule", verb, r.Reason, actionType)
+}
+
 // GatewayConfig holds all tier implementations and settings.
 type GatewayConfig struct {
 	Policy      *PolicyEngine
@@ -63,12 +74,12 @@ func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict 
 	switch t0Result.Decision {
 	case Deny:
 		g.cfg.Log.Info("shield_tier0_deny", "action", action.Type, "policy", t0Result.Reason)
-		return g.block(action, 0, 1.0, fmt.Sprintf("policy deny: %s", t0Result.Reason))
+		return g.block(action, 0, 1.0, formatPolicyReason("policy deny", action.Type, t0Result))
 	case Allow:
 		g.cfg.Log.Info("shield_tier0_allow", "action", action.Type, "policy", t0Result.Reason)
 		// Only return immediately if no MinTier override requires higher evaluation.
 		if action.MinTier <= 0 {
-			return g.allow(action, 0, 1.0, fmt.Sprintf("policy allow: %s", t0Result.Reason))
+			return g.allow(action, 0, 1.0, formatPolicyReason("policy allow", action.Type, t0Result))
 		}
 		g.cfg.Log.Info("shield_mintier_override", "action", action.Type, "min_tier", action.MinTier)
 	case Escalate:

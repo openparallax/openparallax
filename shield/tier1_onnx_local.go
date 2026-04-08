@@ -185,7 +185,7 @@ func (c *LocalOnnxClient) Classify(_ context.Context, action *ActionRequest) (*C
 	return &ClassifierResult{
 		Decision:   decision,
 		Confidence: confidence,
-		Reason:     fmt.Sprintf("ONNX: %s (%.2f)", label, confidence),
+		Reason:     fmt.Sprintf("classifier [%s, conf %.2f]: prompt-injection ONNX model flagged this input — paraphrasing the request will not bypass it", label, confidence),
 		Source:     "onnx-local",
 	}, nil
 }

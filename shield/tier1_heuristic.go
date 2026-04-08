@@ -70,7 +70,7 @@ func (h *HeuristicEngine) EvaluateAlwaysBlock(action *ActionRequest) *Classifier
 			return &ClassifierResult{
 				Decision:   VerdictBlock,
 				Confidence: severityToConfidence(cr.rule.Severity),
-				Reason:     fmt.Sprintf("heuristic-precheck: %s (%s)", cr.rule.Name, cr.rule.Severity),
+				Reason:     formatHeuristicReason("heuristic-precheck", cr.rule),
 				Source:     "heuristic",
 			}
 		}
@@ -101,7 +101,7 @@ func (h *HeuristicEngine) Evaluate(action *ActionRequest) *ClassifierResult {
 	combined := strings.Join(texts, " ")
 
 	var blockSev, escalateSev string
-	var blockRule, escalateRule string
+	var blockRule, escalateRule platform.HeuristicRule
 
 	for _, cr := range h.rules {
 		if !cr.pattern.MatchString(combined) {
@@ -110,12 +110,12 @@ func (h *HeuristicEngine) Evaluate(action *ActionRequest) *ClassifierResult {
 		if cr.rule.Escalate {
 			if isHigherSeverity(cr.rule.Severity, escalateSev) {
 				escalateSev = cr.rule.Severity
-				escalateRule = cr.rule.Name
+				escalateRule = cr.rule
 			}
 		} else {
 			if isHigherSeverity(cr.rule.Severity, blockSev) {
 				blockSev = cr.rule.Severity
-				blockRule = cr.rule.Name
+				blockRule = cr.rule
 			}
 		}
 	}
@@ -124,7 +124,7 @@ func (h *HeuristicEngine) Evaluate(action *ActionRequest) *ClassifierResult {
 		return &ClassifierResult{
 			Decision:   VerdictBlock,
 			Confidence: severityToConfidence(blockSev),
-			Reason:     fmt.Sprintf("heuristic: %s (%s)", blockRule, blockSev),
+			Reason:     formatHeuristicReason("heuristic", blockRule),
 			Source:     "heuristic",
 		}
 	}
@@ -132,7 +132,7 @@ func (h *HeuristicEngine) Evaluate(action *ActionRequest) *ClassifierResult {
 		return &ClassifierResult{
 			Decision:   VerdictEscalate,
 			Confidence: severityToConfidence(escalateSev),
-			Reason:     fmt.Sprintf("heuristic-escalate: %s (%s)", escalateRule, escalateSev),
+			Reason:     formatHeuristicReason("heuristic-escalate", escalateRule),
 			Source:     "heuristic",
 		}
 	}
@@ -160,4 +160,16 @@ func severityToConfidence(s string) float64 {
 	default:
 		return 0.5
 	}
+}
+
+// formatHeuristicReason renders a heuristic match for the LLM. It surfaces
+// the rule's human-readable Description (which already lives on every rule
+// definition) alongside the rule name and severity so the LLM can tell what
+// pattern was detected and why retrying with a paraphrase will not help.
+func formatHeuristicReason(prefix string, r platform.HeuristicRule) string {
+	desc := r.Description
+	if desc == "" {
+		desc = "no description available"
+	}
+	return fmt.Sprintf("%s [%s, %s]: %s", prefix, r.Name, r.Severity, desc)
 }

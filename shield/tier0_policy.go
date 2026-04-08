@@ -33,6 +33,9 @@ type PolicyResult struct {
 	Decision Decision
 	// Reason is the name of the matched rule.
 	Reason string
+	// MatchedPath is the first path that matched the rule's glob set, when
+	// the rule has a path criterion. Empty for action-only rules.
+	MatchedPath string
 	// EscalateTo is the minimum evaluation tier (only set when Decision == Escalate).
 	EscalateTo int
 }
@@ -84,20 +87,20 @@ func NewPolicyEngine(policyPath string) (*PolicyEngine, error) {
 // Order: deny -> verify -> allow -> NoMatch.
 func (p *PolicyEngine) Evaluate(action *ActionRequest) PolicyResult {
 	for _, rule := range p.deny {
-		if rule.matches(action) {
-			return PolicyResult{Decision: Deny, Reason: rule.Name}
+		if matched, path := rule.matches(action); matched {
+			return PolicyResult{Decision: Deny, Reason: rule.Name, MatchedPath: path}
 		}
 	}
 
 	for _, rule := range p.verify {
-		if rule.matches(action) {
-			return PolicyResult{Decision: Escalate, Reason: rule.Name, EscalateTo: rule.TierOverride}
+		if matched, path := rule.matches(action); matched {
+			return PolicyResult{Decision: Escalate, Reason: rule.Name, MatchedPath: path, EscalateTo: rule.TierOverride}
 		}
 	}
 
 	for _, rule := range p.allow {
-		if rule.matches(action) {
-			return PolicyResult{Decision: Allow, Reason: rule.Name}
+		if matched, path := rule.matches(action); matched {
+			return PolicyResult{Decision: Allow, Reason: rule.Name, MatchedPath: path}
 		}
 	}
 
@@ -110,8 +113,10 @@ func (p *PolicyEngine) DenyCount() int { return len(p.deny) }
 // AllowCount returns the number of allow rules.
 func (p *PolicyEngine) AllowCount() int { return len(p.allow) }
 
-// matches checks if an action matches this rule's criteria.
-func (r *policyRule) matches(action *ActionRequest) bool {
+// matches checks if an action matches this rule's criteria. The second
+// return value is the original (un-normalized) path that triggered the
+// match, or "" for action-only rules.
+func (r *policyRule) matches(action *ActionRequest) (bool, string) {
 	// Check action type match.
 	if len(r.ActionTypes) > 0 {
 		matched := false
@@ -122,7 +127,7 @@ func (r *policyRule) matches(action *ActionRequest) bool {
 			}
 		}
 		if !matched {
-			return false
+			return false, ""
 		}
 	}
 
@@ -131,9 +136,8 @@ func (r *policyRule) matches(action *ActionRequest) bool {
 	if len(r.compiled) > 0 {
 		allPaths := extractPolicyPaths(action)
 		if len(allPaths) == 0 {
-			return false
+			return false, ""
 		}
-		anyPathMatched := false
 		for _, path := range allPaths {
 			normalized := filepath.ToSlash(platform.NormalizePath(path))
 			// Bare filenames like "SOUL.md" have no directory component, so
@@ -144,20 +148,14 @@ func (r *policyRule) matches(action *ActionRequest) bool {
 			}
 			for _, g := range r.compiled {
 				if g.Match(normalized) {
-					anyPathMatched = true
-					break
+					return true, path
 				}
 			}
-			if anyPathMatched {
-				break
-			}
 		}
-		if !anyPathMatched {
-			return false
-		}
+		return false, ""
 	}
 
-	return true
+	return true, ""
 }
 
 // extractPolicyPaths returns all filesystem paths from an action's payload.

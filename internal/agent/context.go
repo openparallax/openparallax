@@ -44,7 +44,7 @@ func (c *ContextAssembler) Assemble(mode types.SessionMode, userMessage string) 
 
 	if user := c.loadFile("USER.md"); user != "" {
 		sections = append(sections, fmt.Sprintf(
-			"User Profile\n\nThis is what you know about the user. Personalize responses accordingly.\n\n%s", user))
+			"User Profile (USER.md)\n\nThis is what you know about the user. It is loaded from USER.md in the workspace and is the canonical place to record durable facts about the user. Personalize responses accordingly.\n\n%s", user))
 	}
 
 	// Memory: retrieve relevant chunks instead of loading the full file.
@@ -131,7 +131,9 @@ func behavioralRules() string {
 
 Act first, report after. Use tools immediately — don't describe plans.
 Load only the tool groups you need; each group is described in the load_tools meta-tool.
-Tool calls are evaluated by Shield before execution. If a call is blocked, explain the block to the user instead of retrying blindly.
+Pick the most specific tool for the job. The shell tool is a last resort — use it only when no dedicated tool group covers the task. Prefer files over cat/echo, git over shelling out to git, grep_files over grep, archive_create over tar.
+When you learn a durable fact about the user (preferences, role, projects, recurring contacts, working hours), append it to USER.md (a workspace file) so future sessions inherit it. Don't store ephemera or one-off task details.
+Tool calls are evaluated by Shield before execution. If a call is blocked, the error tells you which tier and rule fired — read it, fix the request, don't retry blindly.
 Report tool results accurately. Explain failures.
 Search memory and workspace before saying you don't know.
 For 2+ independent subtasks, spawn parallel sub-agents (agents group, create_agent) instead of doing the work inline — faster, cheaper, keeps your context clean.
