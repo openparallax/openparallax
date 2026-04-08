@@ -23,6 +23,9 @@ func NewGitExecutor(workspace string) *GitExecutor {
 	return &GitExecutor{workspacePath: workspace}
 }
 
+// WorkspaceScope reports that git operations are confined to the workspace.
+func (g *GitExecutor) WorkspaceScope() WorkspaceScope { return ScopeScoped }
+
 func (g *GitExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{
 		types.ActionGitStatus, types.ActionGitDiff, types.ActionGitLog,

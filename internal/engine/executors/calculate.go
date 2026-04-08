@@ -17,6 +17,9 @@ type CalculateExecutor struct{}
 // NewCalculateExecutor creates a new calculate executor.
 func NewCalculateExecutor() *CalculateExecutor { return &CalculateExecutor{} }
 
+// WorkspaceScope reports that calculate does not touch the filesystem.
+func (c *CalculateExecutor) WorkspaceScope() WorkspaceScope { return ScopeNoFilesystem }
+
 // SupportedActions returns the calculate action type.
 func (c *CalculateExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{types.ActionCalculate}

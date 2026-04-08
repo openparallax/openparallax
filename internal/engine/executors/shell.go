@@ -17,6 +17,10 @@ type ShellExecutor struct{}
 // NewShellExecutor creates a ShellExecutor.
 func NewShellExecutor() *ShellExecutor { return &ShellExecutor{} }
 
+// WorkspaceScope reports that the shell executor intentionally operates
+// outside the workspace boundary; command-string safety is enforced upstream.
+func (s *ShellExecutor) WorkspaceScope() WorkspaceScope { return ScopeUnscoped }
+
 // SupportedActions returns the shell action types.
 func (s *ShellExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{types.ActionExecCommand}

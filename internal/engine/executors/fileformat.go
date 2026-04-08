@@ -36,6 +36,9 @@ func NewFileFormatExecutor(workspacePath string) *FileFormatExecutor {
 	return &FileFormatExecutor{workspacePath: workspacePath}
 }
 
+// WorkspaceScope reports that file-format operations are confined to the workspace.
+func (f *FileFormatExecutor) WorkspaceScope() WorkspaceScope { return ScopeScoped }
+
 // SupportedActions returns file format action types.
 func (f *FileFormatExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{

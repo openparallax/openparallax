@@ -64,6 +64,10 @@ func NewSubAgentExecutor(manager SubAgentManagerInterface, models []types.ModelE
 	return &SubAgentExecutor{manager: manager, models: snapshot}
 }
 
+// WorkspaceScope reports that the sub-agent dispatcher does not write to the
+// filesystem itself; spawned sub-agents inherit their own scoped executors.
+func (e *SubAgentExecutor) WorkspaceScope() WorkspaceScope { return ScopeNoFilesystem }
+
 // SupportedActions returns the action types this executor handles.
 func (e *SubAgentExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{

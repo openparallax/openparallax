@@ -24,6 +24,9 @@ func NewHTTPExecutor() *HTTPExecutor {
 	return &HTTPExecutor{}
 }
 
+// WorkspaceScope reports that http_request does not write to the filesystem.
+func (h *HTTPExecutor) WorkspaceScope() WorkspaceScope { return ScopeNoFilesystem }
+
 func (h *HTTPExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{types.ActionHTTPRequest}
 }

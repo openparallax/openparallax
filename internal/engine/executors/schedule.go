@@ -22,6 +22,9 @@ func NewScheduleExecutor(workspace string) *ScheduleExecutor {
 	return &ScheduleExecutor{workspacePath: workspace}
 }
 
+// WorkspaceScope reports that schedule writes are confined to the workspace.
+func (s *ScheduleExecutor) WorkspaceScope() WorkspaceScope { return ScopeScoped }
+
 func (s *ScheduleExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{types.ActionCreateSchedule, types.ActionDeleteSchedule, types.ActionListSchedules}
 }

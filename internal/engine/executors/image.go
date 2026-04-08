@@ -42,6 +42,9 @@ func NewImageExecutor(cfg generation.ProviderConfig, workspace string, log *logg
 	return &ImageExecutor{provider: provider, workspace: workspace, log: log}
 }
 
+// WorkspaceScope reports that generated images are confined to the workspace.
+func (e *ImageExecutor) WorkspaceScope() WorkspaceScope { return ScopeScoped }
+
 // SupportedActions returns image action types.
 func (e *ImageExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{types.ActionGenerateImage, types.ActionEditImage}
@@ -121,7 +124,10 @@ func (e *ImageExecutor) generate(ctx context.Context, action *types.ActionReques
 		filename = fmt.Sprintf("generated-%s.%s", crypto.NewID()[:8], result.Format)
 	}
 
-	outPath := filepath.Join(e.workspace, filename)
+	outPath, err := ResolveInWorkspace(filename, e.workspace)
+	if err != nil {
+		return ErrorResult(action.RequestID, err.Error(), "save failed")
+	}
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		return ErrorResult(action.RequestID, "failed to create directory: "+err.Error(), "save failed")
 	}
@@ -152,9 +158,18 @@ func (e *ImageExecutor) edit(ctx context.Context, action *types.ActionRequest) *
 		return ErrorResult(action.RequestID, "path and prompt are required", "missing params")
 	}
 
-	// Resolve relative to workspace.
-	if !filepath.IsAbs(sourcePath) {
-		sourcePath = filepath.Join(e.workspace, sourcePath)
+	resolvedSource, err := ResolveInWorkspace(sourcePath, e.workspace)
+	if err != nil {
+		return ErrorResult(action.RequestID, err.Error(), "invalid source path")
+	}
+	sourcePath = resolvedSource
+
+	if maskPath != "" {
+		resolvedMask, err := ResolveInWorkspace(maskPath, e.workspace)
+		if err != nil {
+			return ErrorResult(action.RequestID, err.Error(), "invalid mask path")
+		}
+		maskPath = resolvedMask
 	}
 
 	result, err := e.provider.Edit(ctx, generation.ImageEditRequest{

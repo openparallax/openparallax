@@ -39,6 +39,10 @@ func NewSystemExecutor(workspacePath string) *SystemExecutor {
 	return &SystemExecutor{workspacePath: workspacePath}
 }
 
+// WorkspaceScope reports that system tools (clipboard, open, screenshot,
+// notify) intentionally operate outside the workspace boundary.
+func (s *SystemExecutor) WorkspaceScope() WorkspaceScope { return ScopeUnscoped }
+
 // SupportedActions returns system tool action types.
 func (s *SystemExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{

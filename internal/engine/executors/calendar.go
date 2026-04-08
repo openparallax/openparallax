@@ -66,6 +66,9 @@ func NewCalendarExecutor(cfg types.CalendarConfig, oauthMgr *oauth.Manager) *Cal
 	}
 }
 
+// WorkspaceScope reports that the calendar executor does not write to the filesystem.
+func (c *CalendarExecutor) WorkspaceScope() WorkspaceScope { return ScopeNoFilesystem }
+
 func (c *CalendarExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{
 		types.ActionReadCalendar, types.ActionCreateEvent,

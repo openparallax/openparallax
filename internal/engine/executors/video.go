@@ -42,6 +42,9 @@ func NewVideoExecutor(cfg generation.ProviderConfig, workspace string, log *logg
 	return &VideoExecutor{provider: provider, workspace: workspace, log: log}
 }
 
+// WorkspaceScope reports that generated videos are confined to the workspace.
+func (e *VideoExecutor) WorkspaceScope() WorkspaceScope { return ScopeScoped }
+
 // SupportedActions returns video action types.
 func (e *VideoExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{types.ActionGenerateVideo}
@@ -109,7 +112,10 @@ func (e *VideoExecutor) generate(ctx context.Context, action *types.ActionReques
 		filename = fmt.Sprintf("generated-%s.%s", crypto.NewID()[:8], result.Format)
 	}
 
-	outPath := filepath.Join(e.workspace, filename)
+	outPath, err := ResolveInWorkspace(filename, e.workspace)
+	if err != nil {
+		return ErrorResult(action.RequestID, err.Error(), "save failed")
+	}
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		return ErrorResult(action.RequestID, "failed to create directory: "+err.Error(), "save failed")
 	}

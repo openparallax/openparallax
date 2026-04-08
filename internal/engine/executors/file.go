@@ -23,6 +23,9 @@ func NewFileExecutor(workspace string) *FileExecutor {
 	return &FileExecutor{workspacePath: workspace}
 }
 
+// WorkspaceScope reports that the file executor confines all writes to the workspace.
+func (f *FileExecutor) WorkspaceScope() WorkspaceScope { return ScopeScoped }
+
 // SupportedActions returns the file operation action types.
 func (f *FileExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{

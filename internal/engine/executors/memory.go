@@ -20,6 +20,10 @@ func NewMemoryExecutor(manager *memory.Manager) *MemoryExecutor {
 	return &MemoryExecutor{manager: manager}
 }
 
+// WorkspaceScope reports that memory writes route through memory.Manager,
+// which manages its own storage location outside the path-resolver discipline.
+func (m *MemoryExecutor) WorkspaceScope() WorkspaceScope { return ScopeNoFilesystem }
+
 // SupportedActions returns the memory action types.
 func (m *MemoryExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{types.ActionMemoryWrite, types.ActionMemorySearch}

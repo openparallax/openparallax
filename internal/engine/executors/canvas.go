@@ -21,6 +21,9 @@ func NewCanvasExecutor(workspace string) *CanvasExecutor {
 	return &CanvasExecutor{workspacePath: workspace}
 }
 
+// WorkspaceScope reports that canvas writes are confined to the workspace.
+func (c *CanvasExecutor) WorkspaceScope() WorkspaceScope { return ScopeScoped }
+
 func (c *CanvasExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{
 		types.ActionCanvasCreate, types.ActionCanvasUpdate,

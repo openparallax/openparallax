@@ -47,6 +47,12 @@ func NewBrowserExecutor(log *logging.Logger) *BrowserExecutor {
 	return &BrowserExecutor{browserPath: browserPath, log: log}
 }
 
+// WorkspaceScope reports that the browser executor does not write to the
+// local filesystem. If a download capability is added later it MUST resolve
+// the destination through ResolveInWorkspace and the scope must change to
+// ScopeScoped.
+func (b *BrowserExecutor) WorkspaceScope() WorkspaceScope { return ScopeNoFilesystem }
+
 // SupportedActions returns all browser action types.
 func (b *BrowserExecutor) SupportedActions() []types.ActionType {
 	return []types.ActionType{

@@ -53,6 +53,9 @@ func NewEmailExecutor(cfg types.EmailConfig, oauthMgr *oauth.Manager) *EmailExec
 	return &EmailExecutor{provider: provider, reader: reader}
 }
 
+// WorkspaceScope reports that the email executor does not write to the filesystem.
+func (e *EmailExecutor) WorkspaceScope() WorkspaceScope { return ScopeNoFilesystem }
+
 // SupportedActions returns actions based on what is configured.
 func (e *EmailExecutor) SupportedActions() []types.ActionType {
 	var actions []types.ActionType
