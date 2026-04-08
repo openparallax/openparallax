@@ -44,6 +44,20 @@ func (g *Gateway) Evaluate(ctx context.Context, action *ActionRequest) *Verdict 
 		return g.block(action, 0, 1.0, "rate limit exceeded")
 	}
 
+	// Fast path: known-safe shell command prefix. Curated allowlist
+	// of common dev workflow commands (git, npm, make, go, …) that
+	// are safe regardless of arguments because they don't take
+	// arbitrary path inputs. Single statements only — anything with
+	// shell metacharacters falls through to normal evaluation.
+	// Bypasses Tier 0/1/2 entirely; the user wins back the latency
+	// and tokens of an LLM evaluation on every git status.
+	if action.Type == ActionExecCommand && action.MinTier == 0 {
+		if cmd, ok := action.Payload["command"].(string); ok && IsSafeCommand(cmd) {
+			g.cfg.Log.Info("shield_safe_command_fast_path", "action", action.Type)
+			return g.allow(action, 0, 1.0, "known-safe command prefix")
+		}
+	}
+
 	// Tier 0: Policy engine.
 	t0Result := g.cfg.Policy.Evaluate(action)
 	switch t0Result.Decision {

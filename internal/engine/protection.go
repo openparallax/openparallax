@@ -86,6 +86,17 @@ func CheckProtection(action *types.ActionRequest, workspacePath string) (bool, P
 
 	// Check all path fields in the action payload.
 	allPaths := extractAllPaths(action)
+
+	// Enforce absolute paths. Shield evaluates the literal path and cannot
+	// resolve relative paths against an implicit working directory. The
+	// agent must send absolute paths (with ~ expansion) for every payload
+	// field. This makes Shield's path-based rules deterministic.
+	for _, rawPath := range allPaths {
+		if !isAbsolutePathSpec(rawPath) {
+			return false, FullBlock, "path " + rawPath + " is relative — Shield requires absolute paths so it can evaluate the literal target. Resend with the full absolute path (e.g. /home/user/Desktop/project/" + rawPath + ")."
+		}
+	}
+
 	isWrite := isWriteAction(action.Type)
 
 	highestProtection := Unprotected
@@ -96,6 +107,17 @@ func CheckProtection(action *types.ActionRequest, workspacePath string) (bool, P
 		// Resolve symlinks to detect symlink bypass attacks.
 		if realPath, err := filepath.EvalSymlinks(resolved); err == nil {
 			resolved = realPath
+		}
+
+		// Default cross-platform denylist (applies anywhere on disk).
+		// Restricted: no read, no write. Protected: read OK, write blocked.
+		switch defaultProtection(resolved) {
+		case FullBlock:
+			return false, FullBlock, "access to " + filepath.Base(resolved) + " is blocked — this path is on the default denylist (credentials, system secrets, or sensitive user data)"
+		case ReadOnly:
+			if isWrite {
+				return false, ReadOnly, filepath.Base(resolved) + " is read-only on the default denylist — the agent can read it but not modify it. Edit it manually if you need to change it."
+			}
 		}
 
 		// Check hard-blocked files and directories.
@@ -153,19 +175,56 @@ func isDeleteAction(t types.ActionType) bool {
 
 // checkShellProtection handles execute_command by extracting only write targets
 // from the command string. Read operations (cat, grep, head) are allowed.
+//
+// Shell commands must use absolute paths so Shield can evaluate the literal
+// targets. The one allowed exception is `cd <absolute-path> && <command>` —
+// the cd prefix establishes an implicit working directory, and write targets
+// in the rest of the command are resolved against it. Anything else with
+// relative paths is rejected with a clear error so the agent can re-roll.
 func checkShellProtection(action *types.ActionRequest, workspacePath string) (bool, ProtectionLevel, string) {
 	cmd, _ := action.Payload["command"].(string)
 	if cmd == "" {
 		return true, Unprotected, ""
 	}
 
-	writeTargets := extractWriteTargetsFromCommand(cmd)
+	// Parse an optional `cd <abs-path> && ` prefix. If present, use the cd
+	// target as the resolution base for write targets in the rest of the
+	// command. Reject relative cd targets outright.
+	cmdBody := cmd
+	cdBase := ""
+	if base, rest, ok := parseLeadingCD(cmd); ok {
+		if !isAbsolutePathSpec(base) {
+			return false, FullBlock, "cd target " + base + " is relative — Shield requires `cd <absolute-path> && <command>` so it can resolve write targets. Resend with the full absolute path."
+		}
+		cdBase = platform.NormalizePath(base)
+		cmdBody = rest
+	}
+
+	writeTargets := extractWriteTargetsFromCommand(cmdBody)
 	highestProtection := Unprotected
 
 	for _, target := range writeTargets {
-		resolved := resolveProtectionPath(target, workspacePath)
+		// Reject relative write targets when there's no cd prefix to anchor
+		// them. With a cd prefix, the resolution base is the cd target.
+		if !isAbsolutePathSpec(target) && cdBase == "" {
+			return false, FullBlock, "shell command contains relative path " + target + " — Shield requires absolute paths or a leading `cd <absolute-path> && ` prefix. Resend with the full absolute path."
+		}
+		base := workspacePath
+		if cdBase != "" {
+			base = cdBase
+		}
+		resolved := resolveProtectionPath(target, base)
 		if realPath, err := filepath.EvalSymlinks(resolved); err == nil {
 			resolved = realPath
+		}
+
+		// Default cross-platform denylist applies to shell write
+		// targets the same as it does to non-shell actions.
+		switch defaultProtection(resolved) {
+		case FullBlock:
+			return false, FullBlock, filepath.Base(resolved) + " is on the default denylist and cannot be modified via shell command"
+		case ReadOnly:
+			return false, ReadOnly, filepath.Base(resolved) + " is read-only on the default denylist and cannot be modified via shell command"
 		}
 
 		if isHardBlocked(resolved, workspacePath) {
@@ -345,6 +404,48 @@ func resolveProtectionPath(raw, workspacePath string) string {
 		expanded = filepath.Join(workspacePath, expanded)
 	}
 	return filepath.Clean(expanded)
+}
+
+// isAbsolutePathSpec returns true when the raw path the agent sent is an
+// absolute path the engine can evaluate without an implicit working
+// directory. A path starting with ~ counts as absolute because
+// platform.NormalizePath expands it to the user's home directory.
+// Empty strings are accepted (the field is optional).
+func isAbsolutePathSpec(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	if strings.HasPrefix(raw, "~") {
+		return true
+	}
+	return filepath.IsAbs(raw)
+}
+
+// leadingCDRe matches an optional `cd <path> && ` prefix at the start of a
+// shell command. Captures the cd target (group 1, possibly quoted) and the
+// rest of the command (group 2). Whitespace tolerant.
+var leadingCDRe = regexp.MustCompile(`^\s*cd\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s*&&\s*(.*)$`)
+
+// parseLeadingCD detects a `cd <path> && <command>` prefix on a shell
+// command and returns the cd target and the rest of the command. Returns
+// ok=false when the command does not start with a recognized cd prefix.
+// Only the simplest single-cd form is recognized; chained cds, env-var
+// targets, command substitution, and globs all return ok=false and the
+// caller treats the command as having no implicit working directory.
+func parseLeadingCD(cmd string) (target, rest string, ok bool) {
+	m := leadingCDRe.FindStringSubmatch(cmd)
+	if m == nil {
+		return "", "", false
+	}
+	// One of the three capture groups holds the target.
+	for _, candidate := range m[1:4] {
+		if candidate != "" {
+			target = candidate
+			break
+		}
+	}
+	rest = m[4]
+	return target, rest, true
 }
 
 // --- Shell command write target extraction ---

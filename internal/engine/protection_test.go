@@ -48,7 +48,7 @@ func makeAction(actionType types.ActionType, payload map[string]any) *types.Acti
 
 func TestProtection_WriteSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "SOUL.md", "content": "evil"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "SOUL.md"), "content": "evil"})
 	allowed, prot, reason := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, ReadOnly, prot)
@@ -57,14 +57,14 @@ func TestProtection_WriteSOUL_Blocked(t *testing.T) {
 
 func TestProtection_DeleteSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionDeleteFile, map[string]any{"path": "SOUL.md"})
+	action := makeAction(types.ActionDeleteFile, map[string]any{"path": filepath.Join(ws, "SOUL.md")})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
 
 func TestProtection_CopyToSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionCopyFile, map[string]any{"source": "junk.txt", "destination": "SOUL.md"})
+	action := makeAction(types.ActionCopyFile, map[string]any{"source": filepath.Join(ws, "junk.txt"), "destination": filepath.Join(ws, "SOUL.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, ReadOnly, prot)
@@ -72,7 +72,7 @@ func TestProtection_CopyToSOUL_Blocked(t *testing.T) {
 
 func TestProtection_MoveToSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionMoveFile, map[string]any{"source": "junk.txt", "destination": "SOUL.md"})
+	action := makeAction(types.ActionMoveFile, map[string]any{"source": filepath.Join(ws, "junk.txt"), "destination": filepath.Join(ws, "SOUL.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, ReadOnly, prot)
@@ -80,7 +80,7 @@ func TestProtection_MoveToSOUL_Blocked(t *testing.T) {
 
 func TestProtection_ReadSOUL_Allowed(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionReadFile, map[string]any{"path": "SOUL.md"})
+	action := makeAction(types.ActionReadFile, map[string]any{"path": filepath.Join(ws, "SOUL.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, Unprotected, prot)
@@ -88,14 +88,14 @@ func TestProtection_ReadSOUL_Allowed(t *testing.T) {
 
 func TestProtection_WriteIDENTITY_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "IDENTITY.md", "content": "evil"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "IDENTITY.md"), "content": "evil"})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
 
 func TestProtection_ReadIDENTITY_Allowed(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionReadFile, map[string]any{"path": "IDENTITY.md"})
+	action := makeAction(types.ActionReadFile, map[string]any{"path": filepath.Join(ws, "IDENTITY.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, Unprotected, prot)
@@ -105,28 +105,28 @@ func TestProtection_ReadIDENTITY_Allowed(t *testing.T) {
 
 func TestProtection_ShellRedirectToSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo 'x' > SOUL.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo 'x' > " + filepath.Join(ws, "SOUL.md")})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
 
 func TestProtection_ShellCpToSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "cp junk.txt SOUL.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "cp " + filepath.Join(ws, "junk.txt") + " " + filepath.Join(ws, "SOUL.md")})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
 
 func TestProtection_ShellTeeSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo x | tee SOUL.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo x | tee " + filepath.Join(ws, "SOUL.md")})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
 
 func TestProtection_ShellCatSOUL_Allowed(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "cat SOUL.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "cat " + filepath.Join(ws, "SOUL.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, Unprotected, prot)
@@ -134,7 +134,7 @@ func TestProtection_ShellCatSOUL_Allowed(t *testing.T) {
 
 func TestProtection_ShellGrepSOUL_Allowed(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "grep pattern SOUL.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "grep pattern " + filepath.Join(ws, "SOUL.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, Unprotected, prot)
@@ -150,7 +150,7 @@ func TestProtection_ShellLs_Allowed(t *testing.T) {
 
 func TestProtection_ShellRmSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "rm SOUL.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "rm " + filepath.Join(ws, "SOUL.md")})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
@@ -159,7 +159,7 @@ func TestProtection_ShellRmSOUL_Blocked(t *testing.T) {
 
 func TestProtection_ReadConfigYaml_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionReadFile, map[string]any{"path": "config.yaml"})
+	action := makeAction(types.ActionReadFile, map[string]any{"path": filepath.Join(ws, "config.yaml")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, FullBlock, prot)
@@ -167,7 +167,7 @@ func TestProtection_ReadConfigYaml_Blocked(t *testing.T) {
 
 func TestProtection_ReadAuditJsonl_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionReadFile, map[string]any{"path": "audit.jsonl"})
+	action := makeAction(types.ActionReadFile, map[string]any{"path": filepath.Join(ws, "audit.jsonl")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, FullBlock, prot)
@@ -175,7 +175,7 @@ func TestProtection_ReadAuditJsonl_Blocked(t *testing.T) {
 
 func TestProtection_ReadOpenparallaxDir_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionReadFile, map[string]any{"path": ".openparallax/openparallax.db"})
+	action := makeAction(types.ActionReadFile, map[string]any{"path": filepath.Join(ws, ".openparallax", "openparallax.db")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, FullBlock, prot)
@@ -183,7 +183,7 @@ func TestProtection_ReadOpenparallaxDir_Blocked(t *testing.T) {
 
 func TestProtection_ReadPoliciesDir_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionReadFile, map[string]any{"path": "policies/default.yaml"})
+	action := makeAction(types.ActionReadFile, map[string]any{"path": filepath.Join(ws, "policies", "default.yaml")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, FullBlock, prot)
@@ -193,7 +193,7 @@ func TestProtection_ReadPoliciesDir_Blocked(t *testing.T) {
 
 func TestProtection_WriteSkills_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "skills/custom.md", "content": "new skill"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "skills", "custom.md"), "content": "new skill"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, ReadOnly, prot)
@@ -201,7 +201,7 @@ func TestProtection_WriteSkills_Blocked(t *testing.T) {
 
 func TestProtection_ReadSkills_Allowed(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionReadFile, map[string]any{"path": "skills/git.md"})
+	action := makeAction(types.ActionReadFile, map[string]any{"path": filepath.Join(ws, "skills", "git.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, Unprotected, prot)
@@ -224,7 +224,7 @@ func TestProtection_SymlinkToSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
 	symlinkPath := filepath.Join(ws, "innocent.txt")
 	require.NoError(t, os.Symlink(filepath.Join(ws, "SOUL.md"), symlinkPath))
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "innocent.txt", "content": "evil"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": symlinkPath, "content": "evil"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, ReadOnly, prot)
@@ -234,7 +234,7 @@ func TestProtection_SymlinkToConfig_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
 	symlinkPath := filepath.Join(ws, "safe.txt")
 	require.NoError(t, os.Symlink(filepath.Join(ws, "config.yaml"), symlinkPath))
-	action := makeAction(types.ActionReadFile, map[string]any{"path": "safe.txt"})
+	action := makeAction(types.ActionReadFile, map[string]any{"path": symlinkPath})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, FullBlock, prot)
@@ -248,7 +248,7 @@ func TestProtection_CopyDirOverwritesSOUL_Blocked(t *testing.T) {
 	require.NoError(t, os.MkdirAll(srcDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "soul.md"), []byte("evil"), 0o644))
 
-	action := makeAction(types.ActionCopyDir, map[string]any{"source": "evil-dir", "destination": "."})
+	action := makeAction(types.ActionCopyDir, map[string]any{"source": srcDir, "destination": ws})
 	allowed, _, reason := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Contains(t, reason, "overwrite protected file")
@@ -260,7 +260,7 @@ func TestProtection_MoveDirOverwritesIDENTITY_Blocked(t *testing.T) {
 	require.NoError(t, os.MkdirAll(srcDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "identity.md"), []byte("evil"), 0o644))
 
-	action := makeAction(types.ActionMoveDir, map[string]any{"source": "bad-dir", "destination": "."})
+	action := makeAction(types.ActionMoveDir, map[string]any{"source": srcDir, "destination": ws})
 	allowed, _, reason := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Contains(t, reason, "overwrite protected file")
@@ -270,7 +270,7 @@ func TestProtection_MoveDirOverwritesIDENTITY_Blocked(t *testing.T) {
 
 func TestProtection_WriteHEARTBEAT_EscalateTier2(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "HEARTBEAT.md", "content": "schedule"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "HEARTBEAT.md"), "content": "schedule"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, EscalateTier2, prot)
@@ -278,7 +278,7 @@ func TestProtection_WriteHEARTBEAT_EscalateTier2(t *testing.T) {
 
 func TestProtection_WriteAGENTS_EscalateTier2(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "AGENTS.md", "content": "agent def"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "AGENTS.md"), "content": "agent def"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, EscalateTier2, prot)
@@ -286,7 +286,7 @@ func TestProtection_WriteAGENTS_EscalateTier2(t *testing.T) {
 
 func TestProtection_DeleteAGENTS_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionDeleteFile, map[string]any{"path": "AGENTS.md"})
+	action := makeAction(types.ActionDeleteFile, map[string]any{"path": filepath.Join(ws, "AGENTS.md")})
 	allowed, _, reason := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Contains(t, reason, "cannot be deleted")
@@ -294,7 +294,7 @@ func TestProtection_DeleteAGENTS_Blocked(t *testing.T) {
 
 func TestProtection_DeleteHEARTBEAT_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionDeleteFile, map[string]any{"path": "HEARTBEAT.md"})
+	action := makeAction(types.ActionDeleteFile, map[string]any{"path": filepath.Join(ws, "HEARTBEAT.md")})
 	allowed, _, reason := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Contains(t, reason, "cannot be deleted")
@@ -302,14 +302,14 @@ func TestProtection_DeleteHEARTBEAT_Blocked(t *testing.T) {
 
 func TestProtection_ShellRmAGENTS_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "rm AGENTS.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "rm " + filepath.Join(ws, "AGENTS.md")})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
 
 func TestProtection_WriteUSER_WriteTier1Min(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "USER.md", "content": "timezone: UTC"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "USER.md"), "content": "timezone: UTC"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, WriteTier1Min, prot)
@@ -317,7 +317,7 @@ func TestProtection_WriteUSER_WriteTier1Min(t *testing.T) {
 
 func TestProtection_WriteMEMORY_WriteTier1Min(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "MEMORY.md", "content": "fact"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "MEMORY.md"), "content": "fact"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, WriteTier1Min, prot)
@@ -327,7 +327,7 @@ func TestProtection_WriteMEMORY_WriteTier1Min(t *testing.T) {
 
 func TestProtection_WriteLowercaseSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "soul.md", "content": "evil"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "soul.md"), "content": "evil"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, ReadOnly, prot)
@@ -335,7 +335,7 @@ func TestProtection_WriteLowercaseSOUL_Blocked(t *testing.T) {
 
 func TestProtection_WriteMixedCaseSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "Soul.MD", "content": "evil"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "Soul.MD"), "content": "evil"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 	assert.Equal(t, ReadOnly, prot)
@@ -345,21 +345,21 @@ func TestProtection_WriteMixedCaseSOUL_Blocked(t *testing.T) {
 
 func TestProtection_WinCopyToSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "copy junk.txt SOUL.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "copy " + filepath.Join(ws, "junk.txt") + " " + filepath.Join(ws, "SOUL.md")})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
 
 func TestProtection_WinSetContentSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "Set-Content SOUL.md -Value 'x'"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "Set-Content " + filepath.Join(ws, "SOUL.md") + " -Value 'x'"})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
 
 func TestProtection_WinDelSOUL_Blocked(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "del SOUL.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "del " + filepath.Join(ws, "SOUL.md")})
 	allowed, _, _ := CheckProtection(action, ws)
 	assert.False(t, allowed)
 }
@@ -368,7 +368,7 @@ func TestProtection_WinDelSOUL_Blocked(t *testing.T) {
 
 func TestProtection_ShellRedirectToUSER_EscalateTier1(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo 'tz: UTC' >> USER.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo 'tz: UTC' >> " + filepath.Join(ws, "USER.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, WriteTier1Min, prot)
@@ -376,7 +376,7 @@ func TestProtection_ShellRedirectToUSER_EscalateTier1(t *testing.T) {
 
 func TestProtection_ShellRedirectToHEARTBEAT_EscalateTier2(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo 'schedule' > HEARTBEAT.md"})
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo 'schedule' > " + filepath.Join(ws, "HEARTBEAT.md")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, EscalateTier2, prot)
@@ -448,7 +448,7 @@ func TestExtractPolicyPaths_IncludesDestination(t *testing.T) {
 
 func TestProtection_WriteNormalFile_Allowed(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionWriteFile, map[string]any{"path": "notes.txt", "content": "hello"})
+	action := makeAction(types.ActionWriteFile, map[string]any{"path": filepath.Join(ws, "notes.txt"), "content": "hello"})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, Unprotected, prot)
@@ -456,8 +456,61 @@ func TestProtection_WriteNormalFile_Allowed(t *testing.T) {
 
 func TestProtection_DeleteNormalFile_Allowed(t *testing.T) {
 	ws := setupProtectionWorkspace(t)
-	action := makeAction(types.ActionDeleteFile, map[string]any{"path": "notes.txt"})
+	action := makeAction(types.ActionDeleteFile, map[string]any{"path": filepath.Join(ws, "notes.txt")})
 	allowed, prot, _ := CheckProtection(action, ws)
 	assert.True(t, allowed)
 	assert.Equal(t, Unprotected, prot)
+}
+
+// --- Absolute path enforcement ---
+
+func TestProtection_RelativePath_Rejected(t *testing.T) {
+	ws := setupProtectionWorkspace(t)
+	action := makeAction(types.ActionReadFile, map[string]any{"path": "notes.txt"})
+	allowed, prot, reason := CheckProtection(action, ws)
+	assert.False(t, allowed)
+	assert.Equal(t, FullBlock, prot)
+	assert.Contains(t, reason, "relative")
+}
+
+func TestProtection_TildePath_Allowed(t *testing.T) {
+	ws := setupProtectionWorkspace(t)
+	action := makeAction(types.ActionReadFile, map[string]any{"path": "~/Desktop/notes.txt"})
+	allowed, _, _ := CheckProtection(action, ws)
+	assert.True(t, allowed)
+}
+
+func TestProtection_ShellRelativeWriteTarget_Rejected(t *testing.T) {
+	ws := setupProtectionWorkspace(t)
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "echo x > notes.txt"})
+	allowed, _, reason := CheckProtection(action, ws)
+	assert.False(t, allowed)
+	assert.Contains(t, reason, "relative")
+}
+
+func TestProtection_ShellCDPrefix_Allowed(t *testing.T) {
+	ws := setupProtectionWorkspace(t)
+	cmd := "cd " + ws + " && echo x > notes.txt"
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": cmd})
+	allowed, _, _ := CheckProtection(action, ws)
+	assert.True(t, allowed)
+}
+
+func TestProtection_ShellCDPrefix_BlocksProtectedTarget(t *testing.T) {
+	ws := setupProtectionWorkspace(t)
+	// cd into ws, then write to SOUL.md (relative — resolved against the cd target)
+	cmd := "cd " + ws + " && echo x > SOUL.md"
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": cmd})
+	allowed, prot, _ := CheckProtection(action, ws)
+	assert.False(t, allowed)
+	assert.Equal(t, ReadOnly, prot)
+}
+
+func TestProtection_ShellCDPrefixRelative_Rejected(t *testing.T) {
+	ws := setupProtectionWorkspace(t)
+	// Relative cd target — must be rejected.
+	action := makeAction(types.ActionExecCommand, map[string]any{"command": "cd backend && rm main.go"})
+	allowed, _, reason := CheckProtection(action, ws)
+	assert.False(t, allowed)
+	assert.Contains(t, reason, "relative")
 }

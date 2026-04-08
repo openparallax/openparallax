@@ -28,13 +28,13 @@ func (s *ShellExecutor) ToolSchemas() []ToolSchema {
 		{
 			ActionType:  types.ActionExecCommand,
 			Name:        "execute_command",
-			Description: "Execute a shell command and return its output. Use when the user asks to run a command, script, or check system state via the terminal.",
+			Description: "Execute a shell command and return its output. Use when the user asks to run a command, script, or check system state via the terminal. ALL paths in the command MUST be absolute (e.g. /home/user/Desktop/project/db, not db or ./db). Shield evaluates the literal command string and cannot resolve relative paths against an implicit working directory. The only allowed exception is `cd <absolute-path> && <command>` — Shield resolves the implicit working directory from the cd target. Anything else with relative paths is rejected.",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"command": map[string]any{
 						"type":        "string",
-						"description": "The shell command to execute.",
+						"description": "The shell command. All file paths must be absolute. Use `cd <absolute-path> && <cmd>` if the underlying tool requires a working directory (npm, cargo, make, etc.).",
 					},
 				},
 				"required": []string{"command"},
