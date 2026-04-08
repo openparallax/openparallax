@@ -147,19 +147,32 @@ func TestEmailToolSchemas(t *testing.T) {
 	assert.Equal(t, "send_email", schemas[0].Name)
 }
 
-func TestParseRecipients(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected []string
-	}{
-		{"a@b.com", []string{"a@b.com"}},
-		{"a@b.com, c@d.com", []string{"a@b.com", "c@d.com"}},
-		{" a@b.com , c@d.com , ", []string{"a@b.com", "c@d.com"}},
-		{"", nil},
-	}
+func TestParseAndValidateRecipients(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		cases := []struct {
+			input    string
+			expected []string
+		}{
+			{"a@b.com", []string{"a@b.com"}},
+			{"a@b.com, c@d.com", []string{"a@b.com", "c@d.com"}},
+			{" a@b.com , c@d.com , ", []string{"a@b.com", "c@d.com"}},
+		}
+		for _, tc := range cases {
+			out, err := parseAndValidateRecipients(tc.input)
+			assert.NoError(t, err, "input: %q", tc.input)
+			assert.Equal(t, tc.expected, out, "input: %q", tc.input)
+		}
+	})
 
-	for _, tt := range tests {
-		result := parseRecipients(tt.input)
-		assert.Equal(t, tt.expected, result, "input: %q", tt.input)
-	}
+	t.Run("invalid", func(t *testing.T) {
+		cases := []string{
+			"",
+			"not-an-email",
+			"a@b.com, garbage",
+		}
+		for _, in := range cases {
+			_, err := parseAndValidateRecipients(in)
+			assert.Error(t, err, "input: %q", in)
+		}
+	})
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -133,6 +134,60 @@ func (p *imapProvider) connect(ctx context.Context) (*imapclient.Client, error) 
 	return client, nil
 }
 
+// summaryFromBuffer projects a fetched message buffer onto the compact
+// EmailSummary the LLM consumes. Returns ok=false when the message lacks an
+// envelope so the caller can skip it.
+func summaryFromBuffer(buf *imapclient.FetchMessageBuffer) (EmailSummary, bool) {
+	if buf == nil || buf.Envelope == nil {
+		return EmailSummary{}, false
+	}
+	seen, flagged := false, false
+	for _, f := range buf.Flags {
+		switch f {
+		case imap.FlagSeen:
+			seen = true
+		case imap.FlagFlagged:
+			flagged = true
+		}
+	}
+	from := ""
+	if len(buf.Envelope.From) > 0 {
+		from = formatAddr(&buf.Envelope.From[0])
+	}
+	var to []string
+	for i := range buf.Envelope.To {
+		to = append(to, formatAddr(&buf.Envelope.To[i]))
+	}
+	return EmailSummary{
+		UID:     uint32(buf.UID),
+		From:    from,
+		To:      to,
+		Subject: buf.Envelope.Subject,
+		Date:    buf.Envelope.Date.Format(time.RFC3339),
+		Seen:    seen,
+		Flagged: flagged,
+	}, true
+}
+
+func summaryFetchOptions() *imap.FetchOptions {
+	return &imap.FetchOptions{
+		Flags:    true,
+		Envelope: true,
+		UID:      true,
+	}
+}
+
+func selectFolder(client *imapclient.Client, folder string) (*imap.SelectData, error) {
+	if folder == "" {
+		folder = "INBOX"
+	}
+	data, err := client.Select(folder, nil).Wait()
+	if err != nil {
+		return nil, fmt.Errorf("select %s: %w", folder, err)
+	}
+	return data, nil
+}
+
 func (p *imapProvider) ListMessages(ctx context.Context, folder string, limit int, unreadOnly bool) ([]EmailSummary, error) {
 	client, err := p.connect(ctx)
 	if err != nil {
@@ -140,108 +195,261 @@ func (p *imapProvider) ListMessages(ctx context.Context, folder string, limit in
 	}
 	defer func() { _ = client.Close() }()
 
-	if folder == "" {
-		folder = "INBOX"
-	}
-
-	selectData, err := client.Select(folder, nil).Wait()
+	selectData, err := selectFolder(client, folder)
 	if err != nil {
-		return nil, fmt.Errorf("select %s: %w", folder, err)
+		return nil, err
 	}
-
 	if selectData.NumMessages == 0 {
 		return nil, nil
 	}
 
-	// Fetch the last N messages.
+	// Fetch the last N messages by sequence number, then read the real UID
+	// out of each fetched buffer so the caller has a stable identifier
+	// across subsequent operations.
 	end := selectData.NumMessages
 	start := uint32(1)
 	if int(end) > limit {
 		start = end - uint32(limit) + 1
 	}
-
 	var seqSet imap.SeqSet
 	seqSet.AddRange(start, end)
-	fetchOpts := &imap.FetchOptions{
-		Flags:    true,
-		Envelope: true,
-	}
 
-	msgs := client.Fetch(seqSet, fetchOpts)
+	msgs := client.Fetch(seqSet, summaryFetchOptions())
+	defer func() { _ = msgs.Close() }()
+
 	var summaries []EmailSummary
-
 	for {
 		msg := msgs.Next()
 		if msg == nil {
 			break
 		}
-
 		buf, fetchErr := msg.Collect()
 		if fetchErr != nil {
 			continue
 		}
-
-		seen := false
-		flagged := false
-		for _, f := range buf.Flags {
-			if f == imap.FlagSeen {
-				seen = true
-			}
-			if f == imap.FlagFlagged {
-				flagged = true
-			}
-		}
-
-		if unreadOnly && seen {
+		summary, ok := summaryFromBuffer(buf)
+		if !ok {
 			continue
 		}
-
-		env := buf.Envelope
-		if env == nil {
+		if unreadOnly && summary.Seen {
 			continue
 		}
-
-		from := ""
-		if len(env.From) > 0 {
-			from = formatAddr(&env.From[0])
-		}
-		var to []string
-		for i := range env.To {
-			to = append(to, formatAddr(&env.To[i]))
-		}
-
-		summaries = append(summaries, EmailSummary{
-			UID:     buf.SeqNum,
-			From:    from,
-			To:      to,
-			Subject: env.Subject,
-			Date:    env.Date.Format(time.RFC3339),
-			Seen:    seen,
-			Flagged: flagged,
-		})
+		summaries = append(summaries, summary)
 	}
-
-	if err := msgs.Close(); err != nil {
-		return summaries, nil
-	}
-
 	return summaries, nil
 }
 
-func (p *imapProvider) ReadMessage(_ context.Context, _ string, _ uint32) (*EmailMessage, error) {
-	return nil, fmt.Errorf("email_read requires a running IMAP connection (not yet fully implemented for v2)")
+func (p *imapProvider) ReadMessage(ctx context.Context, folder string, uid uint32) (*EmailMessage, error) {
+	client, err := p.connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+
+	if _, err := selectFolder(client, folder); err != nil {
+		return nil, err
+	}
+
+	uidSet := imap.UIDSetNum(imap.UID(uid))
+	fetchOpts := &imap.FetchOptions{
+		Flags:         true,
+		Envelope:      true,
+		UID:           true,
+		BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+		BodySection:   []*imap.FetchItemBodySection{{Peek: true}},
+	}
+
+	msgs := client.Fetch(uidSet, fetchOpts)
+	defer func() { _ = msgs.Close() }()
+
+	msg := msgs.Next()
+	if msg == nil {
+		return nil, fmt.Errorf("no message with UID %d in %s", uid, folder)
+	}
+	buf, err := msg.Collect()
+	if err != nil {
+		return nil, fmt.Errorf("collect message %d: %w", uid, err)
+	}
+	summary, ok := summaryFromBuffer(buf)
+	if !ok {
+		return nil, fmt.Errorf("message %d has no envelope", uid)
+	}
+
+	body := ""
+	if len(buf.BodySection) > 0 {
+		body = extractTextBody(buf.BodySection[0].Bytes)
+	}
+
+	out := &EmailMessage{
+		EmailSummary: summary,
+		Body:         body,
+		Attachments:  extractAttachments(buf.BodyStructure),
+	}
+	return out, nil
 }
 
-func (p *imapProvider) SearchMessages(_ context.Context, _ string, _ string, _ int) ([]EmailSummary, error) {
-	return nil, fmt.Errorf("email_search requires a running IMAP connection (not yet fully implemented for v2)")
+func (p *imapProvider) SearchMessages(ctx context.Context, folder, query string, limit int) ([]EmailSummary, error) {
+	client, err := p.connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = client.Close() }()
+
+	if _, err := selectFolder(client, folder); err != nil {
+		return nil, err
+	}
+
+	criteria := &imap.SearchCriteria{
+		Body: []string{query},
+	}
+	searchData, err := client.UIDSearch(criteria, nil).Wait()
+	if err != nil {
+		return nil, fmt.Errorf("search %s for %q: %w", folder, query, err)
+	}
+
+	uids := searchData.AllUIDs()
+	if len(uids) == 0 {
+		return nil, nil
+	}
+	if limit > 0 && len(uids) > limit {
+		// Keep the most recent matches.
+		uids = uids[len(uids)-limit:]
+	}
+
+	var uidSet imap.UIDSet
+	uidSet.AddNum(uids...)
+
+	msgs := client.Fetch(uidSet, summaryFetchOptions())
+	defer func() { _ = msgs.Close() }()
+
+	var results []EmailSummary
+	for {
+		msg := msgs.Next()
+		if msg == nil {
+			break
+		}
+		buf, fetchErr := msg.Collect()
+		if fetchErr != nil {
+			continue
+		}
+		if summary, ok := summaryFromBuffer(buf); ok {
+			results = append(results, summary)
+		}
+	}
+	return results, nil
 }
 
-func (p *imapProvider) MoveMessage(_ context.Context, _ uint32, _ string, _ string) error {
-	return fmt.Errorf("email_move requires a running IMAP connection (not yet fully implemented for v2)")
+func (p *imapProvider) MoveMessage(ctx context.Context, uid uint32, fromFolder, toFolder string) error {
+	if toFolder == "" {
+		return fmt.Errorf("destination folder is required")
+	}
+	client, err := p.connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	if _, err := selectFolder(client, fromFolder); err != nil {
+		return err
+	}
+
+	uidSet := imap.UIDSetNum(imap.UID(uid))
+	if _, err := client.Move(uidSet, toFolder).Wait(); err != nil {
+		return fmt.Errorf("move %d from %s to %s: %w", uid, fromFolder, toFolder, err)
+	}
+	return nil
 }
 
-func (p *imapProvider) MarkMessage(_ context.Context, _ uint32, _ string, _ string, _ bool) error {
-	return fmt.Errorf("email_mark requires a running IMAP connection (not yet fully implemented for v2)")
+func (p *imapProvider) MarkMessage(ctx context.Context, uid uint32, folder, flag string, value bool) error {
+	client, err := p.connect(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close() }()
+
+	if _, err := selectFolder(client, folder); err != nil {
+		return err
+	}
+
+	var imapFlag imap.Flag
+	switch flag {
+	case "seen":
+		imapFlag = imap.FlagSeen
+	case "flagged":
+		imapFlag = imap.FlagFlagged
+	default:
+		return fmt.Errorf("unknown flag %q", flag)
+	}
+
+	op := imap.StoreFlagsAdd
+	if !value {
+		op = imap.StoreFlagsDel
+	}
+	store := &imap.StoreFlags{
+		Op:     op,
+		Silent: true,
+		Flags:  []imap.Flag{imapFlag},
+	}
+	uidSet := imap.UIDSetNum(imap.UID(uid))
+	cmd := client.Store(uidSet, store, nil)
+	if err := cmd.Close(); err != nil {
+		return fmt.Errorf("store flag %s on %d: %w", flag, uid, err)
+	}
+	return nil
+}
+
+// extractTextBody pulls a plain-text body out of the raw RFC822 message bytes
+// returned by FETCH BODY[]. The full MIME parser lives in
+// internal/agent/compaction; this is a deliberately small inline parser that
+// strips headers and decodes HTML to text only when no plain-text part is
+// present.
+func extractTextBody(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	s := string(raw)
+	// Strip headers — the body starts after the first blank line.
+	if idx := strings.Index(s, "\r\n\r\n"); idx >= 0 {
+		s = s[idx+4:]
+	} else if idx := strings.Index(s, "\n\n"); idx >= 0 {
+		s = s[idx+2:]
+	}
+	// If the body looks like HTML, fall back to the tag stripper.
+	trimmed := strings.TrimSpace(s)
+	if strings.HasPrefix(trimmed, "<") && strings.Contains(trimmed, ">") {
+		return StripHTML(trimmed)
+	}
+	return trimmed
+}
+
+// extractAttachments walks the body structure and returns metadata for every
+// non-inline part with a filename. The body bytes themselves are not pulled
+// over the wire — the LLM only needs to know what is attached.
+func extractAttachments(bs imap.BodyStructure) []AttachmentInfo {
+	if bs == nil {
+		return nil
+	}
+	var out []AttachmentInfo
+	bs.Walk(func(_ []int, part imap.BodyStructure) bool {
+		single, ok := part.(*imap.BodyStructureSinglePart)
+		if !ok {
+			return true
+		}
+		filename := ""
+		if single.Extended != nil && single.Extended.Disposition != nil {
+			filename = single.Extended.Disposition.Params["filename"]
+		}
+		if filename == "" {
+			return true
+		}
+		out = append(out, AttachmentInfo{
+			Filename: filename,
+			MimeType: single.Type + "/" + single.Subtype,
+			Size:     int64(single.Size),
+		})
+		return true
+	})
+	return out
 }
 
 // --- HTML stripping ---
@@ -292,15 +500,14 @@ func formatAddr(addr *imap.Address) string {
 	return addr.Addr()
 }
 
+// expandEnv treats a leading "$" as an environment-variable reference and
+// resolves it via os.LookupEnv. Strings without a "$" prefix are returned
+// verbatim so a literal username/password in the config still works.
 func expandEnv(s string) string {
 	if strings.HasPrefix(s, "$") {
-		if v, ok := lookupEnv(s[1:]); ok {
+		if v, ok := os.LookupEnv(s[1:]); ok {
 			return v
 		}
 	}
 	return s
-}
-
-func lookupEnv(name string) (string, bool) {
-	return "", false // Simplified — use os.LookupEnv in production
 }

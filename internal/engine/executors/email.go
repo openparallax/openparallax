@@ -2,7 +2,10 @@ package executors
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
+	"net/mail"
 	"net/smtp"
 	"os"
 	"strings"
@@ -141,10 +144,16 @@ func (e *EmailExecutor) executeSend(ctx context.Context, action *types.ActionReq
 		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "to and subject are required", Summary: "email send failed"}
 	}
 
-	recipients := parseRecipients(to)
+	recipients, err := parseAndValidateRecipients(to)
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "invalid recipient"}
+	}
 	var cc []string
 	if ccStr, ok := action.Payload["cc"].(string); ok && ccStr != "" {
-		cc = parseRecipients(ccStr)
+		cc, err = parseAndValidateRecipients(ccStr)
+		if err != nil {
+			return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "cc: " + err.Error(), Summary: "invalid recipient"}
+		}
 	}
 
 	replyTo, _ := action.Payload["reply_to"].(string)
@@ -355,15 +364,28 @@ func (e *EmailExecutor) executeMark(ctx context.Context, action *types.ActionReq
 	}
 }
 
-func parseRecipients(s string) []string {
-	var out []string
-	for _, r := range strings.Split(s, ",") {
-		r = strings.TrimSpace(r)
-		if r != "" {
-			out = append(out, r)
+// parseAndValidateRecipients splits a comma-separated address list and
+// validates every entry through net/mail.ParseAddress. The first invalid
+// address aborts the parse with a clear error so a malformed entry can never
+// reach the SMTP server.
+func parseAndValidateRecipients(s string) ([]string, error) {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, raw := range parts {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
 		}
+		addr, err := mail.ParseAddress(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid recipient %q: %w", raw, err)
+		}
+		out = append(out, addr.Address)
 	}
-	return out
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no recipients provided")
+	}
+	return out, nil
 }
 
 // --- SMTP provider ---
@@ -372,31 +394,142 @@ type smtpProvider struct {
 	cfg types.SMTPConfig
 }
 
+// resolveSMTPCredentials expands env-var references in the SMTP config and
+// fails closed if any required field resolves to an empty string. This stops
+// the silent fail-open where a missing $SMTP_USER would still try to send
+// with empty PLAIN credentials.
+func resolveSMTPCredentials(cfg types.SMTPConfig) (username, password, from string, err error) {
+	username = os.ExpandEnv(cfg.Username)
+	password = os.ExpandEnv(cfg.Password)
+	from = os.ExpandEnv(cfg.From)
+	if username == "" {
+		return "", "", "", fmt.Errorf("SMTP username is empty (env var %q unset?)", cfg.Username)
+	}
+	if password == "" {
+		return "", "", "", fmt.Errorf("SMTP password is empty (env var unset?)")
+	}
+	if from == "" {
+		return "", "", "", fmt.Errorf("SMTP from address is empty")
+	}
+	if _, addrErr := mail.ParseAddress(from); addrErr != nil {
+		return "", "", "", fmt.Errorf("SMTP from address %q is invalid: %w", from, addrErr)
+	}
+	return username, password, from, nil
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return true
+	}
+	return false
+}
+
 func (p *smtpProvider) Send(_ context.Context, msg *Email) error {
-	username := os.ExpandEnv(p.cfg.Username)
-	password := os.ExpandEnv(p.cfg.Password)
-	from := os.ExpandEnv(p.cfg.From)
+	username, password, from, err := resolveSMTPCredentials(p.cfg)
+	if err != nil {
+		return err
+	}
 
 	allRecipients := append([]string{}, msg.To...)
 	allRecipients = append(allRecipients, msg.CC...)
 	allRecipients = append(allRecipients, msg.BCC...)
+	if len(allRecipients) == 0 {
+		return fmt.Errorf("no recipients to send to")
+	}
 
-	var body strings.Builder
-	fmt.Fprintf(&body, "From: %s\r\n", from)
-	fmt.Fprintf(&body, "To: %s\r\n", strings.Join(msg.To, ", "))
+	var bodyBuf strings.Builder
+	fmt.Fprintf(&bodyBuf, "From: %s\r\n", from)
+	fmt.Fprintf(&bodyBuf, "To: %s\r\n", strings.Join(msg.To, ", "))
 	if len(msg.CC) > 0 {
-		fmt.Fprintf(&body, "Cc: %s\r\n", strings.Join(msg.CC, ", "))
+		fmt.Fprintf(&bodyBuf, "Cc: %s\r\n", strings.Join(msg.CC, ", "))
 	}
 	if msg.ReplyTo != "" {
-		fmt.Fprintf(&body, "Reply-To: %s\r\n", msg.ReplyTo)
+		fmt.Fprintf(&bodyBuf, "Reply-To: %s\r\n", msg.ReplyTo)
 	}
-	fmt.Fprintf(&body, "Subject: %s\r\n", msg.Subject)
-	fmt.Fprintf(&body, "MIME-Version: 1.0\r\n")
-	fmt.Fprintf(&body, "Content-Type: text/plain; charset=utf-8\r\n")
-	fmt.Fprintf(&body, "\r\n%s", msg.Body)
+	fmt.Fprintf(&bodyBuf, "Subject: %s\r\n", msg.Subject)
+	fmt.Fprintf(&bodyBuf, "MIME-Version: 1.0\r\n")
+	fmt.Fprintf(&bodyBuf, "Content-Type: text/plain; charset=utf-8\r\n")
+	fmt.Fprintf(&bodyBuf, "\r\n%s", msg.Body)
 
 	addr := fmt.Sprintf("%s:%d", p.cfg.Host, p.cfg.Port)
-	auth := smtp.PlainAuth("", username, password, p.cfg.Host)
+	loopback := isLoopbackHost(p.cfg.Host)
 
-	return smtp.SendMail(addr, auth, from, allRecipients, []byte(body.String()))
+	// Refuse to transmit credentials in cleartext to a non-local relay.
+	// Loopback delivery is allowed because it is sometimes used for
+	// development MTAs that intentionally have no TLS.
+	if !p.cfg.TLS && !loopback {
+		return fmt.Errorf("refusing to send: SMTP TLS is disabled and host %q is not loopback", p.cfg.Host)
+	}
+
+	var client *smtp.Client
+	if p.cfg.TLS && p.cfg.Port == 465 {
+		// Implicit TLS (smtps).
+		conn, dialErr := tls.Dial("tcp", addr, &tls.Config{ServerName: p.cfg.Host})
+		if dialErr != nil {
+			return fmt.Errorf("dial TLS %s: %w", addr, dialErr)
+		}
+		c, clientErr := smtp.NewClient(conn, p.cfg.Host)
+		if clientErr != nil {
+			_ = conn.Close()
+			return fmt.Errorf("smtp client: %w", clientErr)
+		}
+		client = c
+	} else {
+		c, dialErr := smtp.Dial(addr)
+		if dialErr != nil {
+			return fmt.Errorf("dial %s: %w", addr, dialErr)
+		}
+		client = c
+		if p.cfg.TLS {
+			if err := client.StartTLS(&tls.Config{ServerName: p.cfg.Host}); err != nil {
+				_ = client.Close()
+				return fmt.Errorf("STARTTLS: %w", err)
+			}
+		}
+	}
+	defer func() { _ = client.Close() }()
+
+	// PLAIN auth is only sent after TLS is established (or to loopback).
+	if p.cfg.TLS || loopback {
+		auth := smtp.PlainAuth("", username, password, p.cfg.Host)
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("smtp auth: %w", scrubSecret(err, password))
+		}
+	}
+
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("MAIL FROM: %w", err)
+	}
+	for _, rcpt := range allRecipients {
+		if err := client.Rcpt(rcpt); err != nil {
+			return fmt.Errorf("RCPT TO %s: %w", rcpt, err)
+		}
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("DATA: %w", err)
+	}
+	if _, err := w.Write([]byte(bodyBuf.String())); err != nil {
+		_ = w.Close()
+		return fmt.Errorf("write body: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("close body: %w", err)
+	}
+	return client.Quit()
+}
+
+// scrubSecret defends against SMTP server error messages that occasionally
+// echo the credential value back. The password is rarely present in error
+// strings but if it is, scrubbing it is much cheaper than the cost of leaking
+// it into a log line.
+func scrubSecret(err error, secret string) error {
+	if err == nil || secret == "" {
+		return err
+	}
+	msg := strings.ReplaceAll(err.Error(), secret, "<redacted>")
+	return fmt.Errorf("%s", msg)
 }
