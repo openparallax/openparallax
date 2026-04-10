@@ -1,0 +1,220 @@
+---
+description: Initialize a workspace, start your agent, and send your first message in under five minutes with this OpenParallax quick start guide.
+---
+
+# Quick Start
+
+This guide takes you from a fresh install to your first conversation in under five minutes. It assumes you have already completed the [installation](/guide/installation) steps and have `openparallax` on your PATH.
+
+## 1. Initialize a Workspace
+
+The `init` command runs an interactive wizard that configures your agent:
+
+```bash
+openparallax init
+```
+
+The wizard walks through six steps:
+
+1. **Agent name** — give your agent a name (default: "Atlas")
+2. **Avatar** — pick an emoji avatar (hexagon, robot, brain, lightning, shield, or custom)
+3. **LLM provider** — choose Anthropic, OpenAI (also works with any OpenAI-compatible API — Azure, DeepSeek, Mistral, LM Studio — via `base_url`), Google, or Ollama. The wizard auto-detects API keys in your environment.
+4. **Chat model** — confirm or change the default model (e.g., `claude-sonnet-4-6` for Anthropic)
+5. **Shield provider and model** — choose a provider for security evaluation. A faster/cheaper model works well here (e.g., `claude-haiku-4-5-20251001`). Cross-model evaluation is recommended for stronger security.
+6. **Embedding provider** — choose OpenAI, Google, or Ollama for vector search, or skip for keyword-only search
+7. **Workspace path** — where sessions, memory, and config are stored (default: `~/.openparallax/<agent-name>`)
+
+Each step includes connection testing. If a connection fails, you can correct the settings inline.
+
+At the end, the wizard asks whether to start the agent immediately.
+
+You can also pass the agent name as an argument to skip the name prompt:
+
+```bash
+openparallax init Atlas
+```
+
+## 2. Start the Agent
+
+If you did not start during init, launch manually:
+
+```bash
+openparallax start
+```
+
+You will see output like:
+
+```
+Engine started on localhost:13101 (LLM: anthropic/claude-sonnet-4-6)
+Web UI available at http://127.0.0.1:3100
+```
+
+Three processes are now running:
+
+- **Process Manager** — the `start` command itself, supervising the engine
+- **Engine** — the privileged parent process running gRPC, HTTP/WebSocket, Shield, and all executors
+- **Agent** — the sandboxed child process handling LLM conversation and TUI
+
+### Start with the terminal TUI
+
+To get an interactive terminal interface immediately:
+
+```bash
+openparallax start --tui
+```
+
+This attaches the Bubbletea TUI directly. Press `Ctrl+C` (or close the terminal) to exit. **Because the TUI was started by `start --tui`, exiting the TUI also stops the engine** — the process manager catches the signal and shuts everything down cleanly.
+
+If you want the engine to keep running after closing the TUI, use the background mode below instead.
+
+### Start in the background
+
+```bash
+openparallax start -d
+```
+
+Daemon mode prints the connection info and exits. The engine continues running in the background. Attach a TUI later with `openparallax attach tui`.
+
+### Enable verbose logging
+
+```bash
+openparallax start -v
+```
+
+This writes structured JSON logs to `<workspace>/.openparallax/engine.log`, covering every pipeline step, Shield evaluation, and executor call.
+
+## 3. Your First Conversation
+
+### Via the Web UI
+
+Open your browser to the URL printed at startup (default: `http://127.0.0.1:3100`).
+
+The two-panel layout appears:
+
+- **Sidebar** (left) — session list, new session button, settings
+- **Chat Panel** (right) — conversation input and message stream
+
+Type a message in the chat panel:
+
+```
+What can you do?
+```
+
+The agent responds with a summary of its capabilities based on your configuration (which tools are available, whether email/calendar/browser are set up, etc.).
+
+### Via the CLI TUI
+
+If you started with `--tui`, or attached with `openparallax attach tui`, type directly in the terminal. The Bubbletea interface provides real-time streaming, tool call rendering, and keyboard navigation.
+
+## 4. Try a Tool Call
+
+Ask the agent to do something that requires a tool. For example:
+
+```
+List the files in my workspace
+```
+
+Behind the scenes:
+
+1. The agent calls `load_tools` to load the `files` tool group
+2. It calls `list_directory` with the workspace path
+3. Shield evaluates the action at Tier 0 — workspace reads are allowed by default policy
+4. The directory listing is returned
+
+Try something more involved:
+
+```
+Create a file called hello.txt with "Hello from OpenParallax!" in it
+```
+
+This time Shield evaluates the `write_file` action. With the default policy, file writes in the workspace are allowed through Tier 0/1. In the web UI, you can see the Shield verdict in the action envelope.
+
+## 5. Check the Web UI Features
+
+### Session Management
+
+- Click **New Session** in the sidebar (or type `/new` in chat) to start a fresh conversation
+- Previous sessions appear in the sidebar with auto-generated titles
+- Click a session to switch back to it — full history is preserved
+
+### Settings
+
+Click the gear icon in the sidebar to access settings. You can view connection status, sandbox capabilities, and agent info.
+
+## 6. Try OTR Mode
+
+Off-the-Record mode creates a temporary session where nothing is persisted:
+
+```
+/otr
+```
+
+In OTR mode:
+
+- The UI accent color changes from **cyan to amber** as a visual reminder
+- **No memory persistence** — the conversation is not saved to the database or memory files
+- **Read-only tools** — write operations (file writes, git commits, email sends, memory writes) are filtered out
+- **Session data stays in memory** — stored in a `sync.Map`, never touching SQLite
+
+OTR mode is useful for sensitive discussions, experimentation, or anything you do not want the agent to remember.
+
+To return to normal mode, start a new session with `/new`.
+
+## 7. Useful Slash Commands
+
+These are the ones you will use most often. They work in both the CLI and web UI (and most messaging channels):
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all available slash commands |
+| `/new` | Start a new session |
+| `/otr` | Start an OTR (off-the-record) session — read-only, never persisted |
+| `/sessions` | List recent sessions |
+| `/status` | Show agent status, Shield budget, sandbox state |
+| `/export` | Export the current session as markdown |
+| `/clear` | Clear the chat view |
+| `/quit` | **Close the current session and start a new one** (does not exit the agent — press `Ctrl+C` to detach the TUI) |
+
+OpenParallax has 19 slash commands in total. See the [Slash Commands reference](/guide/slash-commands) for the full list including session switching, configuration, model swapping, and audit verification.
+
+## 8. Run a Health Check
+
+Verify everything is configured correctly:
+
+```bash
+openparallax doctor
+```
+
+This runs 13 checks covering config, workspace, SQLite, LLM provider, Shield, embedding, browser, email, calendar, heartbeat, audit chain integrity, sandbox, and web UI. Each check reports pass, warning (non-critical), or failure.
+
+## 9. Stop the Agent
+
+How you stop the agent depends on how you started it:
+
+| You started with... | To stop |
+|---|---|
+| `openparallax start` (foreground) | Press `Ctrl+C` in the terminal where it's running |
+| `openparallax start --tui` | Press `Ctrl+C` in the TUI (or close the terminal) — both shut the engine down |
+| `openparallax start -d` (daemon) | Run `openparallax stop` in any terminal |
+| `openparallax attach tui` (against a daemon) | Ctrl+C only detaches you. Run `openparallax stop` to actually stop the engine. |
+
+`openparallax stop` always works regardless of how you started: it sends SIGTERM to the engine PID recorded in your workspace and waits up to 5 seconds for clean shutdown.
+
+The web UI is a passive client. Closing the browser tab disconnects the WebSocket but **does not** stop the engine.
+
+`/quit` inside the TUI closes the **current session** and starts a new one — it does NOT exit the agent. See the [Slash Commands reference](/guide/slash-commands#exiting-the-agent) for the full table.
+
+## 10. Test Your Own Security
+
+OpenParallax ships with a multi-category adversarial test suite. The full corpus, the published baseline, and the recipe to reproduce it live in [Test Your Own Security](/eval/). It is the recommended next step for anyone using the agent in a security-sensitive context.
+
+## Next Steps
+
+- [Optional Downloads](/guide/optional-downloads) — Tier 1 classifier, sqlite-vec, skill packs
+- [Test Your Own Security](/eval/) — full eval suite, methodology, run history
+- [Configuration](/guide/configuration) — customize every aspect of your agent
+- [CLI Commands](/guide/cli) — complete command reference
+- [Web UI](/guide/web-ui) — layout, keyboard shortcuts, and features
+- [Security](/guide/security) — understand Shield policies and sandbox
+- [Memory](/guide/memory) — how the agent remembers across sessions
+- [Skills](/guide/skills) — create custom domain-specific guidance

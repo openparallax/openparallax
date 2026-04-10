@@ -1,0 +1,16 @@
+{
+  "name": "@openparallax/sandbox",
+  "version": "0.1.0",
+  "description": "Kernel-level process isolation verification",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/openparallax/openparallax" },
+  "homepage": "https://docs.openparallax.dev/sandbox/node",
+  "keywords": ["ai", "sandbox", "security", "isolation"],
+  "files": ["dist/", "bin/"],
+  "scripts": { "build": "tsc", "prepublishOnly": "npm run build" },
+  "devDependencies": { "typescript": "^5.5.0" },
+  "engines": { "node": ">=18" }
+}

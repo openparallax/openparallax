@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openparallax-shield"
+version = "0.1.0"
+description = "3-tier AI security pipeline for autonomous systems"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "OpenParallax Contributors" },
+]
+keywords = ["ai", "security", "llm", "agent", "shield", "mcp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.urls]
+Homepage = "https://openparallax.dev"
+Documentation = "https://docs.openparallax.dev/shield/python"
+Repository = "https://github.com/openparallax/openparallax"
+Issues = "https://github.com/openparallax/openparallax/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openparallax_shield"]

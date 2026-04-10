@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build web UI
+        run: cd web && npm ci && npm run build
+
+      - name: Build all binaries
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go build -o dist/openparallax ./cmd/agent
+          go build -o dist/openparallax-shield ./cmd/shield
+          go build -o dist/openparallax-shield-bridge ./cmd/shield-bridge
+          go build -o dist/openparallax-audit-bridge ./cmd/audit-bridge
+          go build -o dist/openparallax-memory-bridge ./cmd/memory-bridge
+          go build -o dist/openparallax-sandbox-bridge ./cmd/sandbox-bridge
+          go build -o dist/openparallax-channels-bridge ./cmd/channels-bridge
+
+      - name: Go tests
+        run: go test -race -count=1 ./...
+
+      - name: Go lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.11.4
+
+      - name: Frontend tests
+        run: cd web && npm test
+
+  e2e:
+    name: E2E (mock)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build web UI
+        run: cd web && npm ci && npm run build
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: '0'
+        run: go build -o dist/openparallax ./cmd/agent
+
+      - name: Run E2E tests
+        env:
+          E2E_LLM: mock
+        run: go test -tags e2e -count=1 -timeout 300s ./e2e/...

@@ -1,0 +1,12 @@
+{
+  "name": "OpenParallax",
+  "short_name": "Parallax",
+  "description": "Your personal AI agent, secured.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06060c",
+  "theme_color": "#00dcff",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

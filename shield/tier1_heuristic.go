@@ -1,0 +1,175 @@
+package shield
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/openparallax/openparallax/platform"
+)
+
+// HeuristicEngine evaluates actions against regex-based detection rules.
+type HeuristicEngine struct {
+	rules []compiledRule
+}
+
+type compiledRule struct {
+	rule    platform.HeuristicRule
+	pattern *regexp.Regexp
+}
+
+// NewHeuristicEngine creates a HeuristicEngine with platform-aware rules.
+// All regex patterns are compiled at init time. Invalid patterns are
+// skipped. Rules that set both AlwaysBlock and Escalate are skipped
+// because the combination is incoherent and indicates a rule
+// definition bug — AlwaysBlock means "block before tier evaluation"
+// and Escalate means "do not block, route to Tier 2".
+func NewHeuristicEngine() *HeuristicEngine {
+	allRules := platform.ShellInjectionRules()
+	allRules = append(allRules, CrossPlatformDetectionRules()...)
+
+	compiled := make([]compiledRule, 0, len(allRules))
+	for _, r := range allRules {
+		if r.AlwaysBlock && r.Escalate {
+			continue
+		}
+		re, err := regexp.Compile(r.Pattern)
+		if err != nil {
+			continue
+		}
+		compiled = append(compiled, compiledRule{rule: r, pattern: re})
+	}
+
+	return &HeuristicEngine{rules: compiled}
+}
+
+// RuleCount returns the total number of compiled rules.
+func (h *HeuristicEngine) RuleCount() int {
+	return len(h.rules)
+}
+
+// EvaluateAlwaysBlock checks the action against only the AlwaysBlock subset of
+// heuristic rules. Used by the gateway as a precheck on Tier 2 escalations so
+// known agent-internal enumeration patterns can be blocked deterministically
+// without burning a Tier 2 LLM call. Returns ALLOW if no AlwaysBlock rule matches.
+func (h *HeuristicEngine) EvaluateAlwaysBlock(action *ActionRequest) *ClassifierResult {
+	texts := []string{string(action.Type)}
+	securityFields := []string{"command", "path", "source", "destination", "url", "pattern"}
+	for _, key := range securityFields {
+		if v, ok := action.Payload[key]; ok {
+			texts = append(texts, fmt.Sprintf("%v", v))
+		}
+	}
+	combined := strings.Join(texts, " ")
+
+	for _, cr := range h.rules {
+		if !cr.rule.AlwaysBlock {
+			continue
+		}
+		if cr.pattern.MatchString(combined) {
+			return &ClassifierResult{
+				Decision:   VerdictBlock,
+				Confidence: severityToConfidence(cr.rule.Severity),
+				Reason:     formatHeuristicReason("heuristic-precheck", cr.rule),
+				Source:     "heuristic",
+			}
+		}
+	}
+
+	return &ClassifierResult{
+		Decision: VerdictAllow,
+		Source:   "heuristic",
+	}
+}
+
+// Evaluate checks an action against all heuristic rules.
+// Only scans security-relevant fields (command, path, url, source, destination)
+// to avoid false positives on file content being written.
+//
+// Match priority: Block > Escalate > Allow. A rule without the Escalate
+// flag is treated as a hard block; a rule with Escalate routes the
+// action to the Tier 2 LLM evaluator instead. If both a block and an
+// escalate rule fire on the same action, the block wins.
+func (h *HeuristicEngine) Evaluate(action *ActionRequest) *ClassifierResult {
+	texts := []string{string(action.Type)}
+	securityFields := []string{"command", "path", "source", "destination", "url", "pattern"}
+	for _, key := range securityFields {
+		if v, ok := action.Payload[key]; ok {
+			texts = append(texts, fmt.Sprintf("%v", v))
+		}
+	}
+	combined := strings.Join(texts, " ")
+
+	var blockSev, escalateSev string
+	var blockRule, escalateRule platform.HeuristicRule
+
+	for _, cr := range h.rules {
+		if !cr.pattern.MatchString(combined) {
+			continue
+		}
+		if cr.rule.Escalate {
+			if isHigherSeverity(cr.rule.Severity, escalateSev) {
+				escalateSev = cr.rule.Severity
+				escalateRule = cr.rule
+			}
+		} else {
+			if isHigherSeverity(cr.rule.Severity, blockSev) {
+				blockSev = cr.rule.Severity
+				blockRule = cr.rule
+			}
+		}
+	}
+
+	if blockSev != "" {
+		return &ClassifierResult{
+			Decision:   VerdictBlock,
+			Confidence: severityToConfidence(blockSev),
+			Reason:     formatHeuristicReason("heuristic", blockRule),
+			Source:     "heuristic",
+		}
+	}
+	if escalateSev != "" {
+		return &ClassifierResult{
+			Decision:   VerdictEscalate,
+			Confidence: severityToConfidence(escalateSev),
+			Reason:     formatHeuristicReason("heuristic-escalate", escalateRule),
+			Source:     "heuristic",
+		}
+	}
+	return &ClassifierResult{
+		Decision:   VerdictAllow,
+		Confidence: 0.7,
+		Reason:     "no heuristic rules matched",
+		Source:     "heuristic",
+	}
+}
+
+func isHigherSeverity(a, b string) bool {
+	order := map[string]int{"critical": 4, "high": 3, "medium": 2, "low": 1, "": 0}
+	return order[a] > order[b]
+}
+
+func severityToConfidence(s string) float64 {
+	switch s {
+	case "critical":
+		return 0.95
+	case "high":
+		return 0.85
+	case "medium":
+		return 0.7
+	default:
+		return 0.5
+	}
+}
+
+// formatHeuristicReason renders a heuristic match for the LLM. It surfaces
+// the rule's human-readable Description (which already lives on every rule
+// definition) alongside the rule name and severity so the LLM can tell what
+// pattern was detected and why retrying with a paraphrase will not help.
+func formatHeuristicReason(prefix string, r platform.HeuristicRule) string {
+	desc := r.Description
+	if desc == "" {
+		desc = "no description available"
+	}
+	return fmt.Sprintf("%s [%s, %s]: %s", prefix, r.Name, r.Severity, desc)
+}

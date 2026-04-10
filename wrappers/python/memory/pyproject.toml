@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openparallax-memory"
+version = "0.1.0"
+description = "Python wrapper for the OpenParallax memory module"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+keywords = ["openparallax", "memory", "search", "ai-agent"]
+
+[project.urls]
+Documentation = "https://docs.openparallax.dev/memory/python"
+Repository = "https://github.com/openparallax/openparallax"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openparallax_memory"]

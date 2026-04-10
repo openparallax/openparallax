@@ -1,0 +1,147 @@
+// Package audit provides an append-only JSONL audit log with SHA-256 hash chain.
+// Each entry includes the hash of the previous entry, making any tampering detectable.
+package audit
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/openparallax/openparallax/crypto"
+)
+
+// Entry is the input for logging an audit event.
+type Entry struct {
+	EventType  EventType
+	ActionType string
+	SessionID  string
+	Details    string
+	OTR        bool
+	Source     string
+}
+
+// DBIndexer is an optional interface for indexing audit entries in SQLite.
+type DBIndexer interface {
+	InsertAuditEntry(entry *LogEntry) error
+}
+
+// Logger writes audit entries to an append-only JSONL file with hash chain.
+// Optionally indexes entries in SQLite for fast queries.
+type Logger struct {
+	file     *os.File
+	db       DBIndexer
+	lastHash string
+	mu       sync.Mutex
+}
+
+// NewLogger creates an audit logger at the given path.
+// Reads the last entry to recover the chain hash on startup.
+func NewLogger(path string) (*Logger, error) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, err
+	}
+
+	lastHash := readLastHash(path)
+
+	return &Logger{file: f, lastHash: lastHash}, nil
+}
+
+// SetDB attaches a SQLite database for audit entry indexing.
+func (l *Logger) SetDB(db DBIndexer) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.db = db
+}
+
+// Log writes an entry to the audit log. Thread-safe.
+func (l *Logger) Log(entry Entry) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	auditEntry := LogEntry{
+		ID:           crypto.NewID(),
+		EventType:    entry.EventType,
+		Timestamp:    time.Now().UnixMilli(),
+		SessionID:    entry.SessionID,
+		ActionType:   entry.ActionType,
+		DetailsJSON:  entry.Details,
+		PreviousHash: l.lastHash,
+		OTR:          entry.OTR,
+		Source:       entry.Source,
+	}
+
+	canonical, err := crypto.Canonicalize(auditEntry)
+	if err != nil {
+		return fmt.Errorf("failed to canonicalize audit entry: %w", err)
+	}
+	auditEntry.Hash = crypto.SHA256Hex(canonical)
+
+	data, err := json.Marshal(auditEntry)
+	if err != nil {
+		return fmt.Errorf("failed to marshal audit entry: %w", err)
+	}
+	if _, err := fmt.Fprintf(l.file, "%s\n", data); err != nil {
+		return fmt.Errorf("failed to write audit entry: %w", err)
+	}
+	if err := l.file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync audit entry: %w", err)
+	}
+
+	l.lastHash = auditEntry.Hash
+
+	// Index in SQLite for fast queries.
+	if l.db != nil {
+		if dbErr := l.db.InsertAuditEntry(&auditEntry); dbErr != nil {
+			fmt.Fprintf(os.Stderr, "audit: db index failed for entry %s: %v\n", auditEntry.ID, dbErr)
+		}
+	}
+
+	return nil
+}
+
+// EmitConfigChanged records a successful config.yaml mutation. This
+// satisfies the config.AuditEmitter interface so config.Save can record
+// the diff without taking a direct dependency on the audit package.
+func (l *Logger) EmitConfigChanged(source, details string) error {
+	return l.Log(Entry{
+		EventType: ConfigChanged,
+		Source:    source,
+		Details:   details,
+	})
+}
+
+// Close flushes and closes the audit log.
+func (l *Logger) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	_ = l.file.Sync()
+	return l.file.Close()
+}
+
+// readLastHash reads the last line of the JSONL file and extracts the hash.
+func readLastHash(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+	var entry LogEntry
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &entry); err != nil {
+		fmt.Fprintf(os.Stderr, "audit: corrupted last entry, chain will restart: %v\n", err)
+		return ""
+	}
+	return entry.Hash
+}
