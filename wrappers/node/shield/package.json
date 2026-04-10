@@ -1,0 +1,26 @@
+{
+  "name": "@openparallax/shield",
+  "version": "0.1.0",
+  "description": "3-tier AI security pipeline for autonomous systems",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openparallax/openparallax"
+  },
+  "homepage": "https://docs.openparallax.dev/shield/node",
+  "keywords": ["ai", "security", "llm", "agent", "shield", "mcp"],
+  "files": ["dist/", "bin/"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

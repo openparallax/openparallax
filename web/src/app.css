@@ -1,0 +1,274 @@
+/* === OpenParallax Design System v2 === */
+
+@font-face {
+  font-family: 'Exo 2';
+  src: url('/fonts/exo2-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-variable.woff2') format('woff2');
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Background layers */
+  --bg-void: #06060c;
+  --bg-base: #0a0a14;
+  --bg-surface: rgba(12, 16, 28, 0.82);
+  --bg-surface-hover: rgba(14, 20, 36, 0.86);
+  --bg-surface-active: rgba(16, 24, 42, 0.88);
+  --bg-elevated: rgba(18, 28, 48, 0.92);
+  --bg-inset: rgba(10, 14, 24, 0.50);
+
+  /* Accent — Cyan (overridden by .otr) */
+  --accent: #00dcff;
+  --accent-dim: rgba(0, 220, 255, 0.6);
+  --accent-subtle: rgba(0, 220, 255, 0.15);
+  --accent-ghost: rgba(0, 220, 255, 0.05);
+  --accent-glow: 0 0 20px rgba(0, 220, 255, 0.12);
+  --accent-glow-strong: 0 0 30px rgba(0, 220, 255, 0.22);
+  --accent-border: rgba(0, 220, 255, 0.10);
+  --accent-border-active: rgba(0, 220, 255, 0.30);
+
+  /* Semantic */
+  --success: #00e676;
+  --success-dim: rgba(0, 230, 118, 0.6);
+  --error: #ff3d5a;
+  --error-dim: rgba(255, 61, 90, 0.5);
+  --warning: #ffab00;
+  --warning-dim: rgba(255, 171, 0, 0.6);
+  --info: #448aff;
+
+  /* Text */
+  --text-primary: #f0f0f5;
+  --text-secondary: rgba(240, 240, 245, 0.55);
+  --text-tertiary: rgba(240, 240, 245, 0.3);
+
+  /* Layout */
+  --panel-alpha: 0.82;
+  --gap: 12px;
+  --radius: 8px;
+  --radius-lg: 10px;
+
+  /* Type scale */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+
+  /* Particles */
+  --particle-color: 0, 220, 255;
+  --particle-speed: 1;
+}
+
+/* === OTR Mode Override === */
+
+.otr {
+  --accent: #ffab00;
+  --accent-dim: rgba(255, 171, 0, 0.6);
+  --accent-subtle: rgba(255, 171, 0, 0.15);
+  --accent-ghost: rgba(255, 171, 0, 0.05);
+  --accent-glow: 0 0 20px rgba(255, 171, 0, 0.12);
+  --accent-glow-strong: 0 0 30px rgba(255, 171, 0, 0.22);
+  --accent-border: rgba(255, 171, 0, 0.10);
+  --accent-border-active: rgba(255, 171, 0, 0.30);
+  --panel-alpha: 0.94;
+  --particle-color: 255, 171, 0;
+  --particle-speed: 0.5;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: 'Exo 2', system-ui, -apple-system, sans-serif;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+}
+
+/* === Scrollbar: overlay, always thin, never shifts layout === */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+  background: transparent;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: transparent; border-radius: 2px; }
+
+/* Show thumb on hover — overlay so no layout shift */
+.messages:hover,
+.session-list:hover,
+.canvas-content:hover,
+.render-markdown:hover,
+.render-code:hover {
+  scrollbar-color: var(--accent-subtle) transparent;
+}
+.messages:hover::-webkit-scrollbar-thumb,
+.session-list:hover::-webkit-scrollbar-thumb,
+.canvas-content:hover::-webkit-scrollbar-thumb,
+.render-markdown:hover::-webkit-scrollbar-thumb,
+.render-code:hover::-webkit-scrollbar-thumb {
+  background: var(--accent-subtle);
+}
+
+/* === Glass System === */
+
+.glass {
+  background: rgba(12, 16, 28, var(--panel-alpha));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+}
+
+.glass-elevated {
+  background: var(--bg-elevated);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--accent-border-active);
+  border-radius: var(--radius-lg);
+}
+
+.glass-inset {
+  background: var(--bg-inset);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+}
+
+/* === Animations === */
+
+@keyframes breathe {
+  0%, 100% { border-color: var(--accent-border); box-shadow: none; }
+  50% { border-color: var(--accent-border-active); box-shadow: var(--accent-glow); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes block-flash {
+  0% { border-color: var(--error); box-shadow: 0 0 12px rgba(255, 61, 90, 0.2); }
+  100% { border-left-color: var(--error); border-color: var(--accent-border); box-shadow: none; }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+@keyframes stream-pulse {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* === Typography helpers === */
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.text-xs { font-size: var(--text-xs); }
+.text-sm { font-size: var(--text-sm); }
+.text-base { font-size: var(--text-base); }
+.text-lg { font-size: var(--text-lg); }
+
+/* === Markdown content in messages === */
+
+.markdown-content strong { color: var(--accent); font-weight: 600; }
+
+.markdown-content {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.markdown-content code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  background: var(--accent-ghost);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--accent-dim);
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+.markdown-content pre {
+  background: var(--accent-ghost);
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 8px 0;
+  position: relative;
+}
+
+.copy-code-btn {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 26px; height: 26px;
+  border-radius: 4px;
+  border: 1px solid var(--accent-border);
+  background: rgba(12, 16, 28, 0.85);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease;
+}
+.markdown-content pre:hover .copy-code-btn { opacity: 1; }
+.copy-code-btn:hover { color: var(--accent); border-color: var(--accent-border-active); }
+.copy-code-btn.copied { color: var(--success); }
+
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  color: var(--text-primary);
+}
+
+.markdown-content p { margin: 4px 0; }
+.markdown-content ul, .markdown-content ol { margin: 4px 0; padding-left: 20px; }
+.markdown-content li { margin: 2px 0; }
+
+.markdown-content a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.markdown-content a:hover {
+  text-decoration: underline;
+}

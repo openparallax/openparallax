@@ -1,0 +1,158 @@
+package executors
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/openparallax/openparallax/internal/types"
+)
+
+const (
+	httpDefaultTimeout  = 30 * time.Second
+	httpMaxResponseBody = 1 << 20 // 1MB
+)
+
+// forbiddenHTTPHeaders are header names the LLM is not permitted to set on
+// outbound requests. Credentials must be sourced from workspace config (not
+// LLM context, which can be poisoned by injected content), and host/proxy
+// overrides would let the agent reroute traffic away from the validated URL.
+var forbiddenHTTPHeaders = map[string]bool{
+	"authorization":       true,
+	"proxy-authorization": true,
+	"cookie":              true,
+	"set-cookie":          true,
+	"host":                true,
+}
+
+func isForbiddenHTTPHeader(name string) bool {
+	return forbiddenHTTPHeaders[strings.ToLower(strings.TrimSpace(name))]
+}
+
+// HTTPExecutor handles HTTP requests.
+type HTTPExecutor struct{}
+
+// NewHTTPExecutor creates an HTTP executor.
+func NewHTTPExecutor() *HTTPExecutor {
+	return &HTTPExecutor{}
+}
+
+// WorkspaceScope reports that http_request does not write to the filesystem.
+func (h *HTTPExecutor) WorkspaceScope() WorkspaceScope { return ScopeNoFilesystem }
+
+func (h *HTTPExecutor) SupportedActions() []types.ActionType {
+	return []types.ActionType{types.ActionHTTPRequest}
+}
+
+func (h *HTTPExecutor) ToolSchemas() []ToolSchema {
+	return []ToolSchema{
+		{
+			ActionType:  types.ActionHTTPRequest,
+			Name:        "http_request",
+			Description: "Make an HTTP request to a URL and return the response. Use for fetching web pages, calling APIs, or checking URLs. Supports GET, POST, PUT, DELETE, PATCH methods.",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"url":     map[string]any{"type": "string", "description": "The URL to request."},
+					"method":  map[string]any{"type": "string", "description": "HTTP method: GET, POST, PUT, DELETE, PATCH. Defaults to GET.", "enum": []string{"GET", "POST", "PUT", "DELETE", "PATCH"}},
+					"headers": map[string]any{"type": "object", "description": "Optional request headers as key-value pairs."},
+					"body":    map[string]any{"type": "string", "description": "Optional request body for POST/PUT/PATCH."},
+				},
+				"required": []string{"url"},
+			},
+		},
+	}
+}
+
+func (h *HTTPExecutor) Execute(ctx context.Context, action *types.ActionRequest) *types.ActionResult {
+	url, _ := action.Payload["url"].(string)
+	if url == "" {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: "url is required", Summary: "http request failed"}
+	}
+
+	if strings.HasPrefix(strings.ToLower(url), "http://") {
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error:   "insecure HTTP request blocked — use HTTPS for secure data transfer",
+			Summary: "blocked: insecure HTTP",
+		}
+	}
+
+	if err := validateURLNotPrivate(url); err != nil {
+		return &types.ActionResult{
+			RequestID: action.RequestID, Success: false,
+			Error:   err.Error(),
+			Summary: "blocked: private/internal address",
+		}
+	}
+
+	method, _ := action.Payload["method"].(string)
+	if method == "" {
+		method = "GET"
+	}
+	method = strings.ToUpper(method)
+
+	var bodyReader io.Reader
+	if body, ok := action.Payload["body"].(string); ok && body != "" {
+		bodyReader = strings.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "http request failed"}
+	}
+
+	req.Header.Set("User-Agent", "OpenParallax/1.0")
+
+	if headers, ok := action.Payload["headers"].(map[string]any); ok {
+		for k, v := range headers {
+			if isForbiddenHTTPHeader(k) {
+				return &types.ActionResult{
+					RequestID: action.RequestID, Success: false,
+					Error:   fmt.Sprintf("header %q is not allowed — credentials and host overrides must come from the workspace config, not the LLM", k),
+					Summary: "blocked: forbidden header",
+				}
+			}
+			if vs, ok := v.(string); ok {
+				req.Header.Set(k, vs)
+			}
+		}
+	}
+
+	client := SafeHTTPClient(httpDefaultTimeout)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: fmt.Sprintf("HTTP %s %s failed", method, url)}
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, httpMaxResponseBody+1))
+	if err != nil {
+		return &types.ActionResult{RequestID: action.RequestID, Success: false, Error: err.Error(), Summary: "failed to read response body"}
+	}
+
+	truncated := false
+	if len(bodyBytes) > httpMaxResponseBody {
+		bodyBytes = bodyBytes[:httpMaxResponseBody]
+		truncated = true
+	}
+
+	body := string(bodyBytes)
+	if truncated {
+		body += "\n\n[Response truncated at 1MB]"
+	}
+
+	output := fmt.Sprintf("HTTP %d %s\nContent-Type: %s\n\n%s",
+		resp.StatusCode, resp.Status, resp.Header.Get("Content-Type"), body)
+
+	return &types.ActionResult{
+		RequestID: action.RequestID,
+		Success:   resp.StatusCode < 400,
+		Output:    output,
+		Summary:   fmt.Sprintf("HTTP %s %s → %d", method, url, resp.StatusCode),
+	}
+}
