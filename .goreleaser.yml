@@ -1,0 +1,206 @@
+version: 2
+
+dist: release
+
+before:
+  hooks:
+    - make build-web
+
+builds:
+  - id: openparallax
+    main: ./cmd/agent
+    binary: openparallax
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    flags:
+      - -trimpath
+
+  - id: openparallax-shield
+    main: ./cmd/shield
+    binary: openparallax-shield
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+
+  - id: openparallax-shield-bridge
+    main: ./cmd/shield-bridge
+    binary: openparallax-shield-bridge
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+
+  - id: openparallax-audit-bridge
+    main: ./cmd/audit-bridge
+    binary: openparallax-audit-bridge
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+
+  - id: openparallax-memory-bridge
+    main: ./cmd/memory-bridge
+    binary: openparallax-memory-bridge
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+
+  - id: openparallax-sandbox-bridge
+    main: ./cmd/sandbox-bridge
+    binary: openparallax-sandbox-bridge
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+
+  - id: openparallax-channels-bridge
+    main: ./cmd/channels-bridge
+    binary: openparallax-channels-bridge
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+
+archives:
+  - id: main
+    ids:
+      - openparallax
+    name_template: "openparallax_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+      - README.md
+
+  - id: shield
+    ids:
+      - openparallax-shield
+    name_template: "openparallax-shield_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+      - src: internal/templates/files/security/shield/default.yaml
+        dst: .
+        strip_parent: true
+
+  - id: bridges
+    ids:
+      - openparallax-shield-bridge
+      - openparallax-audit-bridge
+      - openparallax-memory-bridge
+      - openparallax-sandbox-bridge
+      - openparallax-channels-bridge
+    name_template: "openparallax-bridges_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  use: github-native
+
+release:
+  github:
+    owner: openparallax
+    name: openparallax
+  prerelease: auto
+  name_template: "{{ .Tag }}"
+  extra_files:
+    - glob: paper/parallax-paper.pdf
+
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true

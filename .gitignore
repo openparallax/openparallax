@@ -1,0 +1,60 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+openparallax
+openparallax-shield
+openparallax-classifier
+/agent
+dist/
+release/
+!internal/web/dist/
+
+# Test
+*.test
+*.out
+coverage.html
+
+# Dependencies
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Node.js dependencies
+web/node_modules/
+web/dist/
+docs/node_modules/
+wrappers/node/*/node_modules/
+wrappers/node/*/dist/
+wrappers/node/*/package-lock.json
+wrappers/node/*/bin/
+wrappers/python/*/openparallax_*/bin/
+
+# Docs
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Temporary
+tmp/
+*.tmp
+
+# Eval results: commit historical runs under runs/, keep playground/ local-only.
+eval-results/playground/*
+!eval-results/playground/README.md

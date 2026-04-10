@@ -1,0 +1,233 @@
+// Package chronicle provides copy-on-write state versioning for workspace files.
+// Before each destructive action, affected files are backed up to a snapshot
+// directory. Snapshots form an integrity hash chain and support rollback.
+package chronicle
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/openparallax/openparallax/crypto"
+)
+
+// Store is the persistence interface Chronicle requires.
+type Store interface {
+	// GetLastSnapshotHash returns the hash of the most recent snapshot.
+	GetLastSnapshotHash() string
+	// InsertSnapshot stores snapshot metadata.
+	InsertSnapshot(snap *SnapshotMetadata) error
+	// GetSnapshot retrieves a snapshot by ID.
+	GetSnapshot(id string) (*SnapshotMetadata, error)
+	// GetAllSnapshots returns all snapshots ordered by timestamp.
+	GetAllSnapshots() []SnapshotMetadata
+	// PruneSnapshots removes snapshots exceeding count or age limits.
+	PruneSnapshots(maxCount, maxAgeDays int)
+}
+
+// Chronicle manages state versioning with COW snapshots.
+type Chronicle struct {
+	mu            sync.Mutex
+	workspace     string
+	snapshotDir   string
+	store         Store
+	retentionMax  int
+	retentionDays int
+}
+
+// New creates a Chronicle instance for the given workspace.
+func New(workspace string, cfg Config, store Store) (*Chronicle, error) {
+	snapshotDir := filepath.Join(workspace, ".openparallax", "chronicle", "snapshots")
+	if err := os.MkdirAll(snapshotDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create snapshot directory: %w", err)
+	}
+
+	return &Chronicle{
+		workspace:     workspace,
+		snapshotDir:   snapshotDir,
+		store:         store,
+		retentionMax:  cfg.MaxSnapshots,
+		retentionDays: cfg.MaxAgeDays,
+	}, nil
+}
+
+// Snapshot creates a pre-execution backup of files affected by the action.
+// Returns nil metadata if no files need backing up (e.g., read actions).
+func (c *Chronicle) Snapshot(action *ActionRequest) (*SnapshotMetadata, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	files := c.affectedFiles(action)
+	if len(files) == 0 {
+		return nil, nil
+	}
+
+	snap := &SnapshotMetadata{
+		ID:            crypto.NewID(),
+		Timestamp:     time.Now(),
+		ActionType:    action.Type,
+		ActionSummary: fmt.Sprintf("%s: %v", action.Type, action.Payload["path"]),
+	}
+
+	snapDir := filepath.Join(c.snapshotDir, snap.ID)
+	if err := os.MkdirAll(snapDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create snapshot directory: %w", err)
+	}
+
+	for _, path := range files {
+		if err := copyFile(path, filepath.Join(snapDir, filepath.Base(path))); err != nil {
+			return nil, fmt.Errorf("snapshot backup %s: %w", path, err)
+		}
+		snap.FilesBackedUp = append(snap.FilesBackedUp, path)
+	}
+
+	snap.PreviousHash = c.store.GetLastSnapshotHash()
+	canonical, canonErr := crypto.Canonicalize(snap)
+	if canonErr != nil {
+		return nil, fmt.Errorf("canonicalize snapshot: %w", canonErr)
+	}
+	snap.Hash = crypto.SHA256Hex(canonical)
+
+	if err := c.store.InsertSnapshot(snap); err != nil {
+		return nil, fmt.Errorf("store snapshot metadata: %w", err)
+	}
+
+	c.store.PruneSnapshots(c.retentionMax, c.retentionDays)
+
+	return snap, nil
+}
+
+// Rollback restores files from a specific snapshot to their pre-action state.
+// Paths may be absolute (outside workspace) because Chronicle backs up any
+// file the agent modifies, not just workspace files. The snapshot metadata
+// DB is inside .openparallax/ and protected by the restricted denylist.
+func (c *Chronicle) Rollback(snapshotID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	snap, err := c.store.GetSnapshot(snapshotID)
+	if err != nil {
+		return ErrSnapshotNotFound
+	}
+
+	snapDir := filepath.Join(c.snapshotDir, snap.ID)
+	for _, path := range snap.FilesBackedUp {
+		backupPath := filepath.Join(snapDir, filepath.Base(path))
+		if err := copyFile(backupPath, path); err != nil {
+			return fmt.Errorf("rollback %s: %w", path, err)
+		}
+	}
+
+	return nil
+}
+
+// Diff computes changes between a snapshot and the current file state.
+func (c *Chronicle) Diff(snapshotID string) (*Diff, error) {
+	snap, err := c.store.GetSnapshot(snapshotID)
+	if err != nil {
+		return nil, ErrSnapshotNotFound
+	}
+
+	diff := &Diff{
+		FromSnapshot: snapshotID,
+		Timestamp:    time.Now(),
+	}
+
+	snapDir := filepath.Join(c.snapshotDir, snap.ID)
+	for _, path := range snap.FilesBackedUp {
+		backupPath := filepath.Join(snapDir, filepath.Base(path))
+		backupHash := hashFile(backupPath)
+		currentHash := hashFile(path)
+
+		if backupHash != currentHash {
+			changeType := "modified"
+			if currentHash == "" {
+				changeType = "deleted"
+			}
+			diff.Changes = append(diff.Changes, FileChange{
+				Path:       path,
+				ChangeType: changeType,
+				BeforeHash: backupHash,
+				AfterHash:  currentHash,
+			})
+		}
+	}
+
+	return diff, nil
+}
+
+// VerifyIntegrity checks the hash chain of all snapshots.
+func (c *Chronicle) VerifyIntegrity() error {
+	snapshots := c.store.GetAllSnapshots()
+	prevHash := ""
+	for _, snap := range snapshots {
+		if snap.PreviousHash != prevHash {
+			return fmt.Errorf("%w: snapshot %s has previous_hash %q but expected %q",
+				ErrIntegrityViolation, snap.ID, snap.PreviousHash, prevHash)
+		}
+		prevHash = snap.Hash
+	}
+	return nil
+}
+
+// List returns all snapshots ordered by timestamp.
+func (c *Chronicle) List() []SnapshotMetadata {
+	return c.store.GetAllSnapshots()
+}
+
+// Close is a no-op — Chronicle has no resources to release beyond the shared DB.
+func (c *Chronicle) Close() error {
+	return nil
+}
+
+// affectedFiles returns the list of files that will be modified by this action.
+func (c *Chronicle) affectedFiles(action *ActionRequest) []string {
+	switch action.Type {
+	case ActionWriteFile, ActionDeleteFile:
+		if path, ok := action.Payload["path"].(string); ok && path != "" {
+			resolved := c.resolvePath(path)
+			if fileExists(resolved) {
+				return []string{resolved}
+			}
+		}
+	case ActionMoveFile:
+		if src, ok := action.Payload["source"].(string); ok && src != "" {
+			resolved := c.resolvePath(src)
+			if fileExists(resolved) {
+				return []string{resolved}
+			}
+		}
+	}
+	return nil
+}
+
+func (c *Chronicle) resolvePath(path string) string {
+	if !filepath.IsAbs(path) {
+		return filepath.Join(c.workspace, path)
+	}
+	return filepath.Clean(path)
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func copyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0o644)
+}
+
+func hashFile(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return crypto.SHA256Hex(data)
+}

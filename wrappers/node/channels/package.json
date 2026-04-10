@@ -1,0 +1,37 @@
+{
+  "name": "@openparallax/channels",
+  "version": "0.0.0",
+  "description": "Message formatting and splitting utilities for channel adapters",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openparallax/openparallax"
+  },
+  "homepage": "https://docs.openparallax.dev/channels/node",
+  "keywords": [
+    "ai",
+    "channels",
+    "messaging",
+    "adapters"
+  ],
+  "files": [
+    "dist/",
+    "bin/",
+    "scripts/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "postinstall": "node scripts/download-bridge.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,219 @@
+# Default policy: Balanced security.
+# Allows reads within the workspace, evaluates shell commands and external
+# communication at higher tiers, blocks access to sensitive system paths.
+
+deny:
+  - name: block_sensitive_system_paths
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+      - copy_directory
+      - move_directory
+      - delete_directory
+    paths:
+      - "~/.ssh/**"
+      - "~/.ssh"
+      - "~/.aws/**"
+      - "~/.aws"
+      - "~/.gnupg/**"
+      - "~/.gnupg"
+      - "~/.kube/**"
+      - "~/.kube"
+      - "~/.docker/**"
+      - "~/.docker"
+      - "/etc/shadow"
+      - "/etc/passwd"
+      - "/etc/sudoers"
+      - "/etc/ssl/private/**"
+      - "/etc/ssl/private"
+      - "C:\\Windows\\System32\\config\\**"
+
+  - name: block_credential_files
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.env"
+      - "**/*.env"
+      - "**/*.pem"
+      - "**/*.key"
+      - "**/credentials"
+      - "**/credentials.json"
+
+  - name: block_agent_internals
+    action_types:
+      - read_file
+      - write_file
+      - delete_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.openparallax/**"
+      - ".openparallax/**"
+      - "**/security/**"
+      - "security/**"
+      - "**/config.yaml"
+      - "config.yaml"
+
+  - name: block_identity_deletion
+    action_types:
+      - delete_file
+      - delete_directory
+    paths:
+      - "**/SOUL.md"
+      - "**/IDENTITY.md"
+      - "**/AGENTS.md"
+      - "**/HEARTBEAT.md"
+
+  - name: block_system_config_writes
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "/etc/**"
+      - "/usr/**"
+      - "/var/**"
+      - "/opt/**"
+      - "/sys/**"
+      - "/proc/**"
+      - "C:\\Windows\\**"
+      - "C:\\Program Files\\**"
+      - "C:\\Program Files (x86)\\**"
+
+  - name: block_binary_overwrites
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "dist/**"
+      - "**/dist/**"
+      - "**/bin/**"
+      - "**/sbin/**"
+
+  - name: block_git_hook_writes
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/.git/hooks/**"
+      - ".git/hooks/**"
+
+  - name: block_tmp_exfiltration
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "/tmp/**"
+      - "/var/tmp/**"
+      - "C:\\Temp\\**"
+      - "C:\\Users\\*\\AppData\\Local\\Temp\\**"
+
+verify:
+  - name: evaluate_shell_commands
+    action_types:
+      - execute_command
+    tier_override: 2
+
+  - name: evaluate_external_communication
+    action_types:
+      - send_message
+      - send_email
+      - http_request
+    tier_override: 2
+
+  - name: evaluate_soul_modification
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+    paths:
+      - "**/SOUL.md"
+      - "**/IDENTITY.md"
+    tier_override: 2
+
+  - name: evaluate_agent_config_modification
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+      - delete_file
+    paths:
+      - "**/AGENTS.md"
+      - "**/HEARTBEAT.md"
+    tier_override: 2
+
+  - name: evaluate_user_data_modification
+    action_types:
+      - write_file
+      - copy_file
+      - move_file
+      - delete_file
+    paths:
+      - "**/USER.md"
+      - "**/MEMORY.md"
+    tier_override: 1
+
+  - name: evaluate_file_writes
+    action_types:
+      - write_file
+    tier_override: 2
+
+  - name: evaluate_destructive_file_ops
+    action_types:
+      - delete_file
+      - delete_directory
+      - move_file
+      - move_directory
+    tier_override: 2
+
+  - name: evaluate_git_push
+    action_types:
+      - git_push
+    tier_override: 1
+
+allow:
+  - name: allow_workspace_reads
+    action_types:
+      - read_file
+      - list_directory
+      - search_files
+
+  - name: allow_workspace_copies
+    action_types:
+      - copy_file
+
+  - name: allow_memory_search
+    action_types:
+      - memory_search
+
+  - name: allow_git_readonly
+    action_types:
+      - git_status
+      - git_diff
+      - git_log
+
+  - name: allow_browser_operations
+    action_types:
+      - browser_navigate
+      - browser_extract
+      - browser_screenshot
+
+  - name: allow_calendar_operations
+    action_types:
+      - read_calendar
+      - create_event
+      - update_event
+
+  - name: allow_schedule_listing
+    action_types:
+      - list_schedules
