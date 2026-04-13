@@ -53,3 +53,10 @@ tmp/
 # Eval results: commit historical runs under runs/, keep playground/ local-only.
 eval-results/playground/*
 !eval-results/playground/README.md
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
