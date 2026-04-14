@@ -413,7 +413,20 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	action.Hash = hash
 
 	// IFC classification — policy-driven data sensitivity labeling.
-	action.DataClassification = e.ifcPolicy.Classify(actionPath(action))
+	action.DataClassification = e.ifcPolicy.ClassifyWithActivity(actionPath(action), e.db.LookupIFCClassification)
+
+	// Apply inherited sensitivity from the agent's previous tool results.
+	// If the agent read classified data in a prior tool call this turn, the
+	// tag propagates to subsequent proposals so IFC can block exfiltration.
+	if tp.InheritedSensitivity > 0 {
+		inherited := ifc.SensitivityLevel(tp.InheritedSensitivity)
+		if action.DataClassification == nil || inherited > action.DataClassification.Sensitivity {
+			action.DataClassification = &ifc.DataClassification{
+				Sensitivity: inherited,
+				SourcePath:  "(inherited from previous tool result)",
+			}
+		}
+	}
 	if !isOTRAction && action.DataClassification != nil {
 		e.auditLog(audit.Entry{
 			EventType: types.AuditIFCClassified, SessionID: sid,
@@ -423,6 +436,21 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 				action.DataClassification.SourcePath),
 		})
 		e.db.IncrementDailyMetric("ifc_classification_"+action.DataClassification.Sensitivity.String(), 1)
+	}
+
+	// Record session taint from classified data. If the action itself has no
+	// classification, apply session taint so external sinks (send_email, etc.)
+	// inherit the session's highest sensitivity even without a path.
+	if action.DataClassification != nil {
+		e.recordSessionTaint(sid, action.DataClassification.Sensitivity)
+	} else {
+		sessionSens := e.getSessionTaint(sid)
+		if sessionSens > ifc.SensitivityPublic {
+			action.DataClassification = &ifc.DataClassification{
+				Sensitivity: sessionSens,
+				SourcePath:  "(session taint)",
+			}
+		}
 	}
 
 	// Hardcoded protection check.
@@ -616,6 +644,16 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 	}
 	if result.Success {
 		e.db.IncrementDailyMetric("tool_success", 1)
+		// Record IFC activity for successful file writes with classified data.
+		// The destination path inherits the source's classification, enabling
+		// cross-session IFC enforcement via the activity table.
+		if action.DataClassification != nil && isTrackedWriteAction(action.Type) {
+			if destPath := actionPath(action); destPath != "" {
+				e.db.RecordIFCWrite(destPath,
+					int(action.DataClassification.Sensitivity),
+					action.DataClassification.SourcePath, sid)
+			}
+		}
 	} else {
 		e.db.IncrementDailyMetric("tool_failed", 1)
 	}
@@ -632,7 +670,11 @@ func (e *Engine) handleToolProposal(ctx context.Context, tp *pb.ToolCallProposed
 		content = result.Error
 	}
 	content = e.sanitizeToolOutput(tp.ToolName, content)
-	return &pb.ToolResultDelivery{CallId: tp.CallId, Content: content, IsError: !result.Success}
+	sensTag := int32(0)
+	if action.DataClassification != nil {
+		sensTag = int32(action.DataClassification.Sensitivity)
+	}
+	return &pb.ToolResultDelivery{CallId: tp.CallId, Content: content, IsError: !result.Success, SensitivityTag: sensTag}
 }
 
 func truncateForLog(s string) string {
@@ -640,6 +682,20 @@ func truncateForLog(s string) string {
 		return s[:120] + "..."
 	}
 	return s
+}
+
+// isTrackedWriteAction returns true for file write operations whose
+// destination path should be recorded in the IFC activity table.
+// Excludes execute_command (output path parsing is fragile),
+// create_directory (directories don't carry data), and memory_write
+// (handled by the memory block mechanism).
+func isTrackedWriteAction(at types.ActionType) bool {
+	switch at {
+	case types.ActionWriteFile, types.ActionCopyFile, types.ActionMoveFile:
+		return true
+	default:
+		return false
+	}
 }
 
 // actionPath extracts the file path from an ActionRequest's payload.

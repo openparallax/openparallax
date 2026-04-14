@@ -50,7 +50,7 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 	isOTR := mode == types.SessionOTR
 
 	// IFC classification — policy-driven.
-	action.DataClassification = e.ifcPolicy.Classify(actionPath(action))
+	action.DataClassification = e.ifcPolicy.ClassifyWithActivity(actionPath(action), e.db.LookupIFCClassification)
 	if !isOTR && action.DataClassification != nil {
 		e.auditLog(audit.Entry{
 			EventType: types.AuditIFCClassified, SessionID: sid,
@@ -60,6 +60,19 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 				action.DataClassification.SourcePath),
 		})
 		e.db.IncrementDailyMetric("ifc_classification_"+action.DataClassification.Sensitivity.String(), 1)
+	}
+
+	// Session taint: record from classified data, apply to unclassified actions.
+	if action.DataClassification != nil {
+		e.recordSessionTaint(sid, action.DataClassification.Sensitivity)
+	} else {
+		sessionSens := e.getSessionTaint(sid)
+		if sessionSens > ifc.SensitivityPublic {
+			action.DataClassification = &ifc.DataClassification{
+				Sensitivity: sessionSens,
+				SourcePath:  "(session taint)",
+			}
+		}
 	}
 
 	allowed, protection, protReason := CheckProtection(action, e.cfg.Workspace)
@@ -262,6 +275,14 @@ func (e *Engine) processToolCall(ctx context.Context, tc *llm.ToolCall, mode typ
 			EventType: types.AuditActionExecuted, SessionID: sid,
 			ActionType: string(action.Type), Details: result.Summary,
 		})
+		// Record IFC activity for successful file writes with classified data.
+		if action.DataClassification != nil && isTrackedWriteAction(action.Type) {
+			if destPath := actionPath(action); destPath != "" {
+				e.db.RecordIFCWrite(destPath,
+					int(action.DataClassification.Sensitivity),
+					action.DataClassification.SourcePath, sid)
+			}
+		}
 	} else {
 		e.db.IncrementDailyMetric("tool_failed", 1)
 		e.log.Info("executor_complete", "session", sid, "tool", tc.Name, "success", false, "error", result.Error)

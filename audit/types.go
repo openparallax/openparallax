@@ -78,6 +78,9 @@ const (
 	// IFC policy but was allowed because the policy mode is "audit" (shadow
 	// mode). Used during IFC policy rollout to observe before enforcing.
 	IFCAuditWouldBlock EventType = 28
+	// IFCSweep records that the activity table was swept, removing stale
+	// entries for files that no longer exist on disk.
+	IFCSweep EventType = 29
 )
 
 // LogEntry is the native Go representation of an audit log entry.

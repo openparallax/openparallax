@@ -65,6 +65,12 @@ sources:
     match: {}
 
 # Sink categories. Each action type belongs to exactly one category.
+# Block memory writes when session taint reaches these levels.
+# Empty list = allow all memory writes regardless of taint.
+# Overrides the rules matrix for memory_write specifically.
+# Can also be set in config.yaml under security.memory_block_levels.
+memory_block_levels: [critical, restricted]
+
 sinks:
   external:
     - http_request
@@ -72,9 +78,10 @@ sinks:
     - send_message
   exec:
     - execute_command
+  memory:
+    - memory_write
   workspace_write:
     - write_file
-    - memory_write
     - create_directory
     - move_file
     - copy_file
@@ -92,29 +99,34 @@ rules:
   public:
     external: allow
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
 
   internal:
     external: block
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
 
   confidential:
     external: block
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
 
   restricted:
     external: block
     exec: escalate
+    memory: block
     workspace_write: escalate
     workspace_read: allow
 
   critical:
     external: block
     exec: block
+    memory: block
     workspace_write: block
     workspace_read: block

@@ -128,6 +128,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
+	s.engine.ClearSessionTaint(id)
 	s.log.Info("api_session_deleted", "session", id)
 	if auditErr := s.engine.Audit().Log(audit.Entry{
 		EventType: types.AuditSessionEnded,

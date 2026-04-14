@@ -375,9 +375,10 @@ func processMessage(
 					agentLog("info", "tool_result_received", "call_id", d.ToolResult.CallId, "is_error", d.ToolResult.IsError, "content_len", len(d.ToolResult.Content))
 					select {
 					case resultCh <- agent.ToolResult{
-						CallID:  d.ToolResult.CallId,
-						Content: d.ToolResult.Content,
-						IsError: d.ToolResult.IsError,
+						CallID:         d.ToolResult.CallId,
+						Content:        d.ToolResult.Content,
+						IsError:        d.ToolResult.IsError,
+						SensitivityTag: int(d.ToolResult.SensitivityTag),
 					}:
 					case <-toolCtx.Done():
 						return
@@ -424,11 +425,12 @@ func processMessage(
 				_ = stream.Send(&pb.AgentEvent{
 					Event: &pb.AgentEvent_ToolProposal{
 						ToolProposal: &pb.ToolCallProposed{
-							SessionId:     sid,
-							MessageId:     mid,
-							CallId:        event.Proposal.CallID,
-							ToolName:      event.Proposal.ToolName,
-							ArgumentsJson: event.Proposal.ArgumentsJSON,
+							SessionId:            sid,
+							MessageId:            mid,
+							CallId:               event.Proposal.CallID,
+							ToolName:             event.Proposal.ToolName,
+							ArgumentsJson:        event.Proposal.ArgumentsJSON,
+							InheritedSensitivity: int32(event.Proposal.InheritedSensitivity),
 						},
 					},
 				})

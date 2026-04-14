@@ -197,6 +197,20 @@ func (db *DB) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_metrics_latency_date ON metrics_latency(date, metric)`,
 
+		// IFC activity table — tracks classified write destinations persistently.
+		// When the agent writes classified data to a file, the destination path
+		// inherits the source's classification. Future reads of that path are
+		// classified from this table, enabling cross-session IFC enforcement.
+		// The highest sensitivity always wins (upsert with MAX).
+		`CREATE TABLE IF NOT EXISTS ifc_activity (
+			path TEXT PRIMARY KEY,
+			sensitivity INTEGER NOT NULL,
+			source_path TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			session_id TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_ifc_activity_sensitivity ON ifc_activity(sensitivity)`,
+
 		// OAuth2 token storage (encrypted at rest).
 		`CREATE TABLE IF NOT EXISTS oauth_tokens (
 			provider TEXT NOT NULL,

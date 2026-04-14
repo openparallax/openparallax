@@ -515,4 +515,8 @@ type SecurityConfig struct {
 	// Empty string = use the policy's own mode. "audit" or "enforce".
 	// NOT exposed via /config set — requires restart.
 	OverrideMode string `yaml:"override_mode,omitempty" json:"override_mode,omitempty"`
+	// MemoryBlockLevels lists IFC sensitivity levels that block memory_write.
+	// Falls back to the IFC policy's memory_block_levels if empty.
+	// Example: ["critical", "restricted"]
+	MemoryBlockLevels []string `yaml:"memory_block_levels,omitempty" json:"memory_block_levels,omitempty"`
 }

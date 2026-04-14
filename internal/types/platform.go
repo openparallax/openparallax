@@ -68,4 +68,5 @@ const (
 	AuditProtectionBypassAttempted  = audit.ProtectionBypassAttempted
 	AuditIFCBlocked                 = audit.IFCBlocked
 	AuditIFCAuditWouldBlock         = audit.IFCAuditWouldBlock
+	AuditIFCSweep                   = audit.IFCSweep
 )
