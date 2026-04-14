@@ -380,12 +380,15 @@ func (x *ProcessRequest) GetSource() string {
 
 // ToolResultDelivery delivers the result of a tool the Agent proposed.
 type ToolResultDelivery struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CallId        string                 `protobuf:"bytes,1,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
-	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
-	IsError       bool                   `protobuf:"varint,3,opt,name=is_error,json=isError,proto3" json:"is_error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	CallId  string                 `protobuf:"bytes,1,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	Content string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	IsError bool                   `protobuf:"varint,3,opt,name=is_error,json=isError,proto3" json:"is_error,omitempty"`
+	// IFC sensitivity tag inherited from the classified data source.
+	// 0 = untagged, 1-4 = public/internal/confidential/restricted/critical.
+	SensitivityTag int32 `protobuf:"varint,4,opt,name=sensitivity_tag,json=sensitivityTag,proto3" json:"sensitivity_tag,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ToolResultDelivery) Reset() {
@@ -437,6 +440,13 @@ func (x *ToolResultDelivery) GetIsError() bool {
 		return x.IsError
 	}
 	return false
+}
+
+func (x *ToolResultDelivery) GetSensitivityTag() int32 {
+	if x != nil {
+		return x.SensitivityTag
+	}
+	return 0
 }
 
 // ToolDefsDelivery sends available tool definitions to the Agent.
@@ -887,8 +897,11 @@ type ToolCallProposed struct {
 	CallId        string                 `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
 	ToolName      string                 `protobuf:"bytes,4,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
 	ArgumentsJson string                 `protobuf:"bytes,5,opt,name=arguments_json,json=argumentsJson,proto3" json:"arguments_json,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// Highest IFC sensitivity tag inherited from previous tool results in this
+	// turn. Propagates taint from read operations to subsequent proposals.
+	InheritedSensitivity int32 `protobuf:"varint,6,opt,name=inherited_sensitivity,json=inheritedSensitivity,proto3" json:"inherited_sensitivity,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ToolCallProposed) Reset() {
@@ -954,6 +967,13 @@ func (x *ToolCallProposed) GetArgumentsJson() string {
 		return x.ArgumentsJson
 	}
 	return ""
+}
+
+func (x *ToolCallProposed) GetInheritedSensitivity() int32 {
+	if x != nil {
+		return x.InheritedSensitivity
+	}
+	return 0
 }
 
 // ToolDefsRequest asks the Engine for available tool definitions.
@@ -3858,11 +3878,12 @@ const file_openparallax_v1_pipeline_proto_rawDesc = "" +
 	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x18\n" +
 	"\acontent\x18\x03 \x01(\tR\acontent\x120\n" +
 	"\x04mode\x18\x04 \x01(\x0e2\x1c.openparallax.v1.SessionModeR\x04mode\x12\x16\n" +
-	"\x06source\x18\x05 \x01(\tR\x06source\"b\n" +
+	"\x06source\x18\x05 \x01(\tR\x06source\"\x8b\x01\n" +
 	"\x12ToolResultDelivery\x12\x17\n" +
 	"\acall_id\x18\x01 \x01(\tR\x06callId\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12\x19\n" +
-	"\bis_error\x18\x03 \x01(\bR\aisError\"B\n" +
+	"\bis_error\x18\x03 \x01(\bR\aisError\x12'\n" +
+	"\x0fsensitivity_tag\x18\x04 \x01(\x05R\x0esensitivityTag\"B\n" +
 	"\x10ToolDefsDelivery\x12.\n" +
 	"\x05tools\x18\x01 \x03(\v2\x18.openparallax.v1.ToolDefR\x05tools\"~\n" +
 	"\aToolDef\x12\x12\n" +
@@ -3892,7 +3913,7 @@ const file_openparallax_v1_pipeline_proto_rawDesc = "" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
 	"\n" +
 	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x12\n" +
-	"\x04text\x18\x03 \x01(\tR\x04text\"\xad\x01\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\"\xe2\x01\n" +
 	"\x10ToolCallProposed\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
@@ -3900,7 +3921,8 @@ const file_openparallax_v1_pipeline_proto_rawDesc = "" +
 	"message_id\x18\x02 \x01(\tR\tmessageId\x12\x17\n" +
 	"\acall_id\x18\x03 \x01(\tR\x06callId\x12\x1b\n" +
 	"\ttool_name\x18\x04 \x01(\tR\btoolName\x12%\n" +
-	"\x0earguments_json\x18\x05 \x01(\tR\rargumentsJson\")\n" +
+	"\x0earguments_json\x18\x05 \x01(\tR\rargumentsJson\x123\n" +
+	"\x15inherited_sensitivity\x18\x06 \x01(\x05R\x14inheritedSensitivity\")\n" +
 	"\x0fToolDefsRequest\x12\x16\n" +
 	"\x06groups\x18\x01 \x03(\tR\x06groups\"'\n" +
 	"\vMemoryFlush\x12\x18\n" +

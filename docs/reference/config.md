@@ -209,6 +209,7 @@ Security subsystem policy paths. The subsystems are non-negotiable; only the pol
 |-----|------|---------|-------------|
 | `security.ifc_policy` | `string` | `"security/ifc/default.yaml"` | Path to the IFC policy YAML file. Three presets ship: `default`, `permissive`, `strict`. See [IFC reference](/security/ifc) |
 | `security.override_mode` | `string` | `""` | Overrides the mode declared in the IFC policy. Empty = use policy's own mode. `"audit"` = log but don't block. `"enforce"` = block. **Not in SettableKeys — requires restart** |
+| `security.memory_block_levels` | `[]string` | `[]` | Sensitivity levels that block memory writes when session taint reaches them. Overridden by `memory_block_levels` in the IFC policy file if present. Empty = use the IFC policy's setting (or built-in default `[critical, restricted]`). See [IFC reference](/security/ifc#memory_block_levels) |
 
 ## Embedding
 

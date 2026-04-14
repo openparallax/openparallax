@@ -31,7 +31,7 @@ func TestLoadDefaultPreset(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ModeEnforce, p.Mode)
 	assert.True(t, len(p.Sources) > 5, "default should have many source rules")
-	assert.Equal(t, 4, len(p.Sinks), "should have 4 sink categories")
+	assert.Equal(t, 5, len(p.Sinks), "should have 5 sink categories (external, exec, memory, workspace_write, workspace_read)")
 }
 
 func TestLoadPermissivePreset(t *testing.T) {
@@ -260,4 +260,52 @@ rules:
 `))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing decision")
+}
+
+// --- ClassifyWithActivity ---
+
+func TestClassifyWithActivity_PolicyTakesPrecedence(t *testing.T) {
+	p := loadDefault(t)
+	// Policy says .env → Critical. Activity says Confidential. Policy wins.
+	lookup := func(path string) int { return int(SensitivityConfidential) }
+	cls := p.ClassifyWithActivity("/home/user/.env", lookup)
+	require.NotNil(t, cls)
+	assert.Equal(t, SensitivityCritical, cls.Sensitivity)
+}
+
+func TestClassifyWithActivity_ActivityUpgrades(t *testing.T) {
+	p := loadDefault(t)
+	// Policy says main.go → Public (nil). Activity says Restricted. Activity upgrades.
+	lookup := func(path string) int { return int(SensitivityRestricted) }
+	cls := p.ClassifyWithActivity("/home/user/project/main.go", lookup)
+	require.NotNil(t, cls)
+	assert.Equal(t, SensitivityRestricted, cls.Sensitivity)
+}
+
+func TestClassifyWithActivity_NilLookup(t *testing.T) {
+	p := loadDefault(t)
+	// No activity lookup — falls back to policy only.
+	cls := p.ClassifyWithActivity("/home/user/project/main.go", nil)
+	assert.Nil(t, cls)
+}
+
+func TestClassifyWithActivity_ActivityNotFound(t *testing.T) {
+	p := loadDefault(t)
+	// Activity returns -1 (not found). Policy result stands.
+	lookup := func(path string) int { return -1 }
+	cls := p.ClassifyWithActivity("/home/user/project/main.go", lookup)
+	assert.Nil(t, cls)
+}
+
+// --- Memory block levels ---
+
+func TestDefaultPreset_HasMemoryBlockLevels(t *testing.T) {
+	p := loadDefault(t)
+	assert.NotEmpty(t, p.MemoryBlockLevels)
+}
+
+func TestDefaultPreset_MemorySinkExists(t *testing.T) {
+	p := loadDefault(t)
+	_, ok := p.Sinks["memory"]
+	assert.True(t, ok, "default preset should have a 'memory' sink category")
 }

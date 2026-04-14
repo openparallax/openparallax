@@ -78,6 +78,14 @@ type Engine struct {
 	// messages on session close, startup catch-up, and shutdown.
 	summarizedAt map[string]int
 
+	// sessionTaint tracks the highest IFC sensitivity level seen per session.
+	// When the agent reads classified data, the session inherits that taint.
+	// Subsequent actions (especially external sinks like send_email) are
+	// checked against session taint even if the action itself has no path
+	// classification. In-memory only — clears on engine restart.
+	sessionTaint   map[string]ifc.SensitivityLevel
+	sessionTaintMu sync.RWMutex
+
 	backgroundCtx    context.Context
 	backgroundCancel context.CancelFunc
 	backgroundWG     sync.WaitGroup
@@ -289,8 +297,28 @@ func New(configPath string, verbose bool) (*Engine, error) {
 			ifcPolicy.Mode = override
 		}
 	}
+	// Memory block levels: IFC policy takes precedence, then config.yaml,
+	// then built-in default [critical, restricted].
+	if len(ifcPolicy.MemoryBlockLevels) == 0 && len(cfg.Security.MemoryBlockLevels) > 0 {
+		for _, name := range cfg.Security.MemoryBlockLevels {
+			switch strings.ToLower(name) {
+			case "critical":
+				ifcPolicy.MemoryBlockLevels = append(ifcPolicy.MemoryBlockLevels, ifc.SensitivityCritical)
+			case "restricted":
+				ifcPolicy.MemoryBlockLevels = append(ifcPolicy.MemoryBlockLevels, ifc.SensitivityRestricted)
+			case "confidential":
+				ifcPolicy.MemoryBlockLevels = append(ifcPolicy.MemoryBlockLevels, ifc.SensitivityConfidential)
+			case "internal":
+				ifcPolicy.MemoryBlockLevels = append(ifcPolicy.MemoryBlockLevels, ifc.SensitivityInternal)
+			}
+		}
+	}
+	if len(ifcPolicy.MemoryBlockLevels) == 0 {
+		ifcPolicy.MemoryBlockLevels = []ifc.SensitivityLevel{ifc.SensitivityCritical, ifc.SensitivityRestricted}
+	}
 	log.Info("ifc_policy_loaded", "path", ifcPolicyPath, "mode", string(ifcPolicy.Mode),
-		"sources", len(ifcPolicy.Sources), "sink_categories", len(ifcPolicy.Sinks))
+		"sources", len(ifcPolicy.Sources), "sink_categories", len(ifcPolicy.Sinks),
+		"memory_block_levels", len(ifcPolicy.MemoryBlockLevels))
 
 	eng := &Engine{
 		cfg:           cfg,
@@ -311,6 +339,7 @@ func New(configPath string, verbose bool) (*Engine, error) {
 		oauthManager:  oauthMgr,
 		broadcaster:   NewEventBroadcaster(),
 		summarizedAt:  make(map[string]int),
+		sessionTaint:  make(map[string]ifc.SensitivityLevel),
 	}
 	eng.backgroundCtx, eng.backgroundCancel = context.WithCancel(context.Background())
 
@@ -653,4 +682,29 @@ func resolveFilePath(path, configDir, workspace string) string {
 		}
 	}
 	return filepath.Join(configDir, path)
+}
+
+// recordSessionTaint upgrades the taint for a session to the given level.
+// Never downgrades — the highest sensitivity seen in a session sticks for
+// the session's lifetime.
+func (e *Engine) recordSessionTaint(sid string, level ifc.SensitivityLevel) {
+	e.sessionTaintMu.Lock()
+	defer e.sessionTaintMu.Unlock()
+	if level > e.sessionTaint[sid] {
+		e.sessionTaint[sid] = level
+	}
+}
+
+// getSessionTaint returns the highest sensitivity level seen in a session.
+func (e *Engine) getSessionTaint(sid string) ifc.SensitivityLevel {
+	e.sessionTaintMu.RLock()
+	defer e.sessionTaintMu.RUnlock()
+	return e.sessionTaint[sid]
+}
+
+// ClearSessionTaint removes taint for a session (e.g., on deletion).
+func (e *Engine) ClearSessionTaint(sid string) {
+	e.sessionTaintMu.Lock()
+	defer e.sessionTaintMu.Unlock()
+	delete(e.sessionTaint, sid)
 }

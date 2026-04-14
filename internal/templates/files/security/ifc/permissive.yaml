@@ -54,6 +54,8 @@ sources:
     sensitivity: public
     match: {}
 
+memory_block_levels: [critical]
+
 sinks:
   external:
     - http_request
@@ -61,9 +63,10 @@ sinks:
     - send_message
   exec:
     - execute_command
+  memory:
+    - memory_write
   workspace_write:
     - write_file
-    - memory_write
     - create_directory
     - move_file
     - copy_file
@@ -79,29 +82,34 @@ rules:
   public:
     external: allow
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
 
   internal:
     external: allow
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
 
   confidential:
     external: allow
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
 
   restricted:
     external: allow
     exec: allow
+    memory: allow
     workspace_write: allow
     workspace_read: allow
 
   critical:
     external: block
     exec: block
+    memory: block
     workspace_write: block
     workspace_read: block

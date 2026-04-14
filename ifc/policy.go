@@ -33,10 +33,11 @@ const (
 
 // Policy is a compiled IFC policy ready for evaluation.
 type Policy struct {
-	Mode    Mode
-	Sources []SourceRule
-	Sinks   map[string][]ActionType // category name → action types
-	Rules   map[SensitivityLevel]map[string]Decision
+	Mode              Mode
+	MemoryBlockLevels []SensitivityLevel // sensitivity levels that block memory_write
+	Sources           []SourceRule
+	Sinks             map[string][]ActionType // category name → action types
+	Rules             map[SensitivityLevel]map[string]Decision
 	// sinkLookup maps each action type to its category for O(1) Decide().
 	sinkLookup map[ActionType]string
 }
@@ -62,10 +63,11 @@ type SourceMatch struct {
 
 // rawPolicy is the YAML deserialization target.
 type rawPolicy struct {
-	Mode    string                       `yaml:"mode"`
-	Sources []SourceRule                 `yaml:"sources"`
-	Sinks   map[string][]string          `yaml:"sinks"`
-	Rules   map[string]map[string]string `yaml:"rules"`
+	Mode              string                       `yaml:"mode"`
+	MemoryBlockLevels []string                     `yaml:"memory_block_levels"`
+	Sources           []SourceRule                 `yaml:"sources"`
+	Sinks             map[string][]string          `yaml:"sinks"`
+	Rules             map[string]map[string]string `yaml:"rules"`
 }
 
 // LoadPolicy parses and validates an IFC policy from a YAML file.
@@ -88,6 +90,16 @@ func ParsePolicy(data []byte) (*Policy, error) {
 	mode := Mode(raw.Mode)
 	if mode != ModeEnforce && mode != ModeAudit {
 		return nil, fmt.Errorf("ifc policy: invalid mode %q (must be enforce or audit)", raw.Mode)
+	}
+
+	// Parse memory block levels.
+	var memoryBlockLevels []SensitivityLevel
+	for _, name := range raw.MemoryBlockLevels {
+		sl, err := parseSensitivity(name)
+		if err != nil {
+			return nil, fmt.Errorf("ifc policy memory_block_levels: %w", err)
+		}
+		memoryBlockLevels = append(memoryBlockLevels, sl)
 	}
 
 	// Parse source sensitivity levels.
@@ -141,35 +153,67 @@ func ParsePolicy(data []byte) (*Policy, error) {
 	}
 
 	return &Policy{
-		Mode:       mode,
-		Sources:    raw.Sources,
-		Sinks:      sinks,
-		Rules:      rules,
-		sinkLookup: sinkLookup,
+		Mode:              mode,
+		MemoryBlockLevels: memoryBlockLevels,
+		Sources:           raw.Sources,
+		Sinks:             sinks,
+		Rules:             rules,
+		sinkLookup:        sinkLookup,
 	}, nil
 }
+
+// ActivityLookup returns the sensitivity level for a path from the
+// persistent activity table, or -1 if not tracked. Passed by the engine
+// to ClassifyWithActivity so the IFC package stays decoupled from storage.
+type ActivityLookup func(path string) int
 
 // Classify returns the sensitivity classification for a path. First matching
 // source rule wins. Returns nil (public) if no rule matches or the path is empty.
 func (p *Policy) Classify(path string) *DataClassification {
+	return p.ClassifyWithActivity(path, nil)
+}
+
+// ClassifyWithActivity returns the sensitivity classification for a path,
+// consulting both the policy's source rules AND the persistent activity
+// table. The higher sensitivity wins. This enables cross-session IFC
+// enforcement: if classified data was previously written to a path, that
+// path carries the classification even though the policy's source rules
+// don't know about it.
+func (p *Policy) ClassifyWithActivity(path string, lookup ActivityLookup) *DataClassification {
 	if path == "" {
 		return nil
 	}
 	normalized := strings.ToLower(filepath.ToSlash(path))
 	base := filepath.Base(normalized)
 
+	// Check policy source rules first.
+	var policyCls *DataClassification
 	for _, rule := range p.Sources {
 		if matchSource(rule.Match, normalized, base) {
-			if rule.Sensitivity == SensitivityPublic {
-				return nil
+			if rule.Sensitivity != SensitivityPublic {
+				policyCls = &DataClassification{
+					Sensitivity: rule.Sensitivity,
+					SourcePath:  path,
+				}
 			}
-			return &DataClassification{
-				Sensitivity: rule.Sensitivity,
-				SourcePath:  path,
+			break
+		}
+	}
+
+	// Check activity table — take the higher sensitivity.
+	if lookup != nil {
+		activitySens := lookup(path)
+		if activitySens > 0 {
+			if policyCls == nil || SensitivityLevel(activitySens) > policyCls.Sensitivity {
+				return &DataClassification{
+					Sensitivity: SensitivityLevel(activitySens),
+					SourcePath:  path,
+				}
 			}
 		}
 	}
-	return nil
+
+	return policyCls
 }
 
 // Decide determines whether data with the given classification can flow to

@@ -24,9 +24,10 @@ type LoopConfig struct {
 
 // ToolProposal is a tool call the LLM wants to make.
 type ToolProposal struct {
-	CallID        string
-	ToolName      string
-	ArgumentsJSON string
+	CallID               string
+	ToolName             string
+	ArgumentsJSON        string
+	InheritedSensitivity int // highest IFC tag from previous tool results in this turn
 }
 
 // ToolResult is the engine's response to a tool proposal. When the tool
@@ -35,10 +36,11 @@ type ToolProposal struct {
 // active tool slice and the next provider call can actually expose them
 // to the LLM. NewTools is nil for ordinary executor tool results.
 type ToolResult struct {
-	CallID   string
-	Content  string
-	IsError  bool
-	NewTools []llm.ToolDefinition
+	CallID         string
+	Content        string
+	IsError        bool
+	NewTools       []llm.ToolDefinition
+	SensitivityTag int // IFC sensitivity inherited from the classified source (0=untagged)
 }
 
 // LoopEvent is an event emitted by the reasoning loop.
@@ -176,6 +178,7 @@ func RunLoop(
 	var toolResults []llm.ToolResult
 	var thoughts []types.Thought
 	var reasoningBuf strings.Builder
+	maxSensitivityTag := 0 // highest IFC tag from tool results in this message
 	// presentation accumulates the user-facing assistant content: every
 	// reasoning fragment in order, separated by blank lines, with the
 	// final answer appended last. Persisted as the assistant message
@@ -299,14 +302,16 @@ func RunLoop(
 				continue
 			}
 
-			// Propose tool call to Engine.
+			// Propose tool call to Engine, including the highest IFC
+			// sensitivity tag from previous tool results in this turn.
 			argsJSON := formatArgsJSON(tc.Arguments)
 			emit(LoopEvent{
 				Type: EventToolProposal,
 				Proposal: &ToolProposal{
-					CallID:        tc.ID,
-					ToolName:      tc.Name,
-					ArgumentsJSON: argsJSON,
+					CallID:               tc.ID,
+					ToolName:             tc.Name,
+					ArgumentsJSON:        argsJSON,
+					InheritedSensitivity: maxSensitivityTag,
 				},
 			})
 
@@ -319,6 +324,10 @@ func RunLoop(
 			case result, ok := <-resultCh:
 				if !ok {
 					return
+				}
+				// Track the highest sensitivity tag from tool results.
+				if result.SensitivityTag > maxSensitivityTag {
+					maxSensitivityTag = result.SensitivityTag
 				}
 				toolResults = append(toolResults, llm.ToolResult{
 					CallID:  result.CallID,

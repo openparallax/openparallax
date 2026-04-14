@@ -430,6 +430,35 @@ Remove an installed MCP server.
 openparallax mcp remove <name>
 ```
 
+## IFC (Information Flow Control)
+
+### `ifc list`
+
+List all paths tracked in the IFC activity table with their sensitivity classifications.
+
+```
+openparallax ifc list [name]
+```
+
+The activity table records files that the agent has written with classified data. Future reads of these files inherit the classification, even across sessions. See [IFC reference](/security/ifc#activity-table) for details.
+
+### `ifc sweep`
+
+Remove IFC activity table entries for files that no longer exist on disk.
+
+```
+openparallax ifc sweep [name]
+```
+
+Run this after deleting sensitive files to release their classifications. Sweep events are recorded in the audit chain.
+
+**Examples:**
+
+```bash
+openparallax ifc list                       # List all tracked paths
+openparallax ifc sweep                      # Clean up stale entries
+```
+
 ## Policy
 
 ### `policy`
