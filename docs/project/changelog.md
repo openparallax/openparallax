@@ -4,6 +4,28 @@ All notable changes to OpenParallax are documented here. This project follows [c
 
 ---
 
+## v0.1.1
+
+### Security
+
+- **IFC session taint** — the engine tracks the highest sensitivity level seen per session. External actions (`send_email`, `http_request`, `send_message`) with no file path are now checked against session taint, closing the gap where reading `.env` followed by sending an email was previously allowed.
+- **IFC activity table** — persistent SQLite table tracks classified write destinations across sessions. When the agent writes `.env` content to `notes.txt`, future reads of `notes.txt` inherit the classification. Prevents cross-session data laundering through intermediate files.
+- **Content sensitivity tags** — tool results carry sensitivity metadata through the gRPC protocol. Tags propagate through the LLM turn via `inherited_sensitivity` on tool proposals, closing within-turn propagation gaps.
+- **Memory write blocking** — `memory_write` is separated into its own IFC sink category. Configurable `memory_block_levels` (in the IFC policy or `config.yaml`) block memory writes when session taint reaches specified sensitivity levels. Default: `[critical, restricted]`.
+- **Sub-agent taint propagation** — sub-agent session taint propagates back to the parent session. Sub-agents cannot be used to launder data past IFC.
+
+### CLI
+
+- **`openparallax ifc list`** — list all paths tracked in the IFC activity table with their sensitivity classifications and source paths.
+- **`openparallax ifc sweep`** — remove activity table entries for files that no longer exist on disk. Logged as `IFCSweep` audit events.
+
+### Documentation
+
+- Rewrote [IFC reference](/security/ifc) with session taint, activity table, content tags, memory sink, preset matrices, and CLI command documentation.
+- Updated [Security Architecture](/security/), [Action Validation](/security/action-validation), [Hardening Guide](/security/hardening), [CLI Commands](/guide/cli), [Configuration Guide](/guide/configuration), and [Config Reference](/reference/config) with IFC enhancements.
+
+---
+
 ## v0.1.0 — Initial Release
 
 The first public release of OpenParallax. A reference implementation of the architecture described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf) (PDF, arXiv forthcoming).

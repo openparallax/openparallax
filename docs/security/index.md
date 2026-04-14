@@ -27,7 +27,7 @@ The [Threat Model](threat-model.md) maps each defense to specific threats from O
 
 ## Information Flow Control
 
-The [IFC reference](ifc.md) documents the policy-driven data classification and flow control system that prevents sensitive data from crossing sensitivity boundaries.
+The [IFC subsystem](ifc.md) prevents sensitive data from crossing sensitivity boundaries through three mechanisms: per-action classification from policy rules and a persistent activity table, session taint that propagates the highest sensitivity seen to all subsequent actions, and content sensitivity tags that carry classification metadata through the LLM turn. IFC also gates memory writes — data classified at configurable sensitivity levels cannot persist to agent memory, preventing cross-session data laundering via the memory system.
 
 ## Related Documentation
 

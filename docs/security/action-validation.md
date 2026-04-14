@@ -84,24 +84,34 @@ An operations engineer managing infrastructure can trust that even if the agent 
 
 ## Information Flow Control (IFC)
 
-**Threat:** Data at one sensitivity level (e.g., credentials, financial records, patient data) flowing to an action that would expose it to a lower-trust destination (e.g., HTTP request, email, shell command).
+**Threat:** Data at one sensitivity level (e.g., credentials, financial records, patient data) flowing to an action that would expose it to a lower-trust destination (e.g., HTTP request, email, shell command) — either directly, through an intermediate file, or via agent memory.
 
-**Defense:** A YAML-driven policy that classifies data sources by sensitivity and controls which sink categories each level can flow to. Three presets ship with OpenParallax:
+**Defense:** A YAML-driven policy with three enforcement layers:
+
+1. **Per-action classification** — file paths are classified by policy source rules and a persistent activity table. The decision matrix maps sensitivity levels to sink categories.
+2. **Session taint** — the highest sensitivity seen in a session propagates to all subsequent actions. An agent that reads `.env` (critical) cannot send email for the rest of the session, even though email actions have no file path to classify.
+3. **Content sensitivity tags** — tool results carry sensitivity metadata through the LLM turn. Tags are inherited by subsequent tool proposals, closing within-turn propagation gaps.
+
+Additionally, **memory writes are gated** by configurable `memory_block_levels` — when the session has seen data at a blocked sensitivity level, `memory_write` is rejected, preventing cross-session data laundering through the memory system.
+
+The **activity table** provides cross-session persistence: when the agent writes classified data to a file, the destination inherits the classification. Future reads of that file — in any session — are classified from the table. Stale entries (deleted files) are managed via `openparallax ifc sweep`.
+
+Three presets ship with OpenParallax:
 
 | Preset | Philosophy | Who it's for |
 |---|---|---|
-| `default` | Blocks credentials from external sinks; escalates restricted data | Most users |
+| `default` | Blocks credentials from external sinks; escalates restricted data; blocks memory writes for critical/restricted | Most users |
 | `permissive` | Only blocks critical data; everything else flows freely | Trusted single-user workstations |
-| `strict` | Blocks confidential+ data from writes and exec; default-deny | Regulated environments (healthcare, finance, legal) |
+| `strict` | Blocks confidential+ data from writes, exec, and memory; default-deny | Regulated environments (healthcare, finance, legal) |
 
-See [IFC reference](ifc.md) for the full schema and examples.
+See [IFC reference](ifc.md) for the full schema, worked examples, and CLI commands.
 
 **Relevant threats:**
 - OWASP LLM02: Sensitive Information Disclosure
 - CWE-200: Information Exposure
 - CWE-668: Exposure of Resource to Wrong Sphere
 
-**Code:** `ifc/policy.go`, `security/ifc/*.yaml`
+**Code:** `ifc/policy.go`, `internal/storage/ifc.go`, `security/ifc/*.yaml`
 
 **The IFC subsystem is non-negotiable** (it always runs). **The policy is fully tunable** via preset selection or custom YAML rules.
 

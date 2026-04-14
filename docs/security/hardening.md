@@ -34,9 +34,9 @@ Information Flow Control uses a YAML policy to classify data sources and control
 
 | Preset | File | Philosophy |
 |---|---|---|
-| **default** | `security/ifc/default.yaml` | Blocks credentials from external sinks (HTTP, email, messages). Escalates restricted data to human approval. Allows workspace reads, writes, and memory for most levels. |
-| **permissive** | `security/ifc/permissive.yaml` | Only critical data (SSH keys, `.env` files, cloud credentials) is blocked. Everything else flows freely. |
-| **strict** | `security/ifc/strict.yaml` | Includes medical, legal, and financial document patterns. Confidential data requires human approval for writes. Restricted data is hard-blocked from writes and execution. |
+| **default** | `security/ifc/default.yaml` | Blocks credentials from external sinks (HTTP, email, messages). Escalates restricted data to human approval. Blocks memory writes for critical/restricted. Session taint prevents data laundering across actions. |
+| **permissive** | `security/ifc/permissive.yaml` | Only critical data (SSH keys, `.env` files, cloud credentials) is blocked. Memory writes blocked only for critical. Everything else flows freely. |
+| **strict** | `security/ifc/strict.yaml` | Includes medical, legal, and financial document patterns. Confidential data requires human approval for writes and memory. Restricted data is hard-blocked from writes, execution, and memory. |
 
 **How to choose:**
 

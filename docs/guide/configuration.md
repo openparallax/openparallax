@@ -391,12 +391,16 @@ Security subsystem policy paths. The subsystems themselves (Shield, IFC) are non
 security:
   ifc_policy: security/ifc/default.yaml      # Path to IFC policy file
   override_mode: ""                           # "", "audit", or "enforce"
+  memory_block_levels:                        # Sensitivity levels that block memory writes
+    - critical
+    - restricted
 ```
 
 | Field | Description | Default |
 |-------|-------------|---------|
 | `ifc_policy` | Path to the IFC policy YAML file (relative to workspace). Three presets ship: `default`, `permissive`, `strict`. | `security/ifc/default.yaml` |
 | `override_mode` | Overrides the mode declared in the IFC policy file. Empty = use the policy's own mode. `audit` logs violations but doesn't block. `enforce` blocks violations. **Not settable via `/config set` — requires restart.** | `""` |
+| `memory_block_levels` | Sensitivity levels that block `memory_write` when the session has seen data at that level. Overridden by `memory_block_levels` in the IFC policy file if present. Empty = use the policy's setting or the built-in default `[critical, restricted]`. See [IFC reference](/security/ifc#memory_block_levels). | `[]` |
 
 ---
 
