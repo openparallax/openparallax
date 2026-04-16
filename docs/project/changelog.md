@@ -28,7 +28,7 @@ All notable changes to OpenParallax are documented here. This project follows [c
 
 ## v0.1.0 — Initial Release
 
-The first public release of OpenParallax. A reference implementation of the architecture described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf) (PDF, arXiv forthcoming).
+The first public release of OpenParallax. A reference implementation of the architecture described in [*Parallax: Why AI Agents That Think Must Never Act*](https://arxiv.org/abs/2604.12986) (arXiv:2604.12986).
 
 ### Architecture
 

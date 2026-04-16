@@ -251,4 +251,4 @@ The Agent makes LLM API calls. Those APIs could be compromised. The LLM could be
 
 This is defense in depth: the sandbox prevents unauthorized system access, Shield prevents dangerous actions, IFC prevents data exfiltration, Chronicle enables rollback, and Audit provides forensic evidence. No single layer is sufficient. Together, they make the system trustworthy.
 
-The composable module architecture and the strict separation between thinking (Agent) and acting (Engine) are grounded in the research presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf) (PDF, arXiv forthcoming).
+The composable module architecture and the strict separation between thinking (Agent) and acting (Engine) are grounded in the research presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://arxiv.org/abs/2604.12986) (arXiv:2604.12986).

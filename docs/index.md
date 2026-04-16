@@ -12,7 +12,7 @@ hero:
       link: /guide/
     - theme: alt
       text: Read the Paper
-      link: https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf
+      link: https://arxiv.org/abs/2604.12986
     - theme: alt
       text: Architecture
       link: /technical/
@@ -54,7 +54,7 @@ features:
 
 > *An agent that thinks and the system that acts must never be the same process.*
 
-OpenParallax is the reference implementation of the ideas presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf) (PDF, arXiv forthcoming). The central argument: giving an LLM direct execution capability is an architectural failure. The thinking process — which talks to external APIs and can be manipulated through prompt injection — must be physically separated from the execution process, with a security pipeline between them.
+OpenParallax is the reference implementation of the ideas presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://arxiv.org/abs/2604.12986) (arXiv:2604.12986). The central argument: giving an LLM direct execution capability is an architectural failure. The thinking process — which talks to external APIs and can be manipulated through prompt injection — must be physically separated from the execution process, with a security pipeline between them.
 
 In OpenParallax, the **Agent** (sandboxed, kernel-isolated) proposes actions. The **Engine** (privileged, unsandboxed) evaluates every proposal through a 4-tier security pipeline before executing anything. Even a fully compromised Agent cannot cause harm — the sandbox prevents unauthorized access, and Shield blocks dangerous actions.
 

@@ -21,7 +21,7 @@ A personal AI agent where the LLM is structurally incapable of executing anythin
 
 ---
 
-> **Research paper:** OpenParallax is a reference implementation of the *Parallax* paradigm, presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf) (PDF, arXiv forthcoming). The paper argues that prompt-level guardrails are architecturally insufficient for agents with execution capability. Safety requires structural enforcement: the system that reasons must be unable to act, the system that acts must be unable to reason, with an independent validator between them.
+> **Research paper:** OpenParallax is a reference implementation of the *Parallax* paradigm, presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://arxiv.org/abs/2604.12986) (arXiv:2604.12986). The paper argues that prompt-level guardrails are architecturally insufficient for agents with execution capability. Safety requires structural enforcement: the system that reasons must be unable to act, the system that acts must be unable to reason, with an independent validator between them.
 
 ## One Binary. Zero Dependencies. Any Platform.
 
