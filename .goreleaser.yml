@@ -190,9 +190,6 @@ release:
     name: openparallax
   prerelease: auto
   name_template: "{{ .Tag }}"
-  extra_files:
-    - glob: paper/parallax-paper.pdf
-
 signs:
   - cmd: cosign
     certificate: "${artifact}.pem"

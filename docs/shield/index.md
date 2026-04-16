@@ -8,7 +8,7 @@ description: OpenParallax Shield — a 4-tier AI security pipeline (policy, ONNX
 [Security Architecture — Action Validation](/security/action-validation) — how Shield fits into the full defense map.
 :::
 
-Shield is a 4-tier AI security pipeline that evaluates every tool call an LLM agent proposes before it executes. It catches prompt injection, blocks access to sensitive resources, and provides cryptographic proof of every security decision. Shield implements the security pipeline described in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf) (PDF, arXiv forthcoming).
+Shield is a 4-tier AI security pipeline that evaluates every tool call an LLM agent proposes before it executes. It catches prompt injection, blocks access to sensitive resources, and provides cryptographic proof of every security decision. Shield implements the security pipeline described in [*Parallax: Why AI Agents That Think Must Never Act*](https://arxiv.org/abs/2604.12986) (arXiv:2604.12986).
 
 Shield runs inside OpenParallax as the security core, but it is also a standalone product. You can drop it into any AI agent, any MCP server, any tool-calling pipeline — in Go, Python, Node.js, or as a standalone binary.
 

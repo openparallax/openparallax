@@ -8,7 +8,7 @@ OpenParallax is an open-source AI agent that runs on your machine, under your co
 
 Whether you're a developer automating code workflows, a researcher handling sensitive datasets, an analyst processing financial records, a legal team reviewing contracts, or a compliance officer evaluating AI tooling — OpenParallax is built so you don't have to trust the LLM to trust the system.
 
-OpenParallax is a reference implementation of the architecture proposed in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf) (PDF, arXiv forthcoming).
+OpenParallax is a reference implementation of the architecture proposed in [*Parallax: Why AI Agents That Think Must Never Act*](https://arxiv.org/abs/2604.12986) (arXiv:2604.12986).
 
 ## What You Get
 

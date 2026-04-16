@@ -29,7 +29,7 @@ openparallax start              (Process Manager)
 
 ## Why This Separation?
 
-The thinking/acting separation is the core architectural principle of OpenParallax, grounded in the theory presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://github.com/openparallax/openparallax/releases/download/v0.1.0/parallax-paper.pdf) (PDF, arXiv forthcoming).
+The thinking/acting separation is the core architectural principle of OpenParallax, grounded in the theory presented in [*Parallax: Why AI Agents That Think Must Never Act*](https://arxiv.org/abs/2604.12986) (arXiv:2604.12986).
 
 The Agent talks to external LLM APIs. If those APIs are compromised — or if the LLM is manipulated through prompt injection — the Agent could propose dangerous actions. By sandboxing the Agent and routing every action through the Engine's security pipeline, we ensure that even a fully compromised Agent cannot cause harm.
 
